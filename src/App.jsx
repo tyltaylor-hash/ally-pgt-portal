@@ -3582,35 +3582,19 @@ function AddUserModal({ clinics, onClose, onSave }) {
     try {
       const tempPassword = sendWelcomeEmail ? generateTempPassword() : formData.password
 
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: tempPassword,
-        options: {
-          data: {
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-          }
-        }
+      // Create user using server-side function (won't log out admin)
+      const { data: result, error: createError } = await supabase.rpc('create_user_as_admin', {
+        user_email: formData.email,
+        user_password: tempPassword,
+        user_first_name: formData.first_name,
+        user_last_name: formData.last_name,
+        user_clinic_id: formData.clinic_id || null,
+        user_role: formData.role
       })
 
-      if (authError) throw authError
+      if (createError) throw createError
 
-      // Create user record in users table
-      const { error: insertError } = await supabase.from('users').insert({
-        auth_id: authData.user.id,
-        email: formData.email,
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        clinic_id: formData.clinic_id || null,
-        role: formData.role,
-        is_active: true,
-        must_change_password: sendWelcomeEmail,
-      })
-
-      if (insertError) throw insertError
-
-      // If sending welcome email, send password reset email so they can set their own password
+      // If sending welcome email, send password reset email
       if (sendWelcomeEmail) {
         await supabase.auth.resetPasswordForEmail(formData.email, {
           redirectTo: window.location.origin + '/reset-password'
