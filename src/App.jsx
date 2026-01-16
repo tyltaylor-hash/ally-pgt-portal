@@ -2757,6 +2757,7 @@ function ClinicModal({ clinic, onClose, onSave }) {
   // Providers state
   const [providers, setProviders] = useState(clinic?.providers?.filter(p => p.is_active !== false) || [])
   const [newProvider, setNewProvider] = useState({ first_name: '', last_name: '', credentials: '', email: '', npi: '' })
+  const [providersToDelete, setProvidersToDelete] = useState([])
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target
@@ -2777,8 +2778,17 @@ function ClinicModal({ clinic, onClose, onSave }) {
     setNewProvider({ first_name: '', last_name: '', credentials: '', email: '', npi: '' })
   }
 
-  function removeProvider(index) {
-    setProviders(prev => prev.filter((_, i) => i !== index))
+  function removeProvider(provider, index) {
+    if (provider.is_new) {
+      // Just remove from the list (not saved yet)
+      setProviders(prev => prev.filter((_, i) => i !== index))
+    } else {
+      // Mark existing provider for deletion
+      if (confirm(`Are you sure you want to delete ${provider.first_name} ${provider.last_name}?`)) {
+        setProvidersToDelete(prev => [...prev, provider.id])
+        setProviders(prev => prev.filter((_, i) => i !== index))
+      }
+    }
   }
 
   async function handleSubmit(e) {
@@ -2811,7 +2821,12 @@ function ClinicModal({ clinic, onClose, onSave }) {
         providersToSave.push({ ...newProvider, is_new: true })
       }
 
-      // Handle providers
+      // Delete providers marked for removal (soft delete)
+      for (const providerId of providersToDelete) {
+        await supabase.from('providers').update({ is_active: false }).eq('id', providerId)
+      }
+
+      // Handle new providers
       for (const provider of providersToSave) {
         if (provider.is_new) {
           // Insert new provider
@@ -2971,15 +2986,13 @@ function ClinicModal({ clinic, onClose, onSave }) {
                         {provider.email && <p className="text-sm text-gray-500">{provider.email}</p>}
                         {provider.is_new && <span className="text-xs text-ally-teal">(New - will be saved with clinic)</span>}
                       </div>
-                      {provider.is_new && (
-                        <button
-                          type="button"
-                          onClick={() => removeProvider(index)}
-                          className="text-red-600 hover:text-red-800 text-sm"
-                        >
-                          Remove
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeProvider(provider, index)}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                      >
+                        Delete
+                      </button>
                     </div>
                   ))}
                 </div>
