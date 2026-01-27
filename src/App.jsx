@@ -2542,23 +2542,27 @@ function NewRequisitionPage() {
       setUploadingFile(false)
     }
 
-    // Prepare data for insertion - only include egg_donor_age if egg donor is selected
+    // Prepare data for insertion - only include fields that exist in the database
     const caseData = {
       clinic_id: userData.clinic_id,
       submitted_by_user_id: userData.id,
       status: 'consent_pending',
-      ...formData,
+      patient_first_name: formData.patient_first_name,
+      patient_last_name: formData.patient_last_name,
+      patient_dob: formData.patient_dob,
+      patient_email: formData.patient_email,
+      patient_phone: formData.patient_phone,
+      partner_first_name: formData.partner_first_name,
+      partner_last_name: formData.partner_last_name,
+      partner_dob: formData.partner_dob,
+      partner_email: formData.partner_email,
+      partner_phone: formData.partner_phone,
+      ordering_provider_id: formData.ordering_provider_id,
+      tests_ordered: formData.tests_ordered,
+      mask_sex_results: formData.mask_sex_results,
       karyotype_file_path,
       form_completed_date: new Date().toISOString(),
     }
-    
-    // Remove egg_donor_age if egg donor is not selected
-    if (!formData.is_egg_donor) {
-      delete caseData.egg_donor_age
-    }
-    
-    // Remove indication field (not in database schema yet)
-    delete caseData.indication
 
     const { data: newCase, error: insertError } = await supabase
       .from('cases')
