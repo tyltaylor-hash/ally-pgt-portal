@@ -3162,7 +3162,7 @@ function BiopsyWorksheetPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grade</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Embryologist BX</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Embryologist Tubing</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Indicate if Rebiopsy</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"></th>
               </tr>
             </thead>
@@ -3221,7 +3221,7 @@ function BiopsyWorksheetPage() {
                       type="text"
                       value={sample.notes}
                       onChange={(e) => handleSampleChange(currentDay, index, 'notes', e.target.value)}
-                      placeholder="Notes..."
+                      placeholder="Rebiopsy notes..."
                       className="w-32 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
                     />
                   </td>
