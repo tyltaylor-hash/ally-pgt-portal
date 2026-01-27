@@ -507,7 +507,7 @@ function ClinicLayout({ children }) {
           {!sidebarCollapsed && (
             <div className="flex flex-col">
               <span className="font-bold text-[#2D2A4A] text-sm leading-tight">Ally Genetics</span>
-              <span className="text-[10px] text-gray-500 leading-tight">Better Partnerships</span>
+              <span className="text-[10px] text-gray-500 leading-tight">Better Partnerships, Better Results</span>
             </div>
           )}
         </div>
