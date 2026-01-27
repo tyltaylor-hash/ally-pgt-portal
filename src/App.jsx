@@ -2556,6 +2556,9 @@ function NewRequisitionPage() {
     if (!formData.is_egg_donor) {
       delete caseData.egg_donor_age
     }
+    
+    // Remove indication field (not in database schema yet)
+    delete caseData.indication
 
     const { data: newCase, error: insertError } = await supabase
       .from('cases')
