@@ -3755,8 +3755,9 @@ function BiopsyWorksheetPage() {
     setSavingDraft(true)
     setError(null)
 
+    // Include ALL samples that have any data at all (not just sample_id or grade)
     const allSamples = [...worksheetData.samples[5], ...worksheetData.samples[6], ...worksheetData.samples[7]]
-      .filter(s => s.sample_id || s.grade)
+      .filter(s => s.sample_id || s.grade || s.embryologist_bx || s.embryologist_tubing || s.notes)
 
     const worksheetPayload = {
       case_id: worksheetData.case_id,
@@ -3767,52 +3768,58 @@ function BiopsyWorksheetPage() {
       submitted_by: userData.id,
     }
 
-    if (existingWorksheet) {
-      // Update existing worksheet
-      const { error: updateError } = await supabase
-        .from('biopsy_worksheets')
-        .update(worksheetPayload)
-        .eq('id', existingWorksheet.id)
+    try {
+      if (existingWorksheet) {
+        // Update existing worksheet
+        const { error: updateError } = await supabase
+          .from('biopsy_worksheets')
+          .update(worksheetPayload)
+          .eq('id', existingWorksheet.id)
 
-      if (updateError) {
-        console.error('Error updating draft:', updateError)
-        setError('Failed to save draft')
-        setSavingDraft(false)
-        return
-      }
-    } else {
-      // Create new worksheet
-      const { error: insertError } = await supabase
-        .from('biopsy_worksheets')
-        .insert(worksheetPayload)
+        if (updateError) {
+          console.error('Error updating draft:', updateError)
+          setError('Failed to save draft: ' + updateError.message)
+          setSavingDraft(false)
+          return
+        }
+      } else {
+        // Create new worksheet
+        const { error: insertError } = await supabase
+          .from('biopsy_worksheets')
+          .insert(worksheetPayload)
 
-      if (insertError) {
-        console.error('Error creating draft:', insertError)
-        setError('Failed to save draft')
-        setSavingDraft(false)
-        return
+        if (insertError) {
+          console.error('Error creating draft:', insertError)
+          setError('Failed to save draft: ' + insertError.message)
+          setSavingDraft(false)
+          return
+        }
       }
+
+      setSuccess('Draft saved! Ready for next patient.')
+      
+      // Clear the form
+      setSelectedCase(null)
+      setExistingWorksheet(null)
+      setLastSaved(null)
+      setWorksheetData({
+        case_id: '',
+        patient_name: '',
+        day5_date: new Date().toISOString().split('T')[0],
+        samples: {
+          5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
+          6: [],
+          7: []
+        }
+      })
+      
+      setSavingDraft(false)
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err) {
+      console.error('Unexpected error:', err)
+      setError('Unexpected error occurred')
+      setSavingDraft(false)
     }
-
-    setSuccess('Draft saved! Ready for next patient.')
-    
-    // Clear the form
-    setSelectedCase(null)
-    setExistingWorksheet(null)
-    setLastSaved(null)
-    setWorksheetData({
-      case_id: '',
-      patient_name: '',
-      day5_date: new Date().toISOString().split('T')[0],
-      samples: {
-        5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
-        6: [],
-        7: []
-      }
-    })
-    
-    setSavingDraft(false)
-    setTimeout(() => setSuccess(null), 3000)
   }
 
   async function submitWorksheet() {
@@ -3843,62 +3850,70 @@ function BiopsyWorksheetPage() {
     setLoading(true)
     setError(null)
 
+    // Include ALL samples that have any data
     const allSamples = [...worksheetData.samples[5], ...worksheetData.samples[6], ...worksheetData.samples[7]]
+      .filter(s => s.sample_id || s.grade || s.embryologist_bx || s.embryologist_tubing || s.notes)
 
     const worksheetPayload = {
       case_id: worksheetData.case_id,
       clinic_id: userData.clinic_id,
       day5_date: worksheetData.day5_date,
-      samples: allSamples.filter(s => s.sample_id || s.grade),
+      samples: allSamples,
       status: 'submitted',
       submitted_by: userData.id,
       submitted_at: new Date().toISOString()
     }
 
-    if (existingWorksheet) {
-      // Update existing worksheet to submitted
-      const { error: updateError } = await supabase
-        .from('biopsy_worksheets')
-        .update(worksheetPayload)
-        .eq('id', existingWorksheet.id)
+    try {
+      if (existingWorksheet) {
+        // Update existing worksheet to submitted
+        const { error: updateError } = await supabase
+          .from('biopsy_worksheets')
+          .update(worksheetPayload)
+          .eq('id', existingWorksheet.id)
 
-      if (updateError) {
-        console.error('Error submitting worksheet:', updateError)
-        setError('Failed to submit worksheet')
-        setLoading(false)
-        return
-      }
-    } else {
-      // Create new worksheet as submitted
-      const { error: insertError } = await supabase
-        .from('biopsy_worksheets')
-        .insert(worksheetPayload)
+        if (updateError) {
+          console.error('Error submitting worksheet:', updateError)
+          setError('Failed to submit worksheet: ' + updateError.message)
+          setLoading(false)
+          return
+        }
+      } else {
+        // Create new worksheet as submitted
+        const { error: insertError } = await supabase
+          .from('biopsy_worksheets')
+          .insert(worksheetPayload)
 
-      if (insertError) {
-        console.error('Error submitting worksheet:', insertError)
-        setError('Failed to submit worksheet')
-        setLoading(false)
-        return
+        if (insertError) {
+          console.error('Error submitting worksheet:', insertError)
+          setError('Failed to submit worksheet: ' + insertError.message)
+          setLoading(false)
+          return
+        }
       }
+      
+      setSuccess('Biopsy worksheet submitted successfully!')
+      setLoading(false)
+      
+      // Reset form
+      setSelectedCase(null)
+      setExistingWorksheet(null)
+      setLastSaved(null)
+      setWorksheetData({
+        case_id: '',
+        patient_name: '',
+        day5_date: new Date().toISOString().split('T')[0],
+        samples: {
+          5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
+          6: [],
+          7: []
+        }
+      })
+    } catch (err) {
+      console.error('Unexpected error:', err)
+      setError('Unexpected error occurred')
+      setLoading(false)
     }
-    
-    setSuccess('Biopsy worksheet submitted successfully!')
-    setLoading(false)
-    
-    // Reset form
-    setSelectedCase(null)
-    setExistingWorksheet(null)
-    setLastSaved(null)
-    setWorksheetData({
-      case_id: '',
-      patient_name: '',
-      day5_date: new Date().toISOString().split('T')[0],
-      samples: {
-        5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
-        6: [],
-        7: []
-      }
-    })
   }
 
   async function unlockWorksheet() {
@@ -4352,18 +4367,9 @@ function BiopsyWorksheetPage() {
         {existingWorksheet?.status !== 'submitted' && (
           <>
             <button
-              onClick={saveDraft}
-              disabled={savingDraft || !selectedCase}
-              className="flex items-center gap-2 border border-ally-teal text-ally-teal px-6 py-2 rounded-md hover:bg-ally-teal hover:text-white disabled:opacity-50"
-            >
-              {savingDraft && <Loader2 className="w-4 h-4 animate-spin" />}
-              <Save className="w-4 h-4" />
-              Save Draft
-            </button>
-            <button
               onClick={saveDraftAndClear}
               disabled={savingDraft || !selectedCase}
-              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              className="flex items-center gap-2 border border-ally-teal text-ally-teal px-6 py-2 rounded-md hover:bg-ally-teal hover:text-white disabled:opacity-50"
             >
               {savingDraft && <Loader2 className="w-4 h-4 animate-spin" />}
               <Save className="w-4 h-4" />
