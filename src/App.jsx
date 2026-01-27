@@ -5,7 +5,7 @@ import {
   LayoutDashboard, FileText, Building2, Package, Users, LogOut, Plus, 
   Clock, CheckCircle, AlertCircle, Search, ChevronRight, Loader2, Eye, X, Mail, Key,
   BarChart3, Phone, MapPin, Calendar, Filter, Download, User, Settings, Upload, FileUp,
-  ClipboardList, Save, Trash2, Printer, Check
+  ClipboardList, Save, Trash2, Printer, Check, Unlock
 } from 'lucide-react'
 
 // ============================================================================
@@ -3548,6 +3548,7 @@ function LabStatisticsPage() {
 function BiopsyWorksheetPage() {
   const { supabase, userData } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [cases, setCases] = useState([])
@@ -3555,11 +3556,14 @@ function BiopsyWorksheetPage() {
   const [currentDay, setCurrentDay] = useState(5)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [caseSearch, setCaseSearch] = useState('')
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [pendingCase, setPendingCase] = useState(null)
+  const [existingWorksheet, setExistingWorksheet] = useState(null)
+  const [lastSaved, setLastSaved] = useState(null)
   
   const [worksheetData, setWorksheetData] = useState({
     case_id: '',
     patient_name: '',
-    embryologist: '',
     day5_date: new Date().toISOString().split('T')[0],
     samples: {
       5: Array(5).fill(null).map((_, i) => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
@@ -3585,15 +3589,69 @@ function BiopsyWorksheetPage() {
   }
 
   function handleCaseSelect(caseId) {
+    if (!caseId) return
     const selectedCaseData = cases.find(c => c.id === caseId)
     if (selectedCaseData) {
-      setSelectedCase(selectedCaseData)
-      setWorksheetData(prev => ({
-        ...prev,
-        case_id: caseId,
-        patient_name: `${selectedCaseData.patient_first_name} ${selectedCaseData.patient_last_name}`
-      }))
+      setPendingCase(selectedCaseData)
+      setShowConfirmModal(true)
     }
+  }
+
+  async function confirmCaseSelection() {
+    if (pendingCase) {
+      setSelectedCase(pendingCase)
+      
+      // Check if a worksheet already exists for this case
+      const { data: worksheets } = await supabase
+        .from('biopsy_worksheets')
+        .select('*')
+        .eq('case_id', pendingCase.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      
+      if (worksheets && worksheets.length > 0) {
+        const worksheet = worksheets[0]
+        setExistingWorksheet(worksheet)
+        setLastSaved(worksheet.updated_at || worksheet.created_at)
+        
+        // Load existing data
+        const allSamples = worksheet.samples || []
+        setWorksheetData({
+          case_id: pendingCase.id,
+          patient_name: `${pendingCase.patient_first_name} ${pendingCase.patient_last_name}`,
+          day5_date: worksheet.day5_date,
+          samples: {
+            5: allSamples.filter(s => s.day === '5' || s.day === 5).concat(
+              Array(Math.max(0, 5 - allSamples.filter(s => s.day === '5' || s.day === 5).length))
+                .fill(null)
+                .map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' }))
+            ),
+            6: allSamples.filter(s => s.day === '6' || s.day === 6),
+            7: allSamples.filter(s => s.day === '7' || s.day === 7)
+          }
+        })
+      } else {
+        setExistingWorksheet(null)
+        setLastSaved(null)
+        setWorksheetData(prev => ({
+          ...prev,
+          case_id: pendingCase.id,
+          patient_name: `${pendingCase.patient_first_name} ${pendingCase.patient_last_name}`
+        }))
+      }
+      
+      setShowConfirmModal(false)
+      setPendingCase(null)
+    }
+  }
+
+  function cancelCaseSelection() {
+    setShowConfirmModal(false)
+    setPendingCase(null)
+    setWorksheetData(prev => ({
+      ...prev,
+      case_id: ''
+    }))
   }
 
   function handleSampleChange(dayIndex, sampleIndex, field, value) {
@@ -3621,7 +3679,69 @@ function BiopsyWorksheetPage() {
     })
   }
 
-  async function handleSubmit() {
+  async function saveDraft() {
+    if (!worksheetData.case_id) {
+      setError('Please select a case')
+      return
+    }
+    if (!worksheetData.day5_date) {
+      setError('Please enter a date')
+      return
+    }
+
+    setSavingDraft(true)
+    setError(null)
+
+    const allSamples = [...worksheetData.samples[5], ...worksheetData.samples[6], ...worksheetData.samples[7]]
+      .filter(s => s.sample_id || s.grade)
+
+    const worksheetPayload = {
+      case_id: worksheetData.case_id,
+      clinic_id: userData.clinic_id,
+      day5_date: worksheetData.day5_date,
+      samples: allSamples,
+      status: 'draft',
+      submitted_by: userData.id,
+    }
+
+    if (existingWorksheet) {
+      // Update existing worksheet
+      const { error: updateError } = await supabase
+        .from('biopsy_worksheets')
+        .update(worksheetPayload)
+        .eq('id', existingWorksheet.id)
+
+      if (updateError) {
+        console.error('Error updating draft:', updateError)
+        setError('Failed to save draft')
+      } else {
+        setSuccess('Draft saved successfully!')
+        setLastSaved(new Date().toISOString())
+        setTimeout(() => setSuccess(null), 3000)
+      }
+    } else {
+      // Create new worksheet
+      const { data: newWorksheet, error: insertError } = await supabase
+        .from('biopsy_worksheets')
+        .insert(worksheetPayload)
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error('Error creating draft:', insertError)
+        setError('Failed to save draft')
+      } else {
+        setExistingWorksheet(newWorksheet)
+        setSuccess('Draft saved successfully!')
+        setLastSaved(new Date().toISOString())
+        setTimeout(() => setSuccess(null), 3000)
+      }
+    }
+
+    setSavingDraft(false)
+  }
+
+  async function submitWorksheet() {
     if (!worksheetData.case_id) {
       setError('Please select a case')
       return
@@ -3642,21 +3762,41 @@ function BiopsyWorksheetPage() {
     setLoading(true)
     setError(null)
 
-    // Save worksheet to database
-    const { error: insertError } = await supabase
-      .from('biopsy_worksheets')
-      .insert({
-        case_id: worksheetData.case_id,
-        clinic_id: userData.clinic_id,
-        embryologist: worksheetData.embryologist,
-        day5_date: worksheetData.day5_date,
-        samples: allSamples.filter(s => s.sample_id || s.grade),
-        submitted_by: userData.id,
-      })
+    const worksheetPayload = {
+      case_id: worksheetData.case_id,
+      clinic_id: userData.clinic_id,
+      day5_date: worksheetData.day5_date,
+      samples: allSamples.filter(s => s.sample_id || s.grade),
+      status: 'submitted',
+      submitted_by: userData.id,
+      submitted_at: new Date().toISOString()
+    }
 
-    if (insertError) {
-      // If table doesn't exist, just show success (demo mode)
-      console.log('Note: biopsy_worksheets table may not exist yet', insertError)
+    if (existingWorksheet) {
+      // Update existing worksheet to submitted
+      const { error: updateError } = await supabase
+        .from('biopsy_worksheets')
+        .update(worksheetPayload)
+        .eq('id', existingWorksheet.id)
+
+      if (updateError) {
+        console.error('Error submitting worksheet:', updateError)
+        setError('Failed to submit worksheet')
+        setLoading(false)
+        return
+      }
+    } else {
+      // Create new worksheet as submitted
+      const { error: insertError } = await supabase
+        .from('biopsy_worksheets')
+        .insert(worksheetPayload)
+
+      if (insertError) {
+        console.error('Error submitting worksheet:', insertError)
+        setError('Failed to submit worksheet')
+        setLoading(false)
+        return
+      }
     }
     
     setSuccess('Biopsy worksheet submitted successfully!')
@@ -3664,10 +3804,11 @@ function BiopsyWorksheetPage() {
     
     // Reset form
     setSelectedCase(null)
+    setExistingWorksheet(null)
+    setLastSaved(null)
     setWorksheetData({
       case_id: '',
       patient_name: '',
-      embryologist: '',
       day5_date: new Date().toISOString().split('T')[0],
       samples: {
         5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
@@ -3675,6 +3816,23 @@ function BiopsyWorksheetPage() {
         7: []
       }
     })
+  }
+
+  async function unlockWorksheet() {
+    if (!existingWorksheet) return
+
+    const { error: updateError } = await supabase
+      .from('biopsy_worksheets')
+      .update({ status: 'draft' })
+      .eq('id', existingWorksheet.id)
+
+    if (updateError) {
+      setError('Failed to unlock worksheet')
+    } else {
+      setExistingWorksheet({ ...existingWorksheet, status: 'draft' })
+      setSuccess('Worksheet unlocked for editing')
+      setTimeout(() => setSuccess(null), 3000)
+    }
   }
 
   const currentSamples = worksheetData.samples[currentDay] || []
@@ -3882,7 +4040,7 @@ function BiopsyWorksheetPage() {
 
       {/* Header Info */}
       <div className="bg-white rounded-lg border p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Select Case *</label>
             <div className="relative">
@@ -3915,7 +4073,7 @@ function BiopsyWorksheetPage() {
                 })
                 .map(c => (
                   <option key={c.id} value={c.id}>
-                    {c.case_number} - {c.patient_first_name} {c.patient_last_name} ({c.status?.replace(/_/g, ' ')})
+                    {c.patient_first_name} {c.patient_last_name} - {new Date(c.patient_dob).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}
                   </option>
                 ))
               }
@@ -3930,16 +4088,6 @@ function BiopsyWorksheetPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Embryologist</label>
-            <input
-              type="text"
-              value={worksheetData.embryologist}
-              onChange={(e) => setWorksheetData(prev => ({ ...prev, embryologist: e.target.value }))}
-              placeholder="Name"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-            />
-          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -3950,9 +4098,55 @@ function BiopsyWorksheetPage() {
               value={worksheetData.day5_date}
               onChange={(e) => setWorksheetData(prev => ({ ...prev, day5_date: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              disabled={existingWorksheet?.status === 'submitted'}
             />
           </div>
         </div>
+
+        {/* Worksheet Status Indicator */}
+        {selectedCase && (
+          <div className="mt-4 flex items-center justify-between p-3 bg-gray-50 rounded-md border">
+            <div className="flex items-center gap-3">
+              {existingWorksheet?.status === 'submitted' ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <span className="text-sm font-medium text-green-700">Worksheet Submitted</span>
+                  </div>
+                  {existingWorksheet.submitted_at && (
+                    <span className="text-xs text-gray-500">
+                      on {new Date(existingWorksheet.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </span>
+                  )}
+                </>
+              ) : existingWorksheet?.status === 'draft' && lastSaved ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-yellow-600" />
+                    <span className="text-sm font-medium text-yellow-700">Draft</span>
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    Last saved: {new Date(lastSaved).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  </span>
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-gray-400" />
+                  <span className="text-sm font-medium text-gray-600">New Worksheet</span>
+                </div>
+              )}
+            </div>
+            {existingWorksheet?.status === 'submitted' && (
+              <button
+                onClick={unlockWorksheet}
+                className="flex items-center gap-1 px-3 py-1 text-xs bg-white border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700"
+              >
+                <Unlock className="w-3 h-3" />
+                Unlock to Edit
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Sample Table */}
@@ -3961,7 +4155,8 @@ function BiopsyWorksheetPage() {
           <h2 className="font-semibold text-gray-900">Sample Details</h2>
           <button
             onClick={() => addSampleRow(currentDay)}
-            className="flex items-center gap-2 text-ally-teal hover:text-ally-teal-dark text-sm font-medium"
+            disabled={existingWorksheet?.status === 'submitted'}
+            className="flex items-center gap-2 text-ally-teal hover:text-ally-teal-dark text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" />
             Add Sample Row
@@ -3990,14 +4185,16 @@ function BiopsyWorksheetPage() {
                       value={sample.sample_id}
                       onChange={(e) => handleSampleChange(currentDay, index, 'sample_id', e.target.value)}
                       placeholder={`S${index + 1}`}
-                      className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                      disabled={existingWorksheet?.status === 'submitted'}
+                      className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </td>
                   <td className="px-4 py-2">
                     <select
                       value={sample.day}
                       onChange={(e) => handleSampleChange(currentDay, index, 'day', e.target.value)}
-                      className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                      disabled={existingWorksheet?.status === 'submitted'}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
                       <option value="5">Day 5</option>
                       <option value="6">Day 6</option>
@@ -4010,7 +4207,8 @@ function BiopsyWorksheetPage() {
                       value={sample.grade}
                       onChange={(e) => handleSampleChange(currentDay, index, 'grade', e.target.value)}
                       placeholder="e.g., 4AA"
-                      className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                      disabled={existingWorksheet?.status === 'submitted'}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </td>
                   <td className="px-4 py-2">
@@ -4019,7 +4217,8 @@ function BiopsyWorksheetPage() {
                       value={sample.embryologist_bx}
                       onChange={(e) => handleSampleChange(currentDay, index, 'embryologist_bx', e.target.value)}
                       placeholder="Initials"
-                      className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                      disabled={existingWorksheet?.status === 'submitted'}
+                      className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </td>
                   <td className="px-4 py-2">
@@ -4028,7 +4227,8 @@ function BiopsyWorksheetPage() {
                       value={sample.embryologist_tubing}
                       onChange={(e) => handleSampleChange(currentDay, index, 'embryologist_tubing', e.target.value)}
                       placeholder="Initials"
-                      className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                      disabled={existingWorksheet?.status === 'submitted'}
+                      className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </td>
                   <td className="px-4 py-2">
@@ -4037,13 +4237,15 @@ function BiopsyWorksheetPage() {
                       value={sample.notes}
                       onChange={(e) => handleSampleChange(currentDay, index, 'notes', e.target.value)}
                       placeholder="Rebiopsy notes..."
-                      className="w-32 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                      disabled={existingWorksheet?.status === 'submitted'}
+                      className="w-32 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </td>
                   <td className="px-4 py-2">
                     <button
                       onClick={() => removeSampleRow(currentDay, index)}
-                      className="text-gray-400 hover:text-red-500"
+                      disabled={existingWorksheet?.status === 'submitted'}
+                      className="text-gray-400 hover:text-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -4063,16 +4265,91 @@ function BiopsyWorksheetPage() {
       </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-end">
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="flex items-center gap-2 bg-ally-teal text-white px-6 py-2 rounded-md hover:bg-ally-teal-dark disabled:opacity-50"
-        >
-          {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-          Submit Worksheet
-        </button>
+      <div className="flex items-center justify-end gap-3">
+        {existingWorksheet?.status !== 'submitted' && (
+          <>
+            <button
+              onClick={saveDraft}
+              disabled={savingDraft || !selectedCase}
+              className="flex items-center gap-2 border border-ally-teal text-ally-teal px-6 py-2 rounded-md hover:bg-ally-teal hover:text-white disabled:opacity-50"
+            >
+              {savingDraft && <Loader2 className="w-4 h-4 animate-spin" />}
+              <Save className="w-4 h-4" />
+              Save Draft
+            </button>
+            <button
+              onClick={submitWorksheet}
+              disabled={loading || !selectedCase}
+              className="flex items-center gap-2 bg-ally-teal text-white px-6 py-2 rounded-md hover:bg-ally-teal-dark disabled:opacity-50"
+            >
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              <CheckCircle className="w-4 h-4" />
+              Submit Worksheet
+            </button>
+          </>
+        )}
+        {existingWorksheet?.status === 'submitted' && (
+          <div className="text-sm text-gray-500 italic">
+            Worksheet is submitted and locked. Click "Unlock to Edit" above to make changes.
+          </div>
+        )}
       </div>
+
+      {/* Patient Confirmation Modal */}
+      {showConfirmModal && pendingCase && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="px-6 py-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Confirm Patient Selection</h3>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Patient Name</p>
+                <p className="text-base text-gray-900">{pendingCase.patient_first_name} {pendingCase.patient_last_name}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Date of Birth</p>
+                <p className="text-base text-gray-900">{new Date(pendingCase.patient_dob).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Case Number</p>
+                <p className="text-base text-gray-900">{pendingCase.case_number}</p>
+              </div>
+              {pendingCase.partner_first_name && (
+                <>
+                  <div className="pt-2 border-t">
+                    <p className="text-sm font-medium text-gray-500">Partner Name</p>
+                    <p className="text-base text-gray-900">{pendingCase.partner_first_name} {pendingCase.partner_last_name}</p>
+                  </div>
+                </>
+              )}
+              {pendingCase.ordering_provider && (
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Ordering Provider</p>
+                  <p className="text-base text-gray-900">
+                    {pendingCase.ordering_provider.first_name} {pendingCase.ordering_provider.last_name}
+                    {pendingCase.ordering_provider.credentials && `, ${pendingCase.ordering_provider.credentials}`}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex gap-3 justify-end">
+              <button
+                onClick={cancelCaseSelection}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmCaseSelection}
+                className="px-4 py-2 bg-ally-teal text-white rounded-md hover:bg-ally-teal-dark"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Printable Worksheet (hidden on screen, visible on print) */}
       {selectedCase && <PrintableWorksheet />}
