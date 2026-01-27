@@ -2893,6 +2893,7 @@ function BiopsyWorksheetPage() {
   const [cases, setCases] = useState([])
   const [selectedCase, setSelectedCase] = useState(null)
   const [currentDay, setCurrentDay] = useState(5)
+  const [showPrintPreview, setShowPrintPreview] = useState(false)
   
   const [worksheetData, setWorksheetData] = useState({
     case_id: '',
@@ -2900,7 +2901,7 @@ function BiopsyWorksheetPage() {
     embryologist: '',
     day5_date: new Date().toISOString().split('T')[0],
     samples: {
-      5: Array(5).fill(null).map((_, i) => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', notes: '' })),
+      5: Array(5).fill(null).map((_, i) => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
       6: [],
       7: []
     }
@@ -2915,7 +2916,7 @@ function BiopsyWorksheetPage() {
   async function fetchCases() {
     const { data } = await supabase
       .from('cases')
-      .select('id, case_number, patient_first_name, patient_last_name')
+      .select('id, case_number, patient_first_name, patient_last_name, patient_dob, partner_first_name, partner_last_name, partner_dob, is_egg_donor, egg_donor_age, is_sperm_donor, ordering_provider:providers(first_name, last_name, credentials), clinic:clinics(name)')
       .eq('clinic_id', userData.clinic_id)
       .in('status', ['samples_received', 'in_progress'])
       .order('created_at', { ascending: false })
@@ -2948,7 +2949,7 @@ function BiopsyWorksheetPage() {
   function addSampleRow(day) {
     setWorksheetData(prev => {
       const newSamples = { ...prev.samples }
-      newSamples[day] = [...newSamples[day], { sample_id: '', day: day.toString(), grade: '', embryologist_bx: '', embryologist_tubing: '', notes: '' }]
+      newSamples[day] = [...newSamples[day], { sample_id: '', day: day.toString(), grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' }]
       return { ...prev, samples: newSamples }
     })
   }
@@ -2989,7 +2990,7 @@ function BiopsyWorksheetPage() {
         ...prev,
         day5_date: new Date().toISOString().split('T')[0],
         samples: {
-          5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', notes: '' })),
+          5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
           6: [],
           7: []
         }
@@ -3049,7 +3050,7 @@ function BiopsyWorksheetPage() {
       embryologist: '',
       day5_date: new Date().toISOString().split('T')[0],
       samples: {
-        5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', notes: '' })),
+        5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
         6: [],
         7: []
       }
@@ -3057,6 +3058,175 @@ function BiopsyWorksheetPage() {
   }
 
   const currentSamples = worksheetData.samples[currentDay] || []
+
+  // Helper function to format dates in American format (M/D/YYYY)
+  const formatDateUS = (dateString) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    // Check if date is valid
+    if (isNaN(date.getTime())) return ''
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'numeric', 
+      day: 'numeric' 
+    })
+  }
+
+  // Printable Worksheet Component
+  const PrintableWorksheet = () => {
+    const allSamples = [...worksheetData.samples[5], ...worksheetData.samples[6], ...worksheetData.samples[7]].filter(s => s.sample_id || s.grade)
+    
+    return (
+      <div className="printable-worksheet hidden print:block">
+        <style>{`
+          @media print {
+            .printable-worksheet { display: block !important; }
+            body * { visibility: hidden; }
+            .printable-worksheet, .printable-worksheet * { visibility: visible; }
+            .printable-worksheet { position: absolute; left: 0; top: 0; width: 100%; }
+            @page { margin: 0.5in; }
+          }
+        `}</style>
+        
+        <div className="bg-white p-8 font-sans text-sm">
+          {/* Header with Logo */}
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center">
+                <span className="text-white text-2xl font-bold">AG</span>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-800">Ally Genetics</div>
+                <div className="text-xs text-gray-600">Better Partnerships. Better Results.</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Title */}
+          <div className="bg-gradient-to-r from-indigo-900 to-indigo-800 text-white text-center py-3 mb-4">
+            <h1 className="text-xl font-bold">PGT Biopsy Worksheet</h1>
+          </div>
+
+          {/* Patient Information */}
+          <div className="border-2 border-gray-800 mb-4">
+            <div className="grid grid-cols-2 border-b border-gray-800">
+              <div className="p-2 border-r border-gray-800">
+                <span className="font-semibold">Patient name (Last, First): </span>
+                {selectedCase ? `${selectedCase.patient_last_name}, ${selectedCase.patient_first_name}` : ''}
+              </div>
+              <div className="p-2">
+                <span className="font-semibold">DOB: </span>
+                {formatDateUS(selectedCase?.patient_dob)}
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 border-b border-gray-800">
+              <div className="p-2 border-r border-gray-800">
+                <span className="font-semibold">Partner name (Last, First): </span>
+                {selectedCase?.partner_last_name ? `${selectedCase.partner_last_name}, ${selectedCase.partner_first_name}` : ''}
+              </div>
+              <div className="p-2">
+                <span className="font-semibold">DOB: </span>
+                {formatDateUS(selectedCase?.partner_dob)}
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-3 border-b border-gray-800">
+              <div className="p-2 border-r border-gray-800">
+                <span className="font-semibold">Donor gametes (circle one): </span>
+                <span className={selectedCase?.is_egg_donor || selectedCase?.is_sperm_donor ? 'font-bold' : ''}>Y</span> / 
+                <span className={!selectedCase?.is_egg_donor && !selectedCase?.is_sperm_donor ? 'font-bold' : ''}>N</span>
+              </div>
+              <div className="p-2 border-r border-gray-800">
+                <span className="font-semibold">Egg donor age: </span>
+                {selectedCase?.egg_donor_age || '_______'}
+              </div>
+              <div className="p-2">
+                <span className="font-semibold">Sperm donor age: </span>
+                _______
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 border-b border-gray-800">
+              <div className="p-2 border-r border-gray-800">
+                <span className="font-semibold">Clinic name: </span>
+                {selectedCase?.clinic?.name || userData?.clinic?.name || ''}
+              </div>
+              <div className="p-2">
+                <span className="font-semibold">Ordering Provider: </span>
+                {selectedCase?.ordering_provider 
+                  ? `${selectedCase.ordering_provider.first_name} ${selectedCase.ordering_provider.last_name}${selectedCase.ordering_provider.credentials ? ', ' + selectedCase.ordering_provider.credentials : ''}`
+                  : ''}
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 border-gray-800">
+              <div className="p-2 border-r border-gray-800">
+                <span className="font-semibold">Day-5 date: </span>
+                {formatDateUS(worksheetData.day5_date)}
+              </div>
+              <div className="p-2">
+                <span className="font-semibold">Buffer Lot: </span>
+                _______________
+              </div>
+            </div>
+          </div>
+
+          <div className="text-xs mb-4 italic">
+            <strong>Note:</strong> If a rebiopsy of a previously tested embryo is included, please specify the original collection tube code (e.g. rebiopsy of AABCE) in the comments.
+          </div>
+
+          {/* Biopsy Information Table */}
+          <div className="mb-4">
+            <h2 className="text-center font-bold mb-2">Biopsy Information</h2>
+            <table className="w-full border-2 border-gray-800 text-xs">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border border-gray-800 p-1 font-semibold">Sample ID</th>
+                  <th className="border border-gray-800 p-1 font-semibold">Embryo<br/>Grade</th>
+                  <th className="border border-gray-800 p-1 font-semibold">Biopsy<br/>Day</th>
+                  <th className="border border-gray-800 p-1 font-semibold">Biopsy<br/>Embryologist<br/>Initials</th>
+                  <th className="border border-gray-800 p-1 font-semibold">Tube Loading<br/>Embryologist<br/>Initials</th>
+                  <th className="border border-gray-800 p-1 font-semibold">Comments</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array(20).fill(null).map((_, idx) => {
+                  const sample = allSamples[idx]
+                  return (
+                    <tr key={idx}>
+                      <td className="border border-gray-800 p-2 h-16">{sample?.sample_id || ''}</td>
+                      <td className="border border-gray-800 p-2 h-16">{sample?.grade || ''}</td>
+                      <td className="border border-gray-800 p-2 h-16">{sample?.day || ''}</td>
+                      <td className="border border-gray-800 p-2 h-16">{sample?.embryologist_bx || ''}</td>
+                      <td className="border border-gray-800 p-2 h-16">{sample?.embryologist_tubing || ''}</td>
+                      <td className="border border-gray-800 p-2 h-16">{sample?.notes || ''}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Footer */}
+          <div className="grid grid-cols-2 text-xs">
+            <div className="bg-gradient-to-r from-indigo-900 to-indigo-800 text-white p-2">
+              <div>phone: (616) 465-2400</div>
+              <div>fax: (616) 616-5887</div>
+            </div>
+            <div className="bg-gradient-to-r from-teal-500 to-teal-400 text-white p-2">
+              <div>email: lab@allygenetics.com</div>
+              <div>web: www.allygenetics.com</div>
+            </div>
+            <div className="col-span-2 bg-white text-right pr-2 pt-1">
+              <div className="text-teal-600">1001 Parchment Dr SE</div>
+              <div className="text-teal-600">Grand Rapids, MI 49546</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -3067,10 +3237,12 @@ function BiopsyWorksheetPage() {
         </div>
         <button
           onClick={() => window.print()}
-          className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+          disabled={!selectedCase}
+          className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          title={!selectedCase ? "Select a case first" : "Print worksheet"}
         >
           <Printer className="w-4 h-4" />
-          Print
+          Print Worksheet
         </button>
       </div>
 
@@ -3274,6 +3446,9 @@ function BiopsyWorksheetPage() {
           </button>
         </div>
       </div>
+
+      {/* Printable Worksheet (hidden on screen, visible on print) */}
+      {selectedCase && <PrintableWorksheet />}
     </div>
   )
 }
