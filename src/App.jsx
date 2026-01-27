@@ -732,6 +732,8 @@ function ClinicDashboard() {
   const { supabase, userData } = useAuth()
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCase, setSelectedCase] = useState(null)
 
   useEffect(() => {
     if (userData?.clinic_id) {
@@ -747,11 +749,21 @@ function ClinicDashboard() {
       .select('*')
       .eq('clinic_id', userData.clinic_id)
       .order('created_at', { ascending: false })
-      .limit(5)
 
     setCases(allCases || [])
     setLoading(false)
   }
+
+  const filteredCases = cases.filter(c => {
+    if (!searchTerm) return true
+    const search = searchTerm.toLowerCase()
+    return (
+      c.patient_first_name?.toLowerCase().includes(search) ||
+      c.patient_last_name?.toLowerCase().includes(search) ||
+      c.case_number?.toLowerCase().includes(search) ||
+      c.patient_email?.toLowerCase().includes(search)
+    )
+  })
 
   const quickActions = [
     { name: 'New Requisition', description: 'Submit a new PGT case', href: '/clinic/cases/new', icon: Plus, iconBg: 'bg-ally-teal/10', iconColor: 'text-ally-teal' },
@@ -802,33 +814,234 @@ function ClinicDashboard() {
         </div>
       </div>
 
-      {/* Recent Cases */}
+      {/* Cases / Patient Records */}
       <div className="bg-white rounded-lg border">
-        <div className="px-6 py-4 border-b flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Recent Cases</h2>
-          <Link to="/clinic/cases" className="text-sm text-ally-teal hover:underline">View all →</Link>
+        <div className="px-6 py-4 border-b">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">Patient Cases</h2>
+              <p className="text-sm text-gray-500">{cases.length} total cases</p>
+            </div>
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by name, case #, or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ally-teal w-full sm:w-72"
+              />
+            </div>
+          </div>
         </div>
-        <div className="divide-y">
-          {cases.length > 0 ? cases.map((c) => (
-            <Link key={c.id} to={`/clinic/cases/${c.id}`} className="block px-6 py-4 hover:bg-gray-50">
+        <div className="divide-y max-h-96 overflow-y-auto">
+          {filteredCases.length > 0 ? filteredCases.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setSelectedCase(c)}
+              className="w-full text-left px-6 py-4 hover:bg-gray-50 transition-colors"
+            >
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{c.patient_last_name}, {c.patient_first_name}</p>
-                  <p className="text-sm text-gray-500">{c.case_number} • {new Date(c.created_at).toLocaleDateString()}</p>
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-ally-teal/10 rounded-full flex items-center justify-center">
+                    <User className="w-5 h-5 text-ally-teal" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{c.patient_last_name}, {c.patient_first_name}</p>
+                    <p className="text-sm text-gray-500">{c.case_number} • {new Date(c.created_at).toLocaleDateString()}</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <StatusBadge status={c.status} />
                   <ChevronRight className="w-4 h-4 text-gray-400" />
                 </div>
               </div>
-            </Link>
+            </button>
           )) : (
             <div className="px-6 py-12 text-center text-gray-500">
               <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p>No cases yet.</p>
-              <Link to="/clinic/cases/new" className="text-ally-teal hover:underline">Submit your first requisition →</Link>
+              {searchTerm ? (
+                <p>No cases found matching "{searchTerm}"</p>
+              ) : (
+                <>
+                  <p>No cases yet.</p>
+                  <Link to="/clinic/cases/new" className="text-ally-teal hover:underline">Submit your first requisition →</Link>
+                </>
+              )}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Patient Folder Modal */}
+      {selectedCase && (
+        <PatientFolderModal 
+          caseData={selectedCase} 
+          onClose={() => setSelectedCase(null)} 
+          supabase={supabase}
+        />
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
+// PATIENT FOLDER MODAL
+// ============================================================================
+function PatientFolderModal({ caseData, onClose, supabase }) {
+  const [downloading, setDownloading] = useState(null)
+
+  const documents = [
+    { 
+      id: 'requisition', 
+      name: 'Requisition Form', 
+      description: 'Original test requisition submission',
+      icon: FileText,
+      available: true 
+    },
+    { 
+      id: 'consent', 
+      name: 'Patient Consent', 
+      description: 'Signed consent documentation',
+      icon: CheckCircle,
+      available: caseData.status !== 'consent_pending'
+    },
+    { 
+      id: 'genetic_consult', 
+      name: 'Genetic Consult', 
+      description: 'Genetic counseling notes',
+      icon: Users,
+      available: !!caseData.genetic_consult_file
+    },
+    { 
+      id: 'biopsy_worksheet', 
+      name: 'Biopsy Worksheet', 
+      description: 'Embryo biopsy details',
+      icon: ClipboardList,
+      available: !!caseData.biopsy_worksheet_file
+    },
+    { 
+      id: 'report', 
+      name: 'PGT Report', 
+      description: 'Final testing results',
+      icon: BarChart3,
+      available: caseData.status === 'report_ready' || caseData.status === 'complete'
+    },
+  ]
+
+  async function handleDownload(docType) {
+    setDownloading(docType)
+    
+    // For now, navigate to case details page where files can be accessed
+    // In production, this would download actual files from Supabase storage
+    setTimeout(() => {
+      setDownloading(null)
+      // You can implement actual file download logic here
+      alert(`Download ${docType} - This will be connected to your file storage`)
+    }, 500)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+        {/* Header */}
+        <div className="px-6 py-4 border-b flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-ally-teal/10 rounded-full flex items-center justify-center">
+              <User className="w-6 h-6 text-ally-teal" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {caseData.patient_first_name} {caseData.patient_last_name}
+              </h2>
+              <p className="text-sm text-gray-500">{caseData.case_number}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Patient Info */}
+        <div className="px-6 py-4 bg-gray-50 border-b">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-gray-500">DOB:</span>
+              <span className="ml-2 font-medium">{caseData.patient_dob ? new Date(caseData.patient_dob).toLocaleDateString() : 'N/A'}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Status:</span>
+              <span className="ml-2"><StatusBadge status={caseData.status} /></span>
+            </div>
+            <div>
+              <span className="text-gray-500">Email:</span>
+              <span className="ml-2 font-medium">{caseData.patient_email || 'N/A'}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Submitted:</span>
+              <span className="ml-2 font-medium">{new Date(caseData.created_at).toLocaleDateString()}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Documents */}
+        <div className="px-6 py-4">
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">Patient Documents</h3>
+          <div className="space-y-2">
+            {documents.map((doc) => (
+              <div
+                key={doc.id}
+                className={`flex items-center justify-between p-3 rounded-lg border ${
+                  doc.available ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    doc.available ? 'bg-ally-teal/10' : 'bg-gray-100'
+                  }`}>
+                    <doc.icon className={`w-5 h-5 ${doc.available ? 'text-ally-teal' : 'text-gray-400'}`} />
+                  </div>
+                  <div>
+                    <p className={`font-medium ${doc.available ? 'text-gray-900' : 'text-gray-400'}`}>{doc.name}</p>
+                    <p className={`text-xs ${doc.available ? 'text-gray-500' : 'text-gray-400'}`}>{doc.description}</p>
+                  </div>
+                </div>
+                {doc.available ? (
+                  <button
+                    onClick={() => handleDownload(doc.id)}
+                    disabled={downloading === doc.id}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-ally-teal hover:bg-ally-teal/10 rounded-md transition-colors disabled:opacity-50"
+                  >
+                    {downloading === doc.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    Download
+                  </button>
+                ) : (
+                  <span className="text-xs text-gray-400 px-3">Not available</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t bg-gray-50 rounded-b-xl flex justify-between">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+          >
+            Close
+          </button>
+          <Link
+            to={`/clinic/cases/${caseData.id}`}
+            className="flex items-center gap-2 px-4 py-2 bg-ally-teal text-white rounded-md hover:bg-ally-teal-dark font-medium"
+          >
+            View Full Details
+            <ChevronRight className="w-4 h-4" />
+          </Link>
         </div>
       </div>
     </div>
