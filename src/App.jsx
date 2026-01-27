@@ -13,7 +13,21 @@ import {
 // ============================================================================
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-const supabase = createClient(supabaseUrl, supabaseKey)
+
+// HIPAA Compliant Configuration:
+// - Auth tokens can persist (they don't contain PHI)
+// - Session will timeout after 30 minutes of inactivity
+// - All patient data stored server-side only
+// - No PHI in localStorage
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true, // Allow session persistence for better UX
+    detectSessionInUrl: true,
+    // Session expires after 30 minutes of inactivity (HIPAA compliant)
+    // Users will need to re-authenticate after this period
+  }
+})
 
 // ============================================================================
 // AUTH CONTEXT
@@ -26,6 +40,41 @@ function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [impersonating, setImpersonating] = useState(null) // stores impersonated user data
   const [realUserData, setRealUserData] = useState(null) // stores real user when impersonating
+
+  // HIPAA Compliance: Auto-logout after 30 minutes of inactivity
+  useEffect(() => {
+    let inactivityTimer = null
+    const INACTIVITY_TIMEOUT = 30 * 60 * 1000 // 30 minutes in milliseconds
+
+    function resetInactivityTimer() {
+      if (inactivityTimer) clearTimeout(inactivityTimer)
+      
+      if (user) {
+        inactivityTimer = setTimeout(async () => {
+          console.log('Session expired due to inactivity')
+          await supabase.auth.signOut()
+        }, INACTIVITY_TIMEOUT)
+      }
+    }
+
+    // Track user activity
+    const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click']
+    
+    activityEvents.forEach(event => {
+      document.addEventListener(event, resetInactivityTimer)
+    })
+
+    // Start the timer
+    resetInactivityTimer()
+
+    // Cleanup
+    return () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer)
+      activityEvents.forEach(event => {
+        document.removeEventListener(event, resetInactivityTimer)
+      })
+    }
+  }, [user])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -2932,8 +2981,6 @@ function BiopsyWorksheetPage() {
         case_id: caseId,
         patient_name: `${selectedCaseData.patient_first_name} ${selectedCaseData.patient_last_name}`
       }))
-      // Try to load existing draft
-      loadDraft(caseId)
     }
   }
 
@@ -2960,42 +3007,6 @@ function BiopsyWorksheetPage() {
       newSamples[day] = newSamples[day].filter((_, i) => i !== index)
       return { ...prev, samples: newSamples }
     })
-  }
-
-  function saveDraft() {
-    if (!worksheetData.case_id) {
-      setError('Please select a case first')
-      return
-    }
-    localStorage.setItem(`worksheet_draft_${worksheetData.case_id}`, JSON.stringify(worksheetData))
-    setSuccess('Draft saved successfully!')
-    setTimeout(() => setSuccess(null), 3000)
-  }
-
-  function loadDraft(caseId) {
-    const saved = localStorage.getItem(`worksheet_draft_${caseId}`)
-    if (saved) {
-      const data = JSON.parse(saved)
-      setWorksheetData(data)
-      setSuccess('Draft loaded from previous session')
-      setTimeout(() => setSuccess(null), 3000)
-    }
-  }
-
-  function clearDraft() {
-    if (!worksheetData.case_id) return
-    if (confirm('Clear all worksheet data? This cannot be undone.')) {
-      localStorage.removeItem(`worksheet_draft_${worksheetData.case_id}`)
-      setWorksheetData(prev => ({
-        ...prev,
-        day5_date: new Date().toISOString().split('T')[0],
-        samples: {
-          5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
-          6: [],
-          7: []
-        }
-      }))
-    }
   }
 
   async function handleSubmit() {
@@ -3035,9 +3046,6 @@ function BiopsyWorksheetPage() {
       // If table doesn't exist, just show success (demo mode)
       console.log('Note: biopsy_worksheets table may not exist yet', insertError)
     }
-
-    // Clear the draft
-    localStorage.removeItem(`worksheet_draft_${worksheetData.case_id}`)
     
     setSuccess('Biopsy worksheet submitted successfully!')
     setLoading(false)
@@ -3420,31 +3428,15 @@ function BiopsyWorksheetPage() {
       </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-end">
         <button
-          onClick={clearDraft}
-          className="flex items-center gap-2 px-4 py-2 text-red-600 hover:text-red-700 font-medium"
+          onClick={handleSubmit}
+          disabled={loading}
+          className="flex items-center gap-2 bg-ally-teal text-white px-6 py-2 rounded-md hover:bg-ally-teal-dark disabled:opacity-50"
         >
-          <Trash2 className="w-4 h-4" />
-          Clear All
+          {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+          Submit Worksheet
         </button>
-        <div className="flex gap-3">
-          <button
-            onClick={saveDraft}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-          >
-            <Save className="w-4 h-4" />
-            Save Draft
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex items-center gap-2 bg-ally-teal text-white px-6 py-2 rounded-md hover:bg-ally-teal-dark disabled:opacity-50"
-          >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            Submit Worksheet
-          </button>
-        </div>
       </div>
 
       {/* Printable Worksheet (hidden on screen, visible on print) */}
