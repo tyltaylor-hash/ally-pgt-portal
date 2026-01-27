@@ -5,7 +5,7 @@ import {
   LayoutDashboard, FileText, Building2, Package, Users, LogOut, Plus, 
   Clock, CheckCircle, AlertCircle, Search, ChevronRight, Loader2, Eye, X, Mail, Key,
   BarChart3, Phone, MapPin, Calendar, Filter, Download, User, Settings, Upload, FileUp,
-  ClipboardList, Save, Trash2, Printer
+  ClipboardList, Save, Trash2, Printer, Check
 } from 'lucide-react'
 
 // ============================================================================
@@ -2549,9 +2549,6 @@ function ClinicCasesPage() {
 // ============================================================================
 function OrderSuppliesPage() {
   const { supabase, userData } = useAuth()
-  const [orders, setOrders] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showOrderForm, setShowOrderForm] = useState(false)
   const [orderForm, setOrderForm] = useState({
     biopsy_collection_kits: 0,
     shipping_containers: 0,
@@ -2560,30 +2557,14 @@ function OrderSuppliesPage() {
     notes: ''
   })
   const [submitting, setSubmitting] = useState(false)
-
-  useEffect(() => {
-    if (userData?.clinic_id) {
-      fetchOrders()
-    } else if (userData) {
-      setLoading(false)
-    }
-  }, [userData])
-
-  async function fetchOrders() {
-    const { data } = await supabase
-      .from('kit_orders')
-      .select('*')
-      .eq('clinic_id', userData.clinic_id)
-      .order('created_at', { ascending: false })
-    setOrders(data || [])
-    setLoading(false)
-  }
+  const [success, setSuccess] = useState(false)
 
   async function handleSubmitOrder(e) {
     e.preventDefault()
     setSubmitting(true)
 
-    await supabase.from('kit_orders').insert({
+    // Save order to database
+    const { data: newOrder } = await supabase.from('kit_orders').insert({
       clinic_id: userData.clinic_id,
       ordered_by_user_id: userData.id,
       status: 'pending',
@@ -2592,25 +2573,46 @@ function OrderSuppliesPage() {
         shipping_containers: orderForm.shipping_containers,
         collection_tubes: orderForm.collection_tubes,
       },
-      shipping_address: orderForm.shipping_address,
+      shipping_address: orderForm.shipping_address || userData.clinic?.address || '',
       notes: orderForm.notes,
-    })
+    }).select().single()
+
+    // Send email notification to lab@allygenetics.com using Resend via Edge Function
+    try {
+      await supabase.functions.invoke('send-order-notification', {
+        body: {
+          to: 'lab@allygenetics.com',
+          clinic_name: userData.clinic?.name || 'Unknown Clinic',
+          clinic_contact: userData.email || '',
+          order_id: newOrder?.id || 'N/A',
+          items: {
+            biopsy_collection_kits: orderForm.biopsy_collection_kits,
+            shipping_containers: orderForm.shipping_containers,
+            collection_tubes: orderForm.collection_tubes,
+          },
+          shipping_address: orderForm.shipping_address || userData.clinic?.address || 'Use clinic default address',
+          notes: orderForm.notes || 'None',
+        }
+      })
+      console.log('Order notification sent successfully')
+    } catch (error) {
+      console.log('Email notification error:', error)
+      // Continue anyway - order is saved in database
+    }
 
     setSubmitting(false)
-    setShowOrderForm(false)
-    setOrderForm({ biopsy_collection_kits: 0, shipping_containers: 0, collection_tubes: 0, shipping_address: '', notes: '' })
-    fetchOrders()
+    setSuccess(true)
   }
 
-  const orderStatusColors = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    processing: 'bg-blue-100 text-blue-800',
-    shipped: 'bg-purple-100 text-purple-800',
-    delivered: 'bg-green-100 text-green-800',
-  }
-
-  if (loading) {
-    return <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-ally-teal" /></div>
+  function handleNewOrder() {
+    setSuccess(false)
+    setOrderForm({ 
+      biopsy_collection_kits: 0, 
+      shipping_containers: 0, 
+      collection_tubes: 0, 
+      shipping_address: '', 
+      notes: '' 
+    })
   }
 
   if (!userData?.clinic_id) {
@@ -2623,135 +2625,102 @@ function OrderSuppliesPage() {
     )
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Order Supplies</h1>
-          <p className="text-gray-500">Request collection kits and supplies</p>
-        </div>
-        <button
-          onClick={() => setShowOrderForm(true)}
-          className="flex items-center gap-2 bg-ally-teal text-white px-4 py-2 rounded-md hover:bg-ally-teal-dark"
-        >
-          <Plus className="w-4 h-4" />
-          New Order
-        </button>
-      </div>
-
-      {/* Order Form Modal */}
-      {showOrderForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-lg mx-4">
-            <div className="px-6 py-4 border-b">
-              <h2 className="text-lg font-semibold">Order Supplies</h2>
-            </div>
-            <form onSubmit={handleSubmitOrder} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Biopsy Collection Kits</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={orderForm.biopsy_collection_kits}
-                  onChange={(e) => setOrderForm(f => ({ ...f, biopsy_collection_kits: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Shipping Containers</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={orderForm.shipping_containers}
-                  onChange={(e) => setOrderForm(f => ({ ...f, shipping_containers: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Collection Tubes (PCR tubes)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={orderForm.collection_tubes}
-                  onChange={(e) => setOrderForm(f => ({ ...f, collection_tubes: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Shipping Address</label>
-                <textarea
-                  value={orderForm.shipping_address}
-                  onChange={(e) => setOrderForm(f => ({ ...f, shipping_address: e.target.value }))}
-                  rows={3}
-                  placeholder="Enter shipping address or leave blank to use clinic default address"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                <textarea
-                  value={orderForm.notes}
-                  onChange={(e) => setOrderForm(f => ({ ...f, notes: e.target.value }))}
-                  rows={2}
-                  placeholder="Any special instructions..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                />
-              </div>
-              <div className="flex justify-end gap-3 pt-4">
-                <button type="button" onClick={() => setShowOrderForm(false)} className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting || (orderForm.biopsy_collection_kits === 0 && orderForm.shipping_containers === 0 && orderForm.collection_tubes === 0)}
-                  className="flex items-center gap-2 bg-ally-teal text-white px-4 py-2 rounded-md hover:bg-ally-teal-dark disabled:opacity-50"
-                >
-                  {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Submit Order
-                </button>
-              </div>
-            </form>
+  if (success) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Check className="w-8 h-8 text-green-600" />
           </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">We Have Received Your Order</h2>
+          <p className="text-gray-600 mb-6">
+            Your supply order has been submitted successfully. The Ally Genetics lab team will process your order and send out your kits shortly.
+          </p>
+          <button
+            onClick={handleNewOrder}
+            className="bg-ally-teal text-white px-6 py-2 rounded-md hover:bg-ally-teal-dark"
+          >
+            Place Another Order
+          </button>
         </div>
-      )}
+      </div>
+    )
+  }
 
-      {/* Orders List */}
-      <div className="bg-white rounded-lg border">
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="bg-white rounded-lg shadow-sm border">
         <div className="px-6 py-4 border-b">
-          <h2 className="font-semibold">Order History</h2>
+          <h2 className="text-lg font-semibold text-ally-navy">Order Supplies</h2>
+          <p className="text-sm text-gray-600 mt-1">Request collection kits and supplies for your clinic</p>
         </div>
-        <div className="divide-y divide-gray-200">
-          {orders.length > 0 ? orders.map((order) => (
-            <div key={order.id} className="px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-gray-900">
-                    {order.order_number || `Order #${order.id.slice(0, 8)}`}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {new Date(order.created_at).toLocaleDateString()} • 
-                    {order.items?.biopsy_collection_kits > 0 && ` ${order.items.biopsy_collection_kits} kits`}
-                    {order.items?.shipping_containers > 0 && ` ${order.items.shipping_containers} containers`}
-                    {order.items?.collection_tubes > 0 && ` ${order.items.collection_tubes} tubes`}
-                  </div>
-                </div>
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${orderStatusColors[order.status] || 'bg-gray-100 text-gray-800'}`}>
-                  {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
-                </span>
-              </div>
-              {order.tracking_number && (
-                <div className="mt-2 text-sm text-gray-500">
-                  Tracking: <span className="text-ally-teal">{order.tracking_number}</span>
-                </div>
-              )}
-            </div>
-          )) : (
-            <div className="px-6 py-12 text-center text-gray-500">
-              <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p>No orders yet.</p>
-            </div>
-          )}
-        </div>
+        <form onSubmit={handleSubmitOrder} className="p-6 space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Biopsy Collection Kits</label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.biopsy_collection_kits}
+              onChange={(e) => setOrderForm(f => ({ ...f, biopsy_collection_kits: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Shipping Containers</label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.shipping_containers}
+              onChange={(e) => setOrderForm(f => ({ ...f, shipping_containers: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Collection Tubes (PCR tubes)</label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.collection_tubes}
+              onChange={(e) => setOrderForm(f => ({ ...f, collection_tubes: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Shipping Address</label>
+            <textarea
+              value={orderForm.shipping_address}
+              onChange={(e) => setOrderForm(f => ({ ...f, shipping_address: e.target.value }))}
+              rows={3}
+              placeholder="Enter shipping address or leave blank to use clinic default address"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+            <textarea
+              value={orderForm.notes}
+              onChange={(e) => setOrderForm(f => ({ ...f, notes: e.target.value }))}
+              rows={3}
+              placeholder="Any special instructions or additional items needed..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          
+          <div className="flex justify-end pt-4">
+            <button
+              type="submit"
+              disabled={submitting || (orderForm.biopsy_collection_kits === 0 && orderForm.shipping_containers === 0 && orderForm.collection_tubes === 0)}
+              className="flex items-center gap-2 bg-ally-teal text-white px-6 py-3 rounded-md hover:bg-ally-teal-dark disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              Submit Order
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )
