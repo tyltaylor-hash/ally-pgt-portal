@@ -731,7 +731,6 @@ function AdminDashboard() {
 function ClinicDashboard() {
   const { supabase, userData } = useAuth()
   const [cases, setCases] = useState([])
-  const [counts, setCounts] = useState({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -750,29 +749,9 @@ function ClinicDashboard() {
       .order('created_at', { ascending: false })
       .limit(5)
 
-    const { data: statusData } = await supabase
-      .from('cases')
-      .select('status')
-      .eq('clinic_id', userData.clinic_id)
-    
-    const statusCounts = {
-      consent_pending: statusData?.filter(c => c.status === 'consent_pending').length || 0,
-      samples_received: statusData?.filter(c => c.status === 'samples_received' || c.status === 'consent_complete').length || 0,
-      in_progress: statusData?.filter(c => c.status === 'in_progress').length || 0,
-      report_ready: statusData?.filter(c => c.status === 'report_ready').length || 0,
-    }
-
     setCases(allCases || [])
-    setCounts(statusCounts)
     setLoading(false)
   }
-
-  const statCards = [
-    { label: 'Pending Consent', value: counts.consent_pending || 0, icon: Clock, color: 'bg-yellow-100 text-yellow-600' },
-    { label: 'Awaiting Samples', value: counts.samples_received || 0, icon: AlertCircle, color: 'bg-cyan-100 text-cyan-600' },
-    { label: 'In Progress', value: counts.in_progress || 0, icon: Loader2, color: 'bg-purple-100 text-purple-600' },
-    { label: 'Reports Ready', value: counts.report_ready || 0, icon: CheckCircle, color: 'bg-green-100 text-green-600' },
-  ]
 
   const quickActions = [
     { name: 'New Requisition', description: 'Submit a new PGT case', href: '/clinic/cases/new', icon: Plus, iconBg: 'bg-ally-teal/10', iconColor: 'text-ally-teal' },
@@ -819,22 +798,6 @@ function ClinicDashboard() {
               <h4 className="font-semibold text-gray-900 mb-1">{action.name}</h4>
               <p className="text-sm text-gray-500">{action.description}</p>
             </Link>
-          ))}
-        </div>
-      </div>
-
-      {/* Case Overview */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Case Overview</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {statCards.map((stat) => (
-            <div key={stat.label} className="bg-white rounded-lg border p-4">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-3 ${stat.color}`}>
-                <stat.icon className="w-5 h-5" />
-              </div>
-              <p className="text-2xl font-bold">{stat.value}</p>
-              <p className="text-sm text-gray-500">{stat.label}</p>
-            </div>
           ))}
         </div>
       </div>
