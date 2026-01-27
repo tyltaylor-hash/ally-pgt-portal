@@ -768,10 +768,17 @@ function ClinicDashboard() {
   }
 
   const statCards = [
-    { label: 'Pending Consent', value: counts.consent_pending || 0, icon: Clock, color: 'bg-yellow-50 text-yellow-600' },
-    { label: 'Awaiting Samples', value: counts.samples_received || 0, icon: AlertCircle, color: 'bg-blue-50 text-blue-600' },
-    { label: 'In Progress', value: counts.in_progress || 0, icon: Loader2, color: 'bg-purple-50 text-purple-600' },
-    { label: 'Reports Ready', value: counts.report_ready || 0, icon: CheckCircle, color: 'bg-green-50 text-green-600' },
+    { label: 'Pending Consent', value: counts.consent_pending || 0, icon: Clock, color: 'bg-yellow-100 text-yellow-600' },
+    { label: 'Awaiting Samples', value: counts.samples_received || 0, icon: AlertCircle, color: 'bg-cyan-100 text-cyan-600' },
+    { label: 'In Progress', value: counts.in_progress || 0, icon: Loader2, color: 'bg-purple-100 text-purple-600' },
+    { label: 'Reports Ready', value: counts.report_ready || 0, icon: CheckCircle, color: 'bg-green-100 text-green-600' },
+  ]
+
+  const quickActions = [
+    { name: 'New Requisition', description: 'Submit a new PGT case', href: '/clinic/cases/new', icon: Plus, bgColor: 'bg-ally-teal', borderColor: 'border-ally-teal', bgLight: 'bg-ally-teal/5' },
+    { name: 'Biopsy Worksheet', description: 'Document embryo details', href: '/clinic/worksheet', icon: ClipboardList, bgColor: 'bg-purple-500', borderColor: 'border-purple-300', bgLight: 'bg-purple-50' },
+    { name: 'Order Supplies', description: 'Request kits & materials', href: '/clinic/orders', icon: Package, bgColor: 'bg-orange-500', borderColor: 'border-gray-200', bgLight: 'bg-gray-50' },
+    { name: 'Lab Statistics', description: 'View performance metrics', href: '/clinic/stats', icon: BarChart3, bgColor: 'bg-blue-500', borderColor: 'border-gray-200', bgLight: 'bg-gray-50' },
   ]
 
   if (loading) {
@@ -790,59 +797,86 @@ function ClinicDashboard() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500">Welcome back! Here's an overview of your cases.</p>
-        </div>
-        <Link
-          to="/clinic/cases/new"
-          className="flex items-center gap-2 bg-ally-teal text-white px-4 py-2 rounded-md hover:bg-ally-teal-dark"
-        >
-          <Plus className="w-4 h-4" />
-          New Requisition
-        </Link>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-gray-500">Welcome back! Here's an overview of your cases.</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((stat) => (
-          <div key={stat.label} className="bg-white rounded-lg border p-4">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${stat.color}`}>
-              <stat.icon className="w-5 h-5" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column - Quick Actions */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-xl border p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">What do you need to do today?</h3>
+            <p className="text-sm text-gray-500 mb-6">Select an action to get started</p>
+            
+            <div className="space-y-3">
+              {quickActions.map((action) => (
+                <Link
+                  key={action.name}
+                  to={action.href}
+                  className={`flex items-center gap-4 p-4 ${action.bgLight} border-2 ${action.borderColor} rounded-lg hover:shadow-md transition-all`}
+                >
+                  <div className={`w-10 h-10 ${action.bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                    <action.icon className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900">{action.name}</h4>
+                    <p className="text-xs text-gray-500">{action.description}</p>
+                  </div>
+                </Link>
+              ))}
             </div>
-            <p className="text-2xl font-bold">{stat.value}</p>
-            <p className="text-sm text-gray-500">{stat.label}</p>
           </div>
-        ))}
-      </div>
-
-      <div className="bg-white rounded-lg border">
-        <div className="px-6 py-4 border-b flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Recent Cases</h2>
-          <Link to="/clinic/cases" className="text-sm text-ally-teal hover:underline">View all →</Link>
         </div>
-        <div className="divide-y">
-          {cases.length > 0 ? cases.map((c) => (
-            <Link key={c.id} to={`/clinic/cases/${c.id}`} className="block px-6 py-4 hover:bg-gray-50">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{c.patient_last_name}, {c.patient_first_name}</p>
-                  <p className="text-sm text-gray-500">{c.case_number} • {new Date(c.created_at).toLocaleDateString()}</p>
+
+        {/* Right Column - Stats & Cases */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Stats */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Case Overview</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {statCards.map((stat) => (
+                <div key={stat.label} className="bg-white rounded-lg border p-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-3 ${stat.color}`}>
+                    <stat.icon className="w-5 h-5" />
+                  </div>
+                  <p className="text-2xl font-bold">{stat.value}</p>
+                  <p className="text-sm text-gray-500">{stat.label}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={c.status} />
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
-                </div>
-              </div>
-            </Link>
-          )) : (
-            <div className="px-6 py-12 text-center text-gray-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p>No cases yet.</p>
-              <Link to="/clinic/cases/new" className="text-ally-teal hover:underline">Submit your first requisition →</Link>
+              ))}
             </div>
-          )}
+          </div>
+
+          {/* Recent Cases */}
+          <div className="bg-white rounded-lg border">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Recent Cases</h2>
+              <Link to="/clinic/cases" className="text-sm text-ally-teal hover:underline">View all →</Link>
+            </div>
+            <div className="divide-y">
+              {cases.length > 0 ? cases.map((c) => (
+                <Link key={c.id} to={`/clinic/cases/${c.id}`} className="block px-6 py-4 hover:bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{c.patient_last_name}, {c.patient_first_name}</p>
+                      <p className="text-sm text-gray-500">{c.case_number} • {new Date(c.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={c.status} />
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                    </div>
+                  </div>
+                </Link>
+              )) : (
+                <div className="px-6 py-12 text-center text-gray-500">
+                  <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>No cases yet.</p>
+                  <Link to="/clinic/cases/new" className="text-ally-teal hover:underline">Submit your first requisition →</Link>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
