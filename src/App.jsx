@@ -3557,6 +3557,7 @@ function BiopsyWorksheetPage() {
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [caseSearch, setCaseSearch] = useState('')
   const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState(false)
   const [pendingCase, setPendingCase] = useState(null)
   const [existingWorksheet, setExistingWorksheet] = useState(null)
   const [lastSaved, setLastSaved] = useState(null)
@@ -3741,7 +3742,81 @@ function BiopsyWorksheetPage() {
     setSavingDraft(false)
   }
 
+  async function saveDraftAndClear() {
+    if (!worksheetData.case_id) {
+      setError('Please select a case')
+      return
+    }
+    if (!worksheetData.day5_date) {
+      setError('Please enter a date')
+      return
+    }
+
+    setSavingDraft(true)
+    setError(null)
+
+    const allSamples = [...worksheetData.samples[5], ...worksheetData.samples[6], ...worksheetData.samples[7]]
+      .filter(s => s.sample_id || s.grade)
+
+    const worksheetPayload = {
+      case_id: worksheetData.case_id,
+      clinic_id: userData.clinic_id,
+      day5_date: worksheetData.day5_date,
+      samples: allSamples,
+      status: 'draft',
+      submitted_by: userData.id,
+    }
+
+    if (existingWorksheet) {
+      // Update existing worksheet
+      const { error: updateError } = await supabase
+        .from('biopsy_worksheets')
+        .update(worksheetPayload)
+        .eq('id', existingWorksheet.id)
+
+      if (updateError) {
+        console.error('Error updating draft:', updateError)
+        setError('Failed to save draft')
+        setSavingDraft(false)
+        return
+      }
+    } else {
+      // Create new worksheet
+      const { error: insertError } = await supabase
+        .from('biopsy_worksheets')
+        .insert(worksheetPayload)
+
+      if (insertError) {
+        console.error('Error creating draft:', insertError)
+        setError('Failed to save draft')
+        setSavingDraft(false)
+        return
+      }
+    }
+
+    setSuccess('Draft saved! Ready for next patient.')
+    
+    // Clear the form
+    setSelectedCase(null)
+    setExistingWorksheet(null)
+    setLastSaved(null)
+    setWorksheetData({
+      case_id: '',
+      patient_name: '',
+      day5_date: new Date().toISOString().split('T')[0],
+      samples: {
+        5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
+        6: [],
+        7: []
+      }
+    })
+    
+    setSavingDraft(false)
+    setTimeout(() => setSuccess(null), 3000)
+  }
+
   async function submitWorksheet() {
+    // Show confirmation modal instead of submitting directly
     if (!worksheetData.case_id) {
       setError('Please select a case')
       return
@@ -3759,8 +3834,16 @@ function BiopsyWorksheetPage() {
       return
     }
 
+    // Show confirmation modal
+    setShowSubmitConfirmModal(true)
+  }
+
+  async function confirmSubmitWorksheet() {
+    setShowSubmitConfirmModal(false)
     setLoading(true)
     setError(null)
+
+    const allSamples = [...worksheetData.samples[5], ...worksheetData.samples[6], ...worksheetData.samples[7]]
 
     const worksheetPayload = {
       case_id: worksheetData.case_id,
@@ -4278,6 +4361,15 @@ function BiopsyWorksheetPage() {
               Save Draft
             </button>
             <button
+              onClick={saveDraftAndClear}
+              disabled={savingDraft || !selectedCase}
+              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-50 disabled:opacity-50"
+            >
+              {savingDraft && <Loader2 className="w-4 h-4 animate-spin" />}
+              <Save className="w-4 h-4" />
+              Save & New Patient
+            </button>
+            <button
               onClick={submitWorksheet}
               disabled={loading || !selectedCase}
               className="flex items-center gap-2 bg-ally-teal text-white px-6 py-2 rounded-md hover:bg-ally-teal-dark disabled:opacity-50"
@@ -4345,6 +4437,55 @@ function BiopsyWorksheetPage() {
                 className="px-4 py-2 bg-ally-teal text-white rounded-md hover:bg-ally-teal-dark"
               >
                 Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Submit Confirmation Modal */}
+      {showSubmitConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="px-6 py-4 border-b flex items-center gap-3">
+              <AlertCircle className="w-6 h-6 text-yellow-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Submit Worksheet?</h3>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <p className="text-gray-700">
+                Are you sure you want to submit this worksheet for <strong>{worksheetData.patient_name}</strong>?
+              </p>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                <div className="flex gap-2">
+                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-yellow-800">
+                    <p className="font-semibold mb-1">This will lock the worksheet</p>
+                    <p>Once submitted, the worksheet will be locked and all fields will become read-only. You can unlock it later if you need to make corrections.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="text-sm text-gray-600">
+                <p className="font-medium mb-1">Submitting with:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Day 5 samples: {worksheetData.samples[5].filter(s => s.sample_id || s.grade).length}</li>
+                  <li>Day 6 samples: {worksheetData.samples[6].filter(s => s.sample_id || s.grade).length}</li>
+                  <li>Day 7 samples: {worksheetData.samples[7].filter(s => s.sample_id || s.grade).length}</li>
+                </ul>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex gap-3 justify-end">
+              <button
+                onClick={() => setShowSubmitConfirmModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSubmitWorksheet}
+                className="px-4 py-2 bg-ally-teal text-white rounded-md hover:bg-ally-teal-dark flex items-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Yes, Submit Worksheet
               </button>
             </div>
           </div>
