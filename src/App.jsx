@@ -9,6 +9,65 @@ import {
 } from 'lucide-react'
 
 // ============================================================================
+// ALLY GENETICS DNA HELIX LOGO COMPONENT
+// ============================================================================
+function DNAHelixLogo({ size = 32, className = '' }) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 40 40" 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      {/* DNA Helix Structure */}
+      <path 
+        d="M12 5 Q15 10, 12 15 Q9 20, 12 25 Q15 30, 12 35" 
+        stroke="#2D2A4A" 
+        strokeWidth="2.5" 
+        fill="none"
+        strokeLinecap="round"
+      />
+      <path 
+        d="M18 5 Q15 10, 18 15 Q21 20, 18 25 Q15 30, 18 35" 
+        stroke="#2D2A4A" 
+        strokeWidth="2.5" 
+        fill="none"
+        strokeLinecap="round"
+      />
+      
+      {/* Connecting lines */}
+      <line x1="12" y1="8" x2="18" y2="8" stroke="#2D2A4A" strokeWidth="1.5" opacity="0.6" />
+      <line x1="12" y1="15" x2="18" y2="15" stroke="#2D2A4A" strokeWidth="1.5" opacity="0.6" />
+      <line x1="12" y1="22" x2="18" y2="22" stroke="#2D2A4A" strokeWidth="1.5" opacity="0.6" />
+      <line x1="12" y1="29" x2="18" y2="29" stroke="#2D2A4A" strokeWidth="1.5" opacity="0.6" />
+      
+      {/* Circular gradient element */}
+      <circle cx="28" cy="20" r="10" fill="url(#tealGradient)" opacity="0.9" />
+      <circle cx="28" cy="20" r="7" fill="url(#tealGradientInner)" opacity="0.7" />
+      <circle cx="28" cy="20" r="4" fill="url(#tealGradientCore)" opacity="0.9" />
+      
+      {/* Gradient definitions */}
+      <defs>
+        <radialGradient id="tealGradient" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stopColor="#A8E0D7" />
+          <stop offset="100%" stopColor="#7ECFC0" />
+        </radialGradient>
+        <radialGradient id="tealGradientInner" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stopColor="#C0EDE5" />
+          <stop offset="100%" stopColor="#A8E0D7" />
+        </radialGradient>
+        <radialGradient id="tealGradientCore" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stopColor="#D5F4EF" />
+          <stop offset="100%" stopColor="#C0EDE5" />
+        </radialGradient>
+      </defs>
+    </svg>
+  )
+}
+
+// ============================================================================
 // SUPABASE CLIENT
 // ============================================================================
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
@@ -244,8 +303,8 @@ function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-ally-teal rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-2xl">AG</span>
+          <div className="flex justify-center mb-4">
+            <DNAHelixLogo size={64} />
           </div>
           <h1 className="text-2xl font-bold text-ally-navy">Ally Genetics Portal</h1>
           <p className="text-gray-500 mt-2">
@@ -485,11 +544,12 @@ function ClinicLayout({ children }) {
       <aside className={`${sidebarCollapsed ? 'w-16' : 'w-60'} bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ${impersonating ? 'mt-10' : ''}`}>
         {/* Sidebar Header */}
         <div className="h-16 flex items-center gap-3 px-4 border-b border-gray-200">
-          <div className="w-8 h-8 bg-gradient-to-br from-ally-teal to-green-400 rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold text-sm">AG</span>
-          </div>
+          <DNAHelixLogo size={32} className="flex-shrink-0" />
           {!sidebarCollapsed && (
-            <span className="font-semibold text-ally-navy text-sm">Ally Genetics</span>
+            <div className="flex flex-col">
+              <span className="font-bold text-[#2D2A4A] text-sm leading-tight">Ally Genetics</span>
+              <span className="text-[10px] text-gray-500 leading-tight">Better Partnerships</span>
+            </div>
           )}
         </div>
 
@@ -512,7 +572,7 @@ function ClinicLayout({ children }) {
         {/* User Menu */}
         <div className="border-t border-gray-200 p-4">
           <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-            <div className="w-8 h-8 bg-gradient-to-br from-ally-teal to-green-400 rounded-full flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{background: 'linear-gradient(135deg, #7ECFC0 0%, #A8E0D7 100%)'}}>
               <span className="text-white font-semibold text-xs">
                 {userData?.first_name?.[0]}{userData?.last_name?.[0]}
               </span>
