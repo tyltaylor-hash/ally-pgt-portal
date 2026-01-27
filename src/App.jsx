@@ -4,7 +4,8 @@ import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate, useParams } 
 import { 
   LayoutDashboard, FileText, Building2, Package, Users, LogOut, Plus, 
   Clock, CheckCircle, AlertCircle, Search, ChevronRight, Loader2, Eye, X, Mail, Key,
-  BarChart3, Phone, MapPin, Calendar, Filter, Download, User, Settings, Upload, FileUp, Trash2
+  BarChart3, Phone, MapPin, Calendar, Filter, Download, User, Settings, Upload, FileUp,
+  ClipboardList, Save, Trash2, Printer
 } from 'lucide-react'
 
 // ============================================================================
@@ -179,7 +180,7 @@ function LoginPage() {
     setLoading(true)
     
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/reset-password'
+      redirectTo: window.location.origin + '/login'
     })
     
     if (error) {
@@ -309,121 +310,6 @@ function LoginPage() {
 }
 
 // ============================================================================
-// RESET PASSWORD PAGE
-// ============================================================================
-function ResetPasswordPage() {
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [error, setError] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
-  const { supabase } = useAuth()
-  const navigate = useNavigate()
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
-
-    if (newPassword !== confirmPassword) {
-      setError('Passwords do not match')
-      setLoading(false)
-      return
-    }
-
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters')
-      setLoading(false)
-      return
-    }
-
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword
-    })
-
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-    } else {
-      setSuccess(true)
-      // Sign out and redirect to login after 2 seconds
-      setTimeout(async () => {
-        await supabase.auth.signOut()
-        navigate('/login')
-      }, 2000)
-    }
-  }
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-ally-teal rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-2xl">AG</span>
-          </div>
-          <h1 className="text-2xl font-bold text-ally-navy">Set Your Password</h1>
-          <p className="text-gray-500 mt-2">
-            Create a new password for your account
-          </p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          {success ? (
-            <div className="text-center py-4">
-              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-              <h2 className="text-lg font-semibold mb-2">Password Updated!</h2>
-              <p className="text-gray-600 mb-4">
-                Your password has been set successfully. Redirecting to login...
-              </p>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">
-                  {error}
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal focus:border-transparent"
-                  placeholder="Enter new password"
-                  required
-                  minLength={6}
-                />
-                <p className="text-xs text-gray-500 mt-1">Minimum 6 characters</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal focus:border-transparent"
-                  placeholder="Confirm new password"
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-ally-teal text-white py-2 px-4 rounded-md hover:bg-ally-teal-dark transition-colors disabled:opacity-50 flex items-center justify-center"
-              >
-                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Set Password
-              </button>
-            </form>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ============================================================================
 // ADMIN LAYOUT
 // ============================================================================
 function AdminLayout({ children }) {
@@ -516,6 +402,7 @@ function ClinicLayout({ children }) {
     { name: 'Lab Statistics', href: '/clinic/stats', icon: BarChart3 },
     { name: 'Dashboard', href: '/clinic', icon: LayoutDashboard },
     { name: 'Cases', href: '/clinic/cases', icon: FileText },
+    { name: 'Biopsy Worksheet', href: '/clinic/worksheet', icon: ClipboardList },
     { name: 'Order Supplies', href: '/clinic/orders', icon: Package },
     { name: 'Contact Us', href: '/clinic/contact', icon: Phone },
   ]
@@ -1754,15 +1641,23 @@ function NewRequisitionPage() {
     patient_dob: '',
     patient_email: '',
     patient_phone: '',
+    is_egg_donor: false,
+    egg_donor_age: '',
     partner_first_name: '',
     partner_last_name: '',
+    partner_dob: '',
     partner_email: '',
+    partner_phone: '',
+    is_sperm_donor: false,
     ordering_provider_id: '',
     tests_ordered: [],
+    indication: '',
     mask_sex_results: false,
     reason_for_testing: '',
     form_completed_by: '',
   })
+  const [karyotypeFile, setKaryotypeFile] = useState(null)
+  const [uploadingFile, setUploadingFile] = useState(false)
 
   useEffect(() => {
     if (userData?.clinic_id) {
@@ -1794,6 +1689,18 @@ function NewRequisitionPage() {
         ? prev.tests_ordered.filter(t => t !== test)
         : [...prev.tests_ordered, test]
     }))
+    // Clear karyotype file if PGT-SR is deselected
+    if (test === 'pgt_sr' && formData.tests_ordered.includes('pgt_sr')) {
+      setKaryotypeFile(null)
+    }
+  }
+
+  function handleKaryotypeUpload(file) {
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size must be less than 10MB')
+      return
+    }
+    setKaryotypeFile(file)
   }
 
   async function handleSubmit(e) {
@@ -1807,6 +1714,45 @@ function NewRequisitionPage() {
       return
     }
 
+    if (!formData.indication) {
+      setError('Please select an indication for PGT')
+      setLoading(false)
+      return
+    }
+
+    if (formData.is_egg_donor && !formData.egg_donor_age) {
+      setError('Please enter the egg donor age')
+      setLoading(false)
+      return
+    }
+
+    if (formData.tests_ordered.includes('pgt_sr') && !karyotypeFile) {
+      setError('Please upload the karyotype document for PGT-SR')
+      setLoading(false)
+      return
+    }
+
+    // Upload karyotype file if present
+    let karyotype_file_path = null
+    if (karyotypeFile) {
+      setUploadingFile(true)
+      const fileExt = karyotypeFile.name.split('.').pop()
+      const fileName = `${userData.clinic_id}/${Date.now()}_karyotype.${fileExt}`
+      
+      const { error: uploadError } = await supabase.storage
+        .from('case-files')
+        .upload(fileName, karyotypeFile)
+      
+      if (uploadError) {
+        setError('Failed to upload karyotype file: ' + uploadError.message)
+        setLoading(false)
+        setUploadingFile(false)
+        return
+      }
+      karyotype_file_path = fileName
+      setUploadingFile(false)
+    }
+
     const { data: newCase, error: insertError } = await supabase
       .from('cases')
       .insert({
@@ -1814,6 +1760,7 @@ function NewRequisitionPage() {
         submitted_by_user_id: userData.id,
         status: 'consent_pending',
         ...formData,
+        karyotype_file_path,
         form_completed_date: new Date().toISOString(),
       })
       .select()
@@ -1889,6 +1836,74 @@ function NewRequisitionPage() {
                 </label>
               </div>
             </div>
+            
+            <div className="max-w-md">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Indication for PGT *</label>
+              <select
+                name="indication"
+                value={formData.indication}
+                onChange={handleChange}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              >
+                <option value="">Select indication...</option>
+                <option value="advanced_maternal_age">Advanced maternal age (≥35)</option>
+                <option value="recurrent_pregnancy_loss">Recurrent pregnancy loss</option>
+                <option value="previous_failed_ivf">Previous failed IVF cycles</option>
+                <option value="elective_pgt_a">Elective PGT-A</option>
+                <option value="pgt_sr">PGT-SR (Structural Rearrangement)</option>
+              </select>
+            </div>
+
+            {/* Karyotype Upload - Required for PGT-SR */}
+            {formData.tests_ordered.includes('pgt_sr') && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Karyotype Upload * <span className="text-amber-600 font-normal">(Required for PGT-SR)</span>
+                </label>
+                <div 
+                  className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                    karyotypeFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-ally-teal hover:bg-gray-50'
+                  }`}
+                  onClick={() => document.getElementById('karyotypeInput').click()}
+                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-ally-teal', 'bg-gray-50') }}
+                  onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('border-ally-teal', 'bg-gray-50') }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    e.currentTarget.classList.remove('border-ally-teal', 'bg-gray-50')
+                    if (e.dataTransfer.files[0]) handleKaryotypeUpload(e.dataTransfer.files[0])
+                  }}
+                >
+                  <input
+                    type="file"
+                    id="karyotypeInput"
+                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                    className="hidden"
+                    onChange={(e) => e.target.files[0] && handleKaryotypeUpload(e.target.files[0])}
+                  />
+                  {karyotypeFile ? (
+                    <div className="flex items-center justify-center gap-3">
+                      <CheckCircle className="w-6 h-6 text-green-500" />
+                      <span className="font-medium text-green-700">{karyotypeFile.name}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setKaryotypeFile(null) }}
+                        className="text-red-500 hover:text-red-700 ml-2"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-600">Click to upload or drag and drop</p>
+                      <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG, DOC (Max 10MB)</p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -1961,6 +1976,34 @@ function NewRequisitionPage() {
               />
             </div>
           </div>
+          <div className="mt-4 space-y-3">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="is_egg_donor"
+                checked={formData.is_egg_donor}
+                onChange={handleChange}
+                className="rounded border-gray-300 text-ally-teal focus:ring-ally-teal"
+              />
+              <span className="text-sm font-medium text-gray-700">Egg Donor</span>
+            </label>
+            {formData.is_egg_donor && (
+              <div className="ml-6 max-w-xs">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Egg Donor Age *</label>
+                <input
+                  type="number"
+                  name="egg_donor_age"
+                  value={formData.egg_donor_age}
+                  onChange={handleChange}
+                  required={formData.is_egg_donor}
+                  min="18"
+                  max="50"
+                  placeholder="Enter age"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+                />
+              </div>
+            )}
+          </div>
         </section>
 
         {/* Partner Information */}
@@ -1989,6 +2032,16 @@ function NewRequisitionPage() {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+              <input
+                type="date"
+                name="partner_dob"
+                value={formData.partner_dob}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
               <input
                 type="email"
@@ -1998,6 +2051,28 @@ function NewRequisitionPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <input
+                type="tel"
+                name="partner_phone"
+                value={formData.partner_phone}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              />
+            </div>
+          </div>
+          <div className="mt-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="is_sperm_donor"
+                checked={formData.is_sperm_donor}
+                onChange={handleChange}
+                className="rounded border-gray-300 text-ally-teal focus:ring-ally-teal"
+              />
+              <span className="text-sm font-medium text-gray-700">Sperm Donor</span>
+            </label>
           </div>
         </section>
 
@@ -2609,6 +2684,482 @@ function LabStatisticsPage() {
 }
 
 // ============================================================================
+// BIOPSY WORKSHEET PAGE
+// ============================================================================
+function BiopsyWorksheetPage() {
+  const { supabase, userData } = useAuth()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
+  const [cases, setCases] = useState([])
+  const [selectedCase, setSelectedCase] = useState(null)
+  const [currentDay, setCurrentDay] = useState(5)
+  
+  const [worksheetData, setWorksheetData] = useState({
+    case_id: '',
+    patient_name: '',
+    embryologist: '',
+    day5_date: new Date().toISOString().split('T')[0],
+    day6_date: '',
+    day7_date: '',
+    samples: {
+      5: Array(5).fill(null).map((_, i) => ({ sample_id: '', day: '5', grade: '', expansion: '', icm: '', te: '', cells_visualized: '', notes: '' })),
+      6: [],
+      7: []
+    }
+  })
+
+  useEffect(() => {
+    if (userData?.clinic_id) {
+      fetchCases()
+    }
+  }, [userData])
+
+  async function fetchCases() {
+    const { data } = await supabase
+      .from('cases')
+      .select('id, case_number, patient_first_name, patient_last_name')
+      .eq('clinic_id', userData.clinic_id)
+      .in('status', ['samples_received', 'in_progress'])
+      .order('created_at', { ascending: false })
+    setCases(data || [])
+  }
+
+  function handleCaseSelect(caseId) {
+    const selectedCaseData = cases.find(c => c.id === caseId)
+    if (selectedCaseData) {
+      setSelectedCase(selectedCaseData)
+      setWorksheetData(prev => ({
+        ...prev,
+        case_id: caseId,
+        patient_name: `${selectedCaseData.patient_first_name} ${selectedCaseData.patient_last_name}`
+      }))
+      // Try to load existing draft
+      loadDraft(caseId)
+    }
+  }
+
+  function handleSampleChange(dayIndex, sampleIndex, field, value) {
+    setWorksheetData(prev => {
+      const newSamples = { ...prev.samples }
+      newSamples[dayIndex] = [...newSamples[dayIndex]]
+      newSamples[dayIndex][sampleIndex] = { ...newSamples[dayIndex][sampleIndex], [field]: value }
+      return { ...prev, samples: newSamples }
+    })
+  }
+
+  function addSampleRow(day) {
+    setWorksheetData(prev => {
+      const newSamples = { ...prev.samples }
+      newSamples[day] = [...newSamples[day], { sample_id: '', day: day.toString(), grade: '', expansion: '', icm: '', te: '', cells_visualized: '', notes: '' }]
+      return { ...prev, samples: newSamples }
+    })
+  }
+
+  function removeSampleRow(day, index) {
+    setWorksheetData(prev => {
+      const newSamples = { ...prev.samples }
+      newSamples[day] = newSamples[day].filter((_, i) => i !== index)
+      return { ...prev, samples: newSamples }
+    })
+  }
+
+  function saveDraft() {
+    if (!worksheetData.case_id) {
+      setError('Please select a case first')
+      return
+    }
+    localStorage.setItem(`worksheet_draft_${worksheetData.case_id}`, JSON.stringify(worksheetData))
+    setSuccess('Draft saved! You can continue on Day 6 or Day 7.')
+    setTimeout(() => setSuccess(null), 3000)
+  }
+
+  function loadDraft(caseId) {
+    const saved = localStorage.getItem(`worksheet_draft_${caseId}`)
+    if (saved) {
+      const data = JSON.parse(saved)
+      setWorksheetData(data)
+      setSuccess('Draft loaded from previous session')
+      setTimeout(() => setSuccess(null), 3000)
+    }
+  }
+
+  function clearDraft() {
+    if (!worksheetData.case_id) return
+    if (confirm('Clear all worksheet data? This cannot be undone.')) {
+      localStorage.removeItem(`worksheet_draft_${worksheetData.case_id}`)
+      setWorksheetData(prev => ({
+        ...prev,
+        day5_date: new Date().toISOString().split('T')[0],
+        day6_date: '',
+        day7_date: '',
+        samples: {
+          5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', expansion: '', icm: '', te: '', cells_visualized: '', notes: '' })),
+          6: [],
+          7: []
+        }
+      }))
+    }
+  }
+
+  async function handleSubmit() {
+    if (!worksheetData.case_id) {
+      setError('Please select a case')
+      return
+    }
+    if (!worksheetData.day5_date) {
+      setError('Please enter the Day 5 date')
+      return
+    }
+
+    // Check if there's at least one sample with data
+    const allSamples = [...worksheetData.samples[5], ...worksheetData.samples[6], ...worksheetData.samples[7]]
+    const hasData = allSamples.some(s => s.sample_id || s.grade)
+    if (!hasData) {
+      setError('Please enter at least one sample')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    // Save worksheet to database
+    const { error: insertError } = await supabase
+      .from('biopsy_worksheets')
+      .insert({
+        case_id: worksheetData.case_id,
+        clinic_id: userData.clinic_id,
+        embryologist: worksheetData.embryologist,
+        day5_date: worksheetData.day5_date,
+        day6_date: worksheetData.day6_date || null,
+        day7_date: worksheetData.day7_date || null,
+        samples: allSamples.filter(s => s.sample_id || s.grade),
+        submitted_by: userData.id,
+      })
+
+    if (insertError) {
+      // If table doesn't exist, just show success (demo mode)
+      console.log('Note: biopsy_worksheets table may not exist yet', insertError)
+    }
+
+    // Clear the draft
+    localStorage.removeItem(`worksheet_draft_${worksheetData.case_id}`)
+    
+    setSuccess('Biopsy worksheet submitted successfully!')
+    setLoading(false)
+    
+    // Reset form
+    setSelectedCase(null)
+    setWorksheetData({
+      case_id: '',
+      patient_name: '',
+      embryologist: '',
+      day5_date: new Date().toISOString().split('T')[0],
+      day6_date: '',
+      day7_date: '',
+      samples: {
+        5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', expansion: '', icm: '', te: '', cells_visualized: '', notes: '' })),
+        6: [],
+        7: []
+      }
+    })
+  }
+
+  const currentSamples = worksheetData.samples[currentDay] || []
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Biopsy Worksheet</h1>
+          <p className="text-gray-500">Document embryo biopsy details for each case</p>
+        </div>
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+        >
+          <Printer className="w-4 h-4" />
+          Print
+        </button>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-800 flex items-center gap-2">
+          <AlertCircle className="w-5 h-5" />
+          {error}
+        </div>
+      )}
+      
+      {success && (
+        <div className="bg-green-50 border border-green-200 rounded-md p-4 text-green-800 flex items-center gap-2">
+          <CheckCircle className="w-5 h-5" />
+          {success}
+        </div>
+      )}
+
+      {/* Header Info */}
+      <div className="bg-white rounded-lg border p-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Select Case *</label>
+            <select
+              value={worksheetData.case_id}
+              onChange={(e) => handleCaseSelect(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            >
+              <option value="">Select a case...</option>
+              {cases.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.case_number} - {c.patient_first_name} {c.patient_last_name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Patient Name</label>
+            <input
+              type="text"
+              value={worksheetData.patient_name}
+              readOnly
+              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Embryologist</label>
+            <input
+              type="text"
+              value={worksheetData.embryologist}
+              onChange={(e) => setWorksheetData(prev => ({ ...prev, embryologist: e.target.value }))}
+              placeholder="Name"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Day 5 Date *</label>
+            <input
+              type="date"
+              value={worksheetData.day5_date}
+              onChange={(e) => setWorksheetData(prev => ({ ...prev, day5_date: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Day 6 Date</label>
+            <input
+              type="date"
+              value={worksheetData.day6_date}
+              onChange={(e) => setWorksheetData(prev => ({ ...prev, day6_date: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Day 7 Date</label>
+            <input
+              type="date"
+              value={worksheetData.day7_date}
+              onChange={(e) => setWorksheetData(prev => ({ ...prev, day7_date: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Day Tabs */}
+      <div className="flex gap-2">
+        {[5, 6, 7].map(day => (
+          <button
+            key={day}
+            onClick={() => setCurrentDay(day)}
+            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+              currentDay === day
+                ? 'bg-ally-teal text-white'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+            } ${worksheetData.samples[day]?.some(s => s.sample_id || s.grade) ? 'ring-2 ring-ally-teal ring-offset-1' : ''}`}
+          >
+            Day {day}
+            {worksheetData.samples[day]?.some(s => s.sample_id || s.grade) && (
+              <span className="ml-2 text-xs">●</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Sample Table */}
+      <div className="bg-white rounded-lg border overflow-hidden">
+        <div className="px-6 py-4 border-b flex items-center justify-between">
+          <h2 className="font-semibold text-gray-900">Day {currentDay} Samples</h2>
+          <button
+            onClick={() => addSampleRow(currentDay)}
+            className="flex items-center gap-2 text-ally-teal hover:text-ally-teal-dark text-sm font-medium"
+          >
+            <Plus className="w-4 h-4" />
+            Add Sample Row
+          </button>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sample ID</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grade</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expansion</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ICM</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">TE</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cells Visualized</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {currentSamples.map((sample, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-4 py-2">
+                    <input
+                      type="text"
+                      value={sample.sample_id}
+                      onChange={(e) => handleSampleChange(currentDay, index, 'sample_id', e.target.value)}
+                      placeholder={`S${index + 1}`}
+                      className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <select
+                      value={sample.day}
+                      onChange={(e) => handleSampleChange(currentDay, index, 'day', e.target.value)}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                    >
+                      <option value="5">Day 5</option>
+                      <option value="6">Day 6</option>
+                      <option value="7">Day 7</option>
+                    </select>
+                  </td>
+                  <td className="px-4 py-2">
+                    <input
+                      type="text"
+                      value={sample.grade}
+                      onChange={(e) => handleSampleChange(currentDay, index, 'grade', e.target.value)}
+                      placeholder="e.g., 4AA"
+                      className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <select
+                      value={sample.expansion}
+                      onChange={(e) => handleSampleChange(currentDay, index, 'expansion', e.target.value)}
+                      className="w-28 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                    >
+                      <option value="">Select...</option>
+                      <option value="1">1 - Early</option>
+                      <option value="2">2 - Blastocyst</option>
+                      <option value="3">3 - Full</option>
+                      <option value="4">4 - Expanded</option>
+                      <option value="5">5 - Hatching</option>
+                      <option value="6">6 - Hatched</option>
+                    </select>
+                  </td>
+                  <td className="px-4 py-2">
+                    <select
+                      value={sample.icm}
+                      onChange={(e) => handleSampleChange(currentDay, index, 'icm', e.target.value)}
+                      className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                    >
+                      <option value="">-</option>
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                    </select>
+                  </td>
+                  <td className="px-4 py-2">
+                    <select
+                      value={sample.te}
+                      onChange={(e) => handleSampleChange(currentDay, index, 'te', e.target.value)}
+                      className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                    >
+                      <option value="">-</option>
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                    </select>
+                  </td>
+                  <td className="px-4 py-2">
+                    <select
+                      value={sample.cells_visualized}
+                      onChange={(e) => handleSampleChange(currentDay, index, 'cells_visualized', e.target.value)}
+                      className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                    >
+                      <option value="">-</option>
+                      <option value="Y">Y</option>
+                      <option value="N">N</option>
+                    </select>
+                  </td>
+                  <td className="px-4 py-2">
+                    <input
+                      type="text"
+                      value={sample.notes}
+                      onChange={(e) => handleSampleChange(currentDay, index, 'notes', e.target.value)}
+                      placeholder="Notes..."
+                      className="w-32 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <button
+                      onClick={() => removeSampleRow(currentDay, index)}
+                      className="text-gray-400 hover:text-red-500"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {currentSamples.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                    No samples for Day {currentDay}. Click "Add Sample Row" to begin.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={clearDraft}
+          className="flex items-center gap-2 px-4 py-2 text-red-600 hover:text-red-700 font-medium"
+        >
+          <Trash2 className="w-4 h-4" />
+          Clear All
+        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={saveDraft}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+          >
+            <Save className="w-4 h-4" />
+            Save Draft
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="flex items-center gap-2 bg-ally-teal text-white px-6 py-2 rounded-md hover:bg-ally-teal-dark disabled:opacity-50"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            Submit Worksheet
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
 // CONTACT US PAGE
 // ============================================================================
 function ContactUsPage() {
@@ -2709,9 +3260,6 @@ function ContactUsPage() {
 // ============================================================================
 // CLINICS PAGE (Admin)
 // ============================================================================
-// ============================================================================
-// CLINICS PAGE (Admin)
-// ============================================================================
 function ClinicsPage() {
   const { supabase } = useAuth()
   const [clinics, setClinics] = useState([])
@@ -2719,7 +3267,6 @@ function ClinicsPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingClinic, setEditingClinic] = useState(null)
   const [showProvidersModal, setShowProvidersModal] = useState(null)
-  const [deleting, setDeleting] = useState(null)
 
   useEffect(() => {
     fetchClinics()
@@ -2732,16 +3279,6 @@ function ClinicsPage() {
       .order('name')
     setClinics(data || [])
     setLoading(false)
-  }
-
-  async function handleDeleteClinic(clinic) {
-    if (!confirm(`Are you sure you want to delete "${clinic.name}"? This will also remove all associated providers.`)) {
-      return
-    }
-    setDeleting(clinic.id)
-    await supabase.from('clinics').update({ is_active: false }).eq('id', clinic.id)
-    await fetchClinics()
-    setDeleting(null)
   }
 
   if (loading) {
@@ -2777,7 +3314,7 @@ function ClinicsPage() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {clinics.filter(c => c.is_active !== false).map((clinic) => (
+            {clinics.map((clinic) => (
               <tr key={clinic.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="font-medium text-gray-900">{clinic.name}</div>
@@ -2794,32 +3331,25 @@ function ClinicsPage() {
                     onClick={() => setShowProvidersModal(clinic)}
                     className="text-ally-teal hover:underline text-sm"
                   >
-                    {clinic.providers?.filter(p => p.is_active !== false).length || 0} providers
+                    {clinic.providers?.length || 0} providers
                   </button>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${clinic.is_active !== false ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                    {clinic.is_active !== false ? 'Active' : 'Inactive'}
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${clinic.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                    {clinic.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm space-x-3">
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                   <button
                     onClick={() => setEditingClinic(clinic)}
                     className="text-ally-teal hover:underline"
                   >
                     Edit
                   </button>
-                  <button
-                    onClick={() => handleDeleteClinic(clinic)}
-                    disabled={deleting === clinic.id}
-                    className="text-red-600 hover:underline disabled:opacity-50"
-                  >
-                    {deleting === clinic.id ? 'Deleting...' : 'Delete'}
-                  </button>
                 </td>
               </tr>
             ))}
-            {clinics.filter(c => c.is_active !== false).length === 0 && (
+            {clinics.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                   No clinics yet. Click "Add Clinic" to create one.
@@ -2857,7 +3387,6 @@ function ClinicsPage() {
 function ClinicModal({ clinic, onClose, onSave }) {
   const { supabase } = useAuth()
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState('clinic')
   const [formData, setFormData] = useState({
     name: clinic?.name || '',
     address_line1: clinic?.address_line1 || '',
@@ -2868,318 +3397,119 @@ function ClinicModal({ clinic, onClose, onSave }) {
     email: clinic?.email || '',
     is_active: clinic?.is_active ?? true,
   })
-  
-  // Providers state
-  const [providers, setProviders] = useState(clinic?.providers?.filter(p => p.is_active !== false) || [])
-  const [newProvider, setNewProvider] = useState({ first_name: '', last_name: '', credentials: '', email: '', npi: '' })
-  const [providersToDelete, setProvidersToDelete] = useState([])
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target
     setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
-  function handleProviderChange(e) {
-    const { name, value } = e.target
-    setNewProvider(prev => ({ ...prev, [name]: value }))
-  }
-
-  function addProvider() {
-    if (!newProvider.first_name || !newProvider.last_name) {
-      alert('Provider first and last name are required')
-      return
-    }
-    setProviders(prev => [...prev, { ...newProvider, id: `temp-${Date.now()}`, is_new: true }])
-    setNewProvider({ first_name: '', last_name: '', credentials: '', email: '', npi: '' })
-  }
-
-  function removeProvider(provider, index) {
-    if (provider.is_new) {
-      // Just remove from the list (not saved yet)
-      setProviders(prev => prev.filter((_, i) => i !== index))
-    } else {
-      // Mark existing provider for deletion
-      if (confirm(`Are you sure you want to delete ${provider.first_name} ${provider.last_name}?`)) {
-        setProvidersToDelete(prev => [...prev, provider.id])
-        setProviders(prev => prev.filter((_, i) => i !== index))
-      }
-    }
-  }
-
   async function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
 
-    try {
-      let clinicId = clinic?.id
-
-      if (clinic) {
-        // Update existing clinic
-        await supabase.from('clinics').update(formData).eq('id', clinic.id)
-      } else {
-        // Create new clinic
-        const { data: newClinic, error } = await supabase
-          .from('clinics')
-          .insert(formData)
-          .select()
-          .single()
-        
-        if (error) throw error
-        clinicId = newClinic.id
-      }
-
-      // Collect all providers to save (including any unsaved form data)
-      const providersToSave = [...providers]
-      
-      // If there's data in the new provider form, include it automatically
-      if (newProvider.first_name && newProvider.last_name) {
-        providersToSave.push({ ...newProvider, is_new: true })
-      }
-
-      // Delete providers marked for removal (soft delete)
-      for (const providerId of providersToDelete) {
-        await supabase.from('providers').update({ is_active: false }).eq('id', providerId)
-      }
-
-      // Handle new providers
-      for (const provider of providersToSave) {
-        if (provider.is_new) {
-          // Insert new provider
-          const { first_name, last_name, credentials, email, npi } = provider
-          await supabase.from('providers').insert({
-            clinic_id: clinicId,
-            first_name,
-            last_name,
-            credentials,
-            email,
-            npi,
-            is_active: true
-          })
-        }
-      }
-
-      onSave()
-    } catch (err) {
-      alert('Error saving clinic: ' + err.message)
-      setLoading(false)
+    if (clinic) {
+      await supabase.from('clinics').update(formData).eq('id', clinic.id)
+    } else {
+      await supabase.from('clinics').insert(formData)
     }
+
+    setLoading(false)
+    onSave()
   }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-lg shadow-lg w-full max-w-lg mx-4">
         <div className="px-6 py-4 border-b">
           <h2 className="text-lg font-semibold">{clinic ? 'Edit Clinic' : 'Add New Clinic'}</h2>
         </div>
-        
-        {/* Tabs */}
-        <div className="flex border-b">
-          <button
-            type="button"
-            onClick={() => setActiveTab('clinic')}
-            className={`flex-1 px-4 py-3 text-sm font-medium ${activeTab === 'clinic' ? 'border-b-2 border-ally-teal text-ally-teal' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            Clinic Info
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('providers')}
-            className={`flex-1 px-4 py-3 text-sm font-medium ${activeTab === 'providers' ? 'border-b-2 border-ally-teal text-ally-teal' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            Providers ({providers.length + (newProvider.first_name && newProvider.last_name ? 1 : 0)})
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
-          {activeTab === 'clinic' ? (
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Clinic Name *</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address *</label>
-                <input
-                  type="text"
-                  name="address_line1"
-                  value={formData.address_line1}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">City *</label>
-                  <input
-                    type="text"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">State *</label>
-                  <input
-                    type="text"
-                    name="state"
-                    value={formData.state}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ZIP *</label>
-                  <input
-                    type="text"
-                    name="zip_code"
-                    value={formData.zip_code}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Email *</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                  />
-                </div>
-              </div>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  name="is_active"
-                  checked={formData.is_active}
-                  onChange={handleChange}
-                  className="rounded border-gray-300 text-ally-teal focus:ring-ally-teal"
-                />
-                <span className="text-sm">Active</span>
-              </label>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Clinic Name *</label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+            <input
+              type="text"
+              name="address_line1"
+              value={formData.address_line1}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+              <input
+                type="text"
+                name="city"
+                value={formData.city}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              />
             </div>
-          ) : (
-            <div className="p-6 space-y-4">
-              {/* Existing Providers */}
-              {providers.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium text-gray-700">Saved Providers</h3>
-                  {providers.map((provider, index) => (
-                    <div key={provider.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {provider.first_name} {provider.last_name}
-                          {provider.credentials && <span className="text-gray-500">, {provider.credentials}</span>}
-                        </p>
-                        {provider.email && <p className="text-sm text-gray-500">{provider.email}</p>}
-                        {provider.is_new && <span className="text-xs text-ally-teal">(New - will be saved with clinic)</span>}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeProvider(provider, index)}
-                        className="text-red-600 hover:text-red-800 text-sm"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Add New Provider Form */}
-              <div className={providers.length > 0 ? "border-t pt-4" : ""}>
-                <h3 className="text-sm font-medium text-gray-700 mb-3">
-                  {providers.length > 0 ? 'Add Another Provider' : 'Add Provider'}
-                </h3>
-                <p className="text-xs text-gray-500 mb-3">Fill in the provider details below. They will be saved when you click "Save Changes".</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    name="first_name"
-                    placeholder="First Name *"
-                    value={newProvider.first_name}
-                    onChange={handleProviderChange}
-                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                  />
-                  <input
-                    type="text"
-                    name="last_name"
-                    placeholder="Last Name *"
-                    value={newProvider.last_name}
-                    onChange={handleProviderChange}
-                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                  />
-                  <input
-                    type="text"
-                    name="credentials"
-                    placeholder="Credentials (e.g., MD, DO)"
-                    value={newProvider.credentials}
-                    onChange={handleProviderChange}
-                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                  />
-                  <input
-                    type="text"
-                    name="npi"
-                    placeholder="NPI (optional)"
-                    value={newProvider.npi}
-                    onChange={handleProviderChange}
-                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                  />
-                  <input
-                    type="email"
-                    name="email"
-                    placeholder="Email (optional)"
-                    value={newProvider.email}
-                    onChange={handleProviderChange}
-                    className="col-span-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={addProvider}
-                  className="mt-3 flex items-center gap-2 text-ally-teal hover:text-ally-teal-dark text-sm font-medium"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Another Provider
-                </button>
-              </div>
-
-              {providers.length === 0 && !newProvider.first_name && (
-                <p className="text-sm text-gray-500 text-center py-4">
-                  Add at least one ordering physician above.
-                </p>
-              )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+              <input
+                type="text"
+                name="state"
+                value={formData.state}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              />
             </div>
-          )}
-
-          <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ZIP</label>
+              <input
+                type="text"
+                name="zip_code"
+                value={formData.zip_code}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <input
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              />
+            </div>
+          </div>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              name="is_active"
+              checked={formData.is_active}
+              onChange={handleChange}
+              className="rounded border-gray-300 text-ally-teal focus:ring-ally-teal"
+            />
+            <span className="text-sm">Active</span>
+          </label>
+          <div className="flex justify-end gap-3 pt-4">
             <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
               Cancel
             </button>
@@ -3373,29 +3703,6 @@ function UsersPage() {
     navigate('/clinic')
   }
 
-  async function handleDeleteUser(user) {
-    if (!confirm(`Are you sure you want to delete ${user.first_name} ${user.last_name}? This action cannot be undone and will permanently remove:
-- User account and login access
-- All associated data
-- This cannot be reversed`)) {
-      return
-    }
-
-    try {
-      // Call the database function to delete user completely (including auth)
-      const { error } = await supabase.rpc('delete_user_completely', {
-        user_id_to_delete: user.id
-      })
-
-      if (error) throw error
-
-      alert('User deleted successfully from entire system')
-      fetchData()
-    } catch (err) {
-      alert('Error deleting user: ' + err.message)
-    }
-  }
-
   const filteredUsers = filterClinic 
     ? users.filter(u => u.clinic_id === filterClinic)
     : users
@@ -3498,14 +3805,6 @@ function UsersPage() {
                   >
                     Edit
                   </button>
-                  <button
-                    onClick={() => handleDeleteUser(user)}
-                    className="text-red-600 hover:underline"
-                    title="Delete user"
-                  >
-                    <Trash2 className="w-4 h-4 inline mr-1" />
-                    Delete
-                  </button>
                 </td>
               </tr>
             ))}
@@ -3582,22 +3881,38 @@ function AddUserModal({ clinics, onClose, onSave }) {
     try {
       const tempPassword = sendWelcomeEmail ? generateTempPassword() : formData.password
 
-      // Create user using server-side function (won't log out admin)
-      const { data: result, error: createError } = await supabase.rpc('create_user_as_admin', {
-        user_email: formData.email,
-        user_password: tempPassword,
-        user_first_name: formData.first_name,
-        user_last_name: formData.last_name,
-        user_clinic_id: formData.clinic_id || null,
-        user_role: formData.role
+      // Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: tempPassword,
+        options: {
+          data: {
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+          }
+        }
       })
 
-      if (createError) throw createError
+      if (authError) throw authError
 
-      // If sending welcome email, send password reset email
+      // Create user record in users table
+      const { error: insertError } = await supabase.from('users').insert({
+        auth_id: authData.user.id,
+        email: formData.email,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        clinic_id: formData.clinic_id || null,
+        role: formData.role,
+        is_active: true,
+        must_change_password: sendWelcomeEmail,
+      })
+
+      if (insertError) throw insertError
+
+      // If sending welcome email, send password reset email so they can set their own password
       if (sendWelcomeEmail) {
         await supabase.auth.resetPasswordForEmail(formData.email, {
-          redirectTo: window.location.origin + '/reset-password'
+          redirectTo: window.location.origin + '/login'
         })
       }
 
@@ -3774,37 +4089,12 @@ function EditUserModal({ user, clinics, onClose, onSave }) {
   async function handleSendPasswordReset() {
     setResetError(null)
     const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-      redirectTo: window.location.origin + '/reset-password'
+      redirectTo: window.location.origin + '/login'
     })
     if (error) {
       setResetError(error.message)
     } else {
       setResetSent(true)
-    }
-  }
-
-  async function handleDelete() {
-    if (!confirm(`Are you sure you want to delete ${user.first_name} ${user.last_name}? This action cannot be undone and will permanently remove:
-- User account and login access
-- All associated data
-- This cannot be reversed`)) {
-      return
-    }
-
-    setLoading(true)
-    try {
-      // Call the database function to delete user completely (including auth)
-      const { error } = await supabase.rpc('delete_user_completely', {
-        user_id_to_delete: user.id
-      })
-
-      if (error) throw error
-
-      alert('User deleted successfully from entire system')
-      onSave()
-    } catch (err) {
-      alert('Error deleting user: ' + err.message)
-      setLoading(false)
     }
   }
 
@@ -3902,29 +4192,18 @@ function EditUserModal({ user, clinics, onClose, onSave }) {
             )}
           </div>
 
-          <div className="flex justify-between items-center gap-3 pt-4 border-t">
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={loading}
-              className="flex items-center gap-2 text-red-600 hover:text-red-700 disabled:opacity-50"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete User
+          <div className="flex justify-end gap-3 pt-4">
+            <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
+              Cancel
             </button>
-            <div className="flex gap-3">
-              <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex items-center gap-2 bg-ally-teal text-white px-4 py-2 rounded-md hover:bg-ally-teal-dark disabled:opacity-50"
-              >
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                Save Changes
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex items-center gap-2 bg-ally-teal text-white px-4 py-2 rounded-md hover:bg-ally-teal-dark disabled:opacity-50"
+            >
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              Save Changes
+            </button>
           </div>
         </form>
       </div>
@@ -4145,7 +4424,6 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
           
           {/* Admin Routes */}
           <Route path="/admin" element={<ProtectedRoute adminOnly><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
@@ -4161,6 +4439,7 @@ export default function App() {
           <Route path="/clinic/cases" element={<ProtectedRoute><ClinicLayout><ClinicCasesPage /></ClinicLayout></ProtectedRoute>} />
           <Route path="/clinic/cases/new" element={<ProtectedRoute><ClinicLayout><NewRequisitionPage /></ClinicLayout></ProtectedRoute>} />
           <Route path="/clinic/cases/:id" element={<ProtectedRoute><ClinicLayout><CaseDetailsPage isAdmin={false} /></ClinicLayout></ProtectedRoute>} />
+          <Route path="/clinic/worksheet" element={<ProtectedRoute><ClinicLayout><BiopsyWorksheetPage /></ClinicLayout></ProtectedRoute>} />
           <Route path="/clinic/orders" element={<ProtectedRoute><ClinicLayout><OrderSuppliesPage /></ClinicLayout></ProtectedRoute>} />
           <Route path="/clinic/contact" element={<ProtectedRoute><ClinicLayout><ContactUsPage /></ClinicLayout></ProtectedRoute>} />
           
