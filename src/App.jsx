@@ -2969,7 +2969,7 @@ function BiopsyWorksheetPage() {
       return
     }
     localStorage.setItem(`worksheet_draft_${worksheetData.case_id}`, JSON.stringify(worksheetData))
-    setSuccess('Draft saved! You can continue on Day 6 or Day 7.')
+    setSuccess('Draft saved successfully!')
     setTimeout(() => setSuccess(null), 3000)
   }
 
@@ -3007,7 +3007,7 @@ function BiopsyWorksheetPage() {
       return
     }
     if (!worksheetData.day5_date) {
-      setError('Please enter the Day 5 date')
+      setError('Please enter a date')
       return
     }
 
@@ -3166,30 +3166,10 @@ function BiopsyWorksheetPage() {
         </div>
       </div>
 
-      {/* Day Tabs */}
-      <div className="flex gap-2">
-        {[5, 6, 7].map(day => (
-          <button
-            key={day}
-            onClick={() => setCurrentDay(day)}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-              currentDay === day
-                ? 'bg-ally-teal text-white'
-                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-            } ${worksheetData.samples[day]?.some(s => s.sample_id || s.grade) ? 'ring-2 ring-ally-teal ring-offset-1' : ''}`}
-          >
-            Day {day}
-            {worksheetData.samples[day]?.some(s => s.sample_id || s.grade) && (
-              <span className="ml-2 text-xs">●</span>
-            )}
-          </button>
-        ))}
-      </div>
-
       {/* Sample Table */}
       <div className="bg-white rounded-lg border overflow-hidden">
         <div className="px-6 py-4 border-b flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Day {currentDay} Samples</h2>
+          <h2 className="font-semibold text-gray-900">Sample Details</h2>
           <button
             onClick={() => addSampleRow(currentDay)}
             className="flex items-center gap-2 text-ally-teal hover:text-ally-teal-dark text-sm font-medium"
@@ -3318,7 +3298,7 @@ function BiopsyWorksheetPage() {
               {currentSamples.length === 0 && (
                 <tr>
                   <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
-                    No samples for Day {currentDay}. Click "Add Sample Row" to begin.
+                    No samples added yet. Click "Add Sample Row" to begin.
                   </td>
                 </tr>
               )}
