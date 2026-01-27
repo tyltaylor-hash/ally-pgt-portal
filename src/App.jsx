@@ -2487,12 +2487,6 @@ function NewRequisitionPage() {
       return
     }
 
-    if (!formData.indication) {
-      setError('Please select an indication for PGT')
-      setLoading(false)
-      return
-    }
-
     if (formData.is_egg_donor && !formData.egg_donor_age) {
       setError('Please enter the egg donor age')
       setLoading(false)
@@ -2563,10 +2557,7 @@ function NewRequisitionPage() {
     if (formData.partner_phone) caseData.partner_phone = formData.partner_phone
     if (formData.ordering_provider_id) caseData.ordering_provider_id = formData.ordering_provider_id
     if (formData.mask_sex_results) caseData.mask_sex_results = formData.mask_sex_results
-    if (formData.is_egg_donor) caseData.is_egg_donor = formData.is_egg_donor
-    if (formData.egg_donor_age) caseData.egg_donor_age = formData.egg_donor_age
-    if (formData.indication) caseData.indication = formData.indication
-    // Note: karyotype_file_path removed - column doesn't exist in database yet
+    // Note: is_egg_donor, egg_donor_age, indication, karyotype_file_path removed - columns don't exist in database yet
 
     const { data: newCase, error: insertError } = await supabase
       .from('cases')
@@ -2646,12 +2637,11 @@ function NewRequisitionPage() {
             </div>
             
             <div className="max-w-md">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Indication for PGT *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Indication for PGT</label>
               <select
                 name="indication"
                 value={formData.indication}
                 onChange={handleChange}
-                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
               >
                 <option value="">Select indication...</option>
