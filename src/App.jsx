@@ -2563,10 +2563,10 @@ function NewRequisitionPage() {
     if (formData.partner_phone) caseData.partner_phone = formData.partner_phone
     if (formData.ordering_provider_id) caseData.ordering_provider_id = formData.ordering_provider_id
     if (formData.mask_sex_results) caseData.mask_sex_results = formData.mask_sex_results
-    if (karyotype_file_path) caseData.karyotype_file_path = karyotype_file_path
     if (formData.is_egg_donor) caseData.is_egg_donor = formData.is_egg_donor
     if (formData.egg_donor_age) caseData.egg_donor_age = formData.egg_donor_age
     if (formData.indication) caseData.indication = formData.indication
+    // Note: karyotype_file_path removed - column doesn't exist in database yet
 
     const { data: newCase, error: insertError } = await supabase
       .from('cases')
