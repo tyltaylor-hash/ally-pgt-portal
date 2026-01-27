@@ -3577,7 +3577,7 @@ function BiopsyWorksheetPage() {
   async function fetchCases() {
     const { data } = await supabase
       .from('cases')
-      .select('id, case_number, patient_first_name, patient_last_name, patient_dob, partner_first_name, partner_last_name, partner_dob, is_egg_donor, egg_donor_age, is_sperm_donor, ordering_provider:providers(first_name, last_name, credentials), clinic:clinics(name), status')
+      .select('id, case_number, patient_first_name, patient_last_name, patient_dob, partner_first_name, partner_last_name, partner_dob, ordering_provider:providers(first_name, last_name, credentials), clinic:clinics(name), status')
       .eq('clinic_id', userData.clinic_id)
       .neq('status', 'complete')
       .order('created_at', { ascending: false })
