@@ -499,7 +499,11 @@ function ClinicLayout({ children }) {
       <aside className={`${sidebarCollapsed ? 'w-16' : 'w-60'} bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ${impersonating ? 'mt-10' : ''}`}>
         {/* Sidebar Header */}
         <div className="h-16 flex items-center gap-3 px-4 border-b border-gray-200">
-          <DNAHelixLogo size={32} className="flex-shrink-0" />
+          <img 
+            src="/logo-icon.jpg" 
+            alt="Ally Genetics" 
+            className="w-10 h-10 flex-shrink-0 object-contain"
+          />
           {!sidebarCollapsed && (
             <div className="flex flex-col">
               <span className="font-bold text-[#2D2A4A] text-sm leading-tight">Ally Genetics</span>
