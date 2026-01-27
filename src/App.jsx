@@ -2542,27 +2542,31 @@ function NewRequisitionPage() {
       setUploadingFile(false)
     }
 
-    // Prepare data for insertion - only include fields that exist in the database
+    // Prepare data for insertion - only include fields that have values
     const caseData = {
       clinic_id: userData.clinic_id,
-      submitted_by_user_id: userData.id,
       status: 'consent_pending',
       patient_first_name: formData.patient_first_name,
       patient_last_name: formData.patient_last_name,
       patient_dob: formData.patient_dob,
       patient_email: formData.patient_email,
-      patient_phone: formData.patient_phone,
-      partner_first_name: formData.partner_first_name,
-      partner_last_name: formData.partner_last_name,
-      partner_dob: formData.partner_dob,
-      partner_email: formData.partner_email,
-      partner_phone: formData.partner_phone,
-      ordering_provider_id: formData.ordering_provider_id,
       tests_ordered: formData.tests_ordered,
-      mask_sex_results: formData.mask_sex_results,
-      karyotype_file_path,
-      form_completed_date: new Date().toISOString(),
     }
+    
+    // Conditionally add fields only if they have values
+    if (userData.id) caseData.created_by = userData.id
+    if (formData.patient_phone) caseData.patient_phone = formData.patient_phone
+    if (formData.partner_first_name) caseData.partner_first_name = formData.partner_first_name
+    if (formData.partner_last_name) caseData.partner_last_name = formData.partner_last_name
+    if (formData.partner_dob) caseData.partner_dob = formData.partner_dob
+    if (formData.partner_email) caseData.partner_email = formData.partner_email
+    if (formData.partner_phone) caseData.partner_phone = formData.partner_phone
+    if (formData.ordering_provider_id) caseData.ordering_provider_id = formData.ordering_provider_id
+    if (formData.mask_sex_results) caseData.mask_sex_results = formData.mask_sex_results
+    if (karyotype_file_path) caseData.karyotype_file_path = karyotype_file_path
+    if (formData.is_egg_donor) caseData.is_egg_donor = formData.is_egg_donor
+    if (formData.egg_donor_age) caseData.egg_donor_age = formData.egg_donor_age
+    if (formData.indication) caseData.indication = formData.indication
 
     const { data: newCase, error: insertError } = await supabase
       .from('cases')
