@@ -9,61 +9,16 @@ import {
 } from 'lucide-react'
 
 // ============================================================================
-// ALLY GENETICS DNA HELIX LOGO COMPONENT
+// ALLY GENETICS LOGO COMPONENT (using actual logo image)
 // ============================================================================
 function DNAHelixLogo({ size = 32, className = '' }) {
   return (
-    <svg 
-      width={size} 
-      height={size} 
-      viewBox="0 0 40 40" 
-      fill="none" 
-      xmlns="http://www.w3.org/2000/svg"
+    <img 
+      src="/logo.jpg" 
+      alt="Ally Genetics"
+      style={{ height: size * 1.8, width: 'auto' }}
       className={className}
-    >
-      {/* DNA Helix Structure */}
-      <path 
-        d="M12 5 Q15 10, 12 15 Q9 20, 12 25 Q15 30, 12 35" 
-        stroke="#2D2A4A" 
-        strokeWidth="2.5" 
-        fill="none"
-        strokeLinecap="round"
-      />
-      <path 
-        d="M18 5 Q15 10, 18 15 Q21 20, 18 25 Q15 30, 18 35" 
-        stroke="#2D2A4A" 
-        strokeWidth="2.5" 
-        fill="none"
-        strokeLinecap="round"
-      />
-      
-      {/* Connecting lines */}
-      <line x1="12" y1="8" x2="18" y2="8" stroke="#2D2A4A" strokeWidth="1.5" opacity="0.6" />
-      <line x1="12" y1="15" x2="18" y2="15" stroke="#2D2A4A" strokeWidth="1.5" opacity="0.6" />
-      <line x1="12" y1="22" x2="18" y2="22" stroke="#2D2A4A" strokeWidth="1.5" opacity="0.6" />
-      <line x1="12" y1="29" x2="18" y2="29" stroke="#2D2A4A" strokeWidth="1.5" opacity="0.6" />
-      
-      {/* Circular gradient element */}
-      <circle cx="28" cy="20" r="10" fill="url(#tealGradient)" opacity="0.9" />
-      <circle cx="28" cy="20" r="7" fill="url(#tealGradientInner)" opacity="0.7" />
-      <circle cx="28" cy="20" r="4" fill="url(#tealGradientCore)" opacity="0.9" />
-      
-      {/* Gradient definitions */}
-      <defs>
-        <radialGradient id="tealGradient" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0%" stopColor="#A8E0D7" />
-          <stop offset="100%" stopColor="#7ECFC0" />
-        </radialGradient>
-        <radialGradient id="tealGradientInner" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0%" stopColor="#C0EDE5" />
-          <stop offset="100%" stopColor="#A8E0D7" />
-        </radialGradient>
-        <radialGradient id="tealGradientCore" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0%" stopColor="#D5F4EF" />
-          <stop offset="100%" stopColor="#C0EDE5" />
-        </radialGradient>
-      </defs>
-    </svg>
+    />
   )
 }
 
