@@ -2542,16 +2542,24 @@ function NewRequisitionPage() {
       setUploadingFile(false)
     }
 
+    // Prepare data for insertion - only include egg_donor_age if egg donor is selected
+    const caseData = {
+      clinic_id: userData.clinic_id,
+      submitted_by_user_id: userData.id,
+      status: 'consent_pending',
+      ...formData,
+      karyotype_file_path,
+      form_completed_date: new Date().toISOString(),
+    }
+    
+    // Remove egg_donor_age if egg donor is not selected
+    if (!formData.is_egg_donor) {
+      delete caseData.egg_donor_age
+    }
+
     const { data: newCase, error: insertError } = await supabase
       .from('cases')
-      .insert({
-        clinic_id: userData.clinic_id,
-        submitted_by_user_id: userData.id,
-        status: 'consent_pending',
-        ...formData,
-        karyotype_file_path,
-        form_completed_date: new Date().toISOString(),
-      })
+      .insert(caseData)
       .select()
       .single()
 
