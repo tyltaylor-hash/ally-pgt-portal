@@ -500,7 +500,7 @@ function ClinicLayout({ children }) {
         {/* Sidebar Header */}
         <div className="h-16 flex items-center gap-3 px-4 border-b border-gray-200">
           <img 
-            src="/logo-icon.jpg" 
+            src="/logo-icon.png" 
             alt="Ally Genetics" 
             className="w-10 h-10 flex-shrink-0 object-contain"
           />
