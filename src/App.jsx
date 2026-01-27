@@ -2900,7 +2900,7 @@ function BiopsyWorksheetPage() {
     embryologist: '',
     day5_date: new Date().toISOString().split('T')[0],
     samples: {
-      5: Array(5).fill(null).map((_, i) => ({ sample_id: '', day: '5', grade: '', expansion: '', icm: '', te: '', cells_visualized: '', notes: '' })),
+      5: Array(5).fill(null).map((_, i) => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', notes: '' })),
       6: [],
       7: []
     }
@@ -2948,7 +2948,7 @@ function BiopsyWorksheetPage() {
   function addSampleRow(day) {
     setWorksheetData(prev => {
       const newSamples = { ...prev.samples }
-      newSamples[day] = [...newSamples[day], { sample_id: '', day: day.toString(), grade: '', expansion: '', icm: '', te: '', cells_visualized: '', notes: '' }]
+      newSamples[day] = [...newSamples[day], { sample_id: '', day: day.toString(), grade: '', embryologist_bx: '', embryologist_tubing: '', notes: '' }]
       return { ...prev, samples: newSamples }
     })
   }
@@ -2989,7 +2989,7 @@ function BiopsyWorksheetPage() {
         ...prev,
         day5_date: new Date().toISOString().split('T')[0],
         samples: {
-          5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', expansion: '', icm: '', te: '', cells_visualized: '', notes: '' })),
+          5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', notes: '' })),
           6: [],
           7: []
         }
@@ -3049,7 +3049,7 @@ function BiopsyWorksheetPage() {
       embryologist: '',
       day5_date: new Date().toISOString().split('T')[0],
       samples: {
-        5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', expansion: '', icm: '', te: '', cells_visualized: '', notes: '' })),
+        5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', notes: '' })),
         6: [],
         7: []
       }
@@ -3160,10 +3160,8 @@ function BiopsyWorksheetPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sample ID</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grade</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expansion</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ICM</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">TE</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cells Visualized</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Embryologist BX</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Embryologist Tubing</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"></th>
               </tr>
@@ -3201,54 +3199,22 @@ function BiopsyWorksheetPage() {
                     />
                   </td>
                   <td className="px-4 py-2">
-                    <select
-                      value={sample.expansion}
-                      onChange={(e) => handleSampleChange(currentDay, index, 'expansion', e.target.value)}
-                      className="w-28 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
-                    >
-                      <option value="">Select...</option>
-                      <option value="1">1 - Early</option>
-                      <option value="2">2 - Blastocyst</option>
-                      <option value="3">3 - Full</option>
-                      <option value="4">4 - Expanded</option>
-                      <option value="5">5 - Hatching</option>
-                      <option value="6">6 - Hatched</option>
-                    </select>
+                    <input
+                      type="text"
+                      value={sample.embryologist_bx}
+                      onChange={(e) => handleSampleChange(currentDay, index, 'embryologist_bx', e.target.value)}
+                      placeholder="Initials"
+                      className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                    />
                   </td>
                   <td className="px-4 py-2">
-                    <select
-                      value={sample.icm}
-                      onChange={(e) => handleSampleChange(currentDay, index, 'icm', e.target.value)}
-                      className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
-                    >
-                      <option value="">-</option>
-                      <option value="A">A</option>
-                      <option value="B">B</option>
-                      <option value="C">C</option>
-                    </select>
-                  </td>
-                  <td className="px-4 py-2">
-                    <select
-                      value={sample.te}
-                      onChange={(e) => handleSampleChange(currentDay, index, 'te', e.target.value)}
-                      className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
-                    >
-                      <option value="">-</option>
-                      <option value="A">A</option>
-                      <option value="B">B</option>
-                      <option value="C">C</option>
-                    </select>
-                  </td>
-                  <td className="px-4 py-2">
-                    <select
-                      value={sample.cells_visualized}
-                      onChange={(e) => handleSampleChange(currentDay, index, 'cells_visualized', e.target.value)}
-                      className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
-                    >
-                      <option value="">-</option>
-                      <option value="Y">Y</option>
-                      <option value="N">N</option>
-                    </select>
+                    <input
+                      type="text"
+                      value={sample.embryologist_tubing}
+                      onChange={(e) => handleSampleChange(currentDay, index, 'embryologist_tubing', e.target.value)}
+                      placeholder="Initials"
+                      className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                    />
                   </td>
                   <td className="px-4 py-2">
                     <input
@@ -3271,7 +3237,7 @@ function BiopsyWorksheetPage() {
               ))}
               {currentSamples.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                     No samples added yet. Click "Add Sample Row" to begin.
                   </td>
                 </tr>
