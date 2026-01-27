@@ -2899,8 +2899,6 @@ function BiopsyWorksheetPage() {
     patient_name: '',
     embryologist: '',
     day5_date: new Date().toISOString().split('T')[0],
-    day6_date: '',
-    day7_date: '',
     samples: {
       5: Array(5).fill(null).map((_, i) => ({ sample_id: '', day: '5', grade: '', expansion: '', icm: '', te: '', cells_visualized: '', notes: '' })),
       6: [],
@@ -2990,8 +2988,6 @@ function BiopsyWorksheetPage() {
       setWorksheetData(prev => ({
         ...prev,
         day5_date: new Date().toISOString().split('T')[0],
-        day6_date: '',
-        day7_date: '',
         samples: {
           5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', expansion: '', icm: '', te: '', cells_visualized: '', notes: '' })),
           6: [],
@@ -3030,8 +3026,6 @@ function BiopsyWorksheetPage() {
         clinic_id: userData.clinic_id,
         embryologist: worksheetData.embryologist,
         day5_date: worksheetData.day5_date,
-        day6_date: worksheetData.day6_date || null,
-        day7_date: worksheetData.day7_date || null,
         samples: allSamples.filter(s => s.sample_id || s.grade),
         submitted_by: userData.id,
       })
@@ -3054,8 +3048,6 @@ function BiopsyWorksheetPage() {
       patient_name: '',
       embryologist: '',
       day5_date: new Date().toISOString().split('T')[0],
-      day6_date: '',
-      day7_date: '',
       samples: {
         5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', expansion: '', icm: '', te: '', cells_visualized: '', notes: '' })),
         6: [],
@@ -3142,24 +3134,6 @@ function BiopsyWorksheetPage() {
               type="date"
               value={worksheetData.day5_date}
               onChange={(e) => setWorksheetData(prev => ({ ...prev, day5_date: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Day 6 Date</label>
-            <input
-              type="date"
-              value={worksheetData.day6_date}
-              onChange={(e) => setWorksheetData(prev => ({ ...prev, day6_date: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Day 7 Date</label>
-            <input
-              type="date"
-              value={worksheetData.day7_date}
-              onChange={(e) => setWorksheetData(prev => ({ ...prev, day7_date: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             />
           </div>
