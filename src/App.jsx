@@ -849,7 +849,6 @@ function ClinicDashboard() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPatient, setSelectedPatient] = useState(null)
-  const [showRequisitionModal, setShowRequisitionModal] = useState(false)
   const [showSuppliesModal, setShowSuppliesModal] = useState(false)
   const [sortField, setSortField] = useState('name')
   const [sortDirection, setSortDirection] = useState('asc')
@@ -959,7 +958,7 @@ function ClinicDashboard() {
       {/* Quick Action Buttons */}
       <div className="flex gap-3 mb-6">
         <button
-          onClick={() => setShowRequisitionModal(true)}
+          onClick={() => navigate('/clinic/cases/new')}
           className="flex items-center gap-2 px-4 py-2.5 bg-ally-teal text-white rounded-lg hover:bg-ally-teal-dark transition-all hover:shadow-lg text-sm font-medium"
         >
           <Plus className="w-4 h-4" />
@@ -1096,34 +1095,6 @@ function ClinicDashboard() {
         />
       )}
 
-      {/* New Requisition Modal */}
-      {showRequisitionModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowRequisitionModal(false)}>
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-ally-navy">New Requisition</h3>
-              <button onClick={() => setShowRequisitionModal(false)} className="p-1 hover:bg-gray-100 rounded">
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            <div className="p-6">
-              <p className="text-gray-600 text-center py-8">
-                Requisition form will be displayed here.
-                <br />
-                <button 
-                  onClick={() => {
-                    setShowRequisitionModal(false)
-                    navigate('/clinic/cases/new')
-                  }}
-                  className="text-ally-teal hover:underline mt-2"
-                >
-                  Or go to full requisition page →
-                </button>
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Order Supplies Modal */}
       {showSuppliesModal && (
