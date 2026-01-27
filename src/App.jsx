@@ -2574,6 +2574,9 @@ function NewRequisitionPage() {
     // Create consent for patient
     await supabase.from('consents').insert({
       case_id: newCase.id,
+      signer_type: 'patient',
+      signer_name: `${formData.patient_first_name} ${formData.patient_last_name}`,
+      signer_email: formData.patient_email,
       consent_for: 'patient',
       recipient_name: `${formData.patient_first_name} ${formData.patient_last_name}`,
       recipient_email: formData.patient_email,
@@ -2585,6 +2588,9 @@ function NewRequisitionPage() {
     if (isPartnerRequired && formData.partner_email) {
       await supabase.from('consents').insert({
         case_id: newCase.id,
+        signer_type: 'partner',
+        signer_name: `${formData.partner_first_name} ${formData.partner_last_name}`,
+        signer_email: formData.partner_email,
         consent_for: 'partner',
         recipient_name: `${formData.partner_first_name} ${formData.partner_last_name}`,
         recipient_email: formData.partner_email,
