@@ -436,6 +436,7 @@ function ClinicLayout({ children }) {
   const { userData, signOut, impersonating, stopImpersonation } = useAuth()
   const navigate = useNavigate()
   const [showProfile, setShowProfile] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const handleSignOut = async () => {
     await signOut()
@@ -448,20 +449,21 @@ function ClinicLayout({ children }) {
   }
 
   const navigation = [
-    { name: 'Lab Statistics', href: '/clinic/stats', icon: BarChart3 },
-    { name: 'Dashboard', href: '/clinic', icon: LayoutDashboard },
-    { name: 'Cases', href: '/clinic/cases', icon: FileText },
+    { name: 'Home', href: '/clinic', icon: LayoutDashboard },
+    { name: 'Requisition', href: '/clinic/cases/new', icon: FileText },
     { name: 'Biopsy Worksheet', href: '/clinic/worksheet', icon: ClipboardList },
+    { name: 'Cases', href: '/clinic/cases', icon: FileText },
     { name: 'Order Supplies', href: '/clinic/orders', icon: Package },
+    { name: 'Lab Statistics', href: '/clinic/stats', icon: BarChart3 },
     { name: 'Contact Us', href: '/clinic/contact', icon: Phone },
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50">
       {/* Impersonation Banner */}
       {impersonating && (
-        <div className="bg-amber-500 text-white px-4 py-2">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="fixed top-0 left-0 right-0 bg-amber-500 text-white px-4 py-2 z-50">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Eye className="w-4 h-4" />
               <span className="text-sm font-medium">
@@ -478,56 +480,100 @@ function ClinicLayout({ children }) {
           </div>
         </div>
       )}
-      
-      <nav className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Link to="/clinic" className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-ally-teal rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">AG</span>
+
+      {/* Sidebar */}
+      <aside className={`${sidebarCollapsed ? 'w-16' : 'w-60'} bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ${impersonating ? 'mt-10' : ''}`}>
+        {/* Sidebar Header */}
+        <div className="h-16 flex items-center gap-3 px-4 border-b border-gray-200">
+          <div className="w-8 h-8 bg-gradient-to-br from-ally-teal to-green-400 rounded-full flex items-center justify-center flex-shrink-0">
+            <span className="text-white font-bold text-sm">AG</span>
+          </div>
+          {!sidebarCollapsed && (
+            <span className="font-semibold text-ally-navy text-sm">Ally Genetics</span>
+          )}
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 py-4 overflow-y-auto">
+          {navigation.map((item) => (
+            <Link
+              key={item.name}
+              to={item.href}
+              className={`flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 hover:text-ally-teal hover:border-l-3 hover:border-ally-teal transition-colors ${
+                window.location.pathname === item.href ? 'bg-ally-teal/10 text-ally-teal border-l-3 border-ally-teal font-medium' : 'border-l-3 border-transparent'
+              }`}
+            >
+              <item.icon className="w-5 h-5 flex-shrink-0" />
+              {!sidebarCollapsed && <span>{item.name}</span>}
+            </Link>
+          ))}
+        </nav>
+
+        {/* User Menu */}
+        <div className="border-t border-gray-200 p-4">
+          <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+            <div className="w-8 h-8 bg-gradient-to-br from-ally-teal to-green-400 rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-semibold text-xs">
+                {userData?.first_name?.[0]}{userData?.last_name?.[0]}
+              </span>
+            </div>
+            {!sidebarCollapsed && (
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-gray-900 truncate">
+                  {userData?.first_name} {userData?.last_name}
                 </div>
-                <span className="font-semibold text-ally-navy hidden sm:block">{userData?.clinic?.name || 'Ally Genetics'}</span>
-              </Link>
-              <div className="hidden sm:flex sm:ml-8 sm:space-x-2">
-                {navigation.map((item) => (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className="flex items-center px-3 py-2 text-sm text-gray-600 hover:text-ally-teal hover:bg-gray-50 rounded-md"
-                  >
-                    <item.icon className="w-4 h-4 mr-2" />
-                    {item.name}
-                  </Link>
-                ))}
+                <div className="text-xs text-gray-500 truncate">{userData?.clinic?.name}</div>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium">{userData?.first_name} {userData?.last_name}</p>
-                <p className="text-xs text-gray-500">{userData?.clinic?.name}</p>
-              </div>
-              {!impersonating && (
-                <>
-                  <button 
-                    onClick={() => setShowProfile(true)} 
-                    className="p-2 text-gray-400 hover:text-gray-600"
-                    title="My Profile"
-                  >
-                    <User className="w-5 h-5" />
-                  </button>
-                  <button onClick={handleSignOut} className="p-2 text-gray-400 hover:text-gray-600" title="Sign Out">
-                    <LogOut className="w-5 h-5" />
-                  </button>
-                </>
-              )}
-            </div>
+            )}
           </div>
         </div>
-      </nav>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {children}
-      </main>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Bar */}
+        <header className={`h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 ${impersonating ? 'mt-10' : ''}`}>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <h1 className="text-lg font-semibold text-ally-navy">
+              {navigation.find(item => item.href === window.location.pathname)?.name || 'Home'}
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!impersonating && (
+              <>
+                <button 
+                  onClick={() => setShowProfile(true)} 
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="My Profile"
+                >
+                  <User className="w-5 h-5" />
+                </button>
+                <button 
+                  onClick={handleSignOut} 
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" 
+                  title="Sign Out"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+              </>
+            )}
+          </div>
+        </header>
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-y-auto p-6">
+          {children}
+        </main>
+      </div>
       
       {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
     </div>
@@ -779,47 +825,101 @@ function AdminDashboard() {
 // ============================================================================
 function ClinicDashboard() {
   const { supabase, userData } = useAuth()
-  const [cases, setCases] = useState([])
+  const navigate = useNavigate()
+  const [patients, setPatients] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCase, setSelectedCase] = useState(null)
+  const [selectedPatient, setSelectedPatient] = useState(null)
+  const [showRequisitionModal, setShowRequisitionModal] = useState(false)
+  const [showSuppliesModal, setShowSuppliesModal] = useState(false)
+  const [sortField, setSortField] = useState('name')
+  const [sortDirection, setSortDirection] = useState('asc')
 
   useEffect(() => {
     if (userData?.clinic_id) {
-      fetchData()
+      fetchPatients()
     } else if (userData) {
       setLoading(false)
     }
   }, [userData])
 
-  async function fetchData() {
+  async function fetchPatients() {
+    // Fetch all cases for this clinic with ordering provider info
     const { data: allCases } = await supabase
       .from('cases')
-      .select('*')
+      .select(`
+        *,
+        ordering_provider:providers(first_name, last_name, credentials)
+      `)
       .eq('clinic_id', userData.clinic_id)
       .order('created_at', { ascending: false })
 
-    setCases(allCases || [])
+    if (!allCases) {
+      setPatients([])
+      setLoading(false)
+      return
+    }
+
+    // Group cases by patient (patient_first_name + patient_last_name + patient_dob)
+    const patientMap = {}
+    allCases.forEach(c => {
+      const key = `${c.patient_first_name}_${c.patient_last_name}_${c.patient_dob}`
+      if (!patientMap[key]) {
+        patientMap[key] = {
+          first_name: c.patient_first_name,
+          last_name: c.patient_last_name,
+          dob: c.patient_dob,
+          doctor: c.ordering_provider 
+            ? `${c.ordering_provider.first_name} ${c.ordering_provider.last_name}${c.ordering_provider.credentials ? ', ' + c.ordering_provider.credentials : ''}`
+            : 'N/A',
+          cycles: []
+        }
+      }
+      patientMap[key].cycles.push(c)
+    })
+
+    setPatients(Object.values(patientMap))
     setLoading(false)
   }
 
-  const filteredCases = cases.filter(c => {
-    if (!searchTerm) return true
-    const search = searchTerm.toLowerCase()
-    return (
-      c.patient_first_name?.toLowerCase().includes(search) ||
-      c.patient_last_name?.toLowerCase().includes(search) ||
-      c.case_number?.toLowerCase().includes(search) ||
-      c.patient_email?.toLowerCase().includes(search)
-    )
-  })
+  function handleSort(field) {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
 
-  const quickActions = [
-    { name: 'New Requisition', description: 'Submit a new PGT case', href: '/clinic/cases/new', icon: Plus, iconBg: 'bg-ally-teal/10', iconColor: 'text-ally-teal' },
-    { name: 'Biopsy Worksheet', description: 'Document embryo details', href: '/clinic/worksheet', icon: ClipboardList, iconBg: 'bg-purple-100', iconColor: 'text-purple-600' },
-    { name: 'Order Supplies', description: 'Request kits & materials', href: '/clinic/orders', icon: Package, iconBg: 'bg-orange-100', iconColor: 'text-orange-600' },
-    { name: 'Lab Statistics', description: 'View performance metrics', href: '/clinic/stats', icon: BarChart3, iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
-  ]
+  const filteredPatients = patients
+    .filter(p => {
+      if (!searchTerm) return true
+      const search = searchTerm.toLowerCase()
+      return (
+        p.first_name?.toLowerCase().includes(search) ||
+        p.last_name?.toLowerCase().includes(search) ||
+        p.dob?.includes(search)
+      )
+    })
+    .sort((a, b) => {
+      let aVal, bVal
+      if (sortField === 'name') {
+        aVal = `${a.last_name} ${a.first_name}`.toLowerCase()
+        bVal = `${b.last_name} ${b.first_name}`.toLowerCase()
+      } else if (sortField === 'dob') {
+        aVal = a.dob || ''
+        bVal = b.dob || ''
+      } else if (sortField === 'doctor') {
+        aVal = a.doctor.toLowerCase()
+        bVal = b.doctor.toLowerCase()
+      }
+      
+      if (sortDirection === 'asc') {
+        return aVal > bVal ? 1 : -1
+      } else {
+        return aVal < bVal ? 1 : -1
+      }
+    })
 
   if (loading) {
     return <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-ally-teal" /></div>
@@ -831,105 +931,534 @@ function ClinicDashboard() {
         <Building2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
         <h2 className="text-xl font-semibold text-gray-900 mb-2">No Clinic Assigned</h2>
         <p className="text-gray-500">Your account is not associated with a clinic.</p>
-        <p className="text-gray-500">Please contact an administrator.</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500">Welcome back! Here's an overview of your cases.</p>
+    <>
+      {/* Quick Action Buttons */}
+      <div className="flex gap-3 mb-6">
+        <button
+          onClick={() => setShowRequisitionModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-ally-teal text-white rounded-lg hover:bg-ally-teal-dark transition-all hover:shadow-lg text-sm font-medium"
+        >
+          <Plus className="w-4 h-4" />
+          New Requisition
+        </button>
+        <button
+          onClick={() => navigate('/clinic/worksheet')}
+          className="flex items-center gap-2 px-4 py-2.5 bg-ally-teal text-white rounded-lg hover:bg-ally-teal-dark transition-all hover:shadow-lg text-sm font-medium"
+        >
+          <Plus className="w-4 h-4" />
+          New Biopsy Worksheet
+        </button>
+        <button
+          onClick={() => setShowSuppliesModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-ally-teal text-white rounded-lg hover:bg-ally-teal-dark transition-all hover:shadow-lg text-sm font-medium"
+        >
+          <Plus className="w-4 h-4" />
+          Order Supplies
+        </button>
       </div>
 
-      {/* Quick Actions */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {quickActions.map((action) => (
-            <Link
-              key={action.name}
-              to={action.href}
-              className="bg-white border-2 border-gray-200 rounded-xl p-6 hover:border-ally-teal hover:shadow-lg transition-all group"
-            >
-              <div className={`w-12 h-12 ${action.iconBg} rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                <action.icon className={`w-6 h-6 ${action.iconColor}`} />
-              </div>
-              <h4 className="font-semibold text-gray-900 mb-1">{action.name}</h4>
-              <p className="text-sm text-gray-500">{action.description}</p>
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      {/* Cases / Patient Records */}
-      <div className="bg-white rounded-lg border">
-        <div className="px-6 py-4 border-b">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">Patient Cases</h2>
-              <p className="text-sm text-gray-500">{cases.length} total cases</p>
-            </div>
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name, case #, or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ally-teal w-full sm:w-72"
-              />
-            </div>
+      {/* Patient Records Table */}
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-4">
+          <h2 className="text-lg font-semibold text-ally-navy">Patient Records</h2>
+          <div className="relative flex-1 max-w-xs">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by name or DOB..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ally-teal w-full text-sm"
+            />
           </div>
         </div>
-        <div className="divide-y max-h-96 overflow-y-auto">
-          {filteredCases.length > 0 ? filteredCases.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setSelectedCase(c)}
-              className="w-full text-left px-6 py-4 hover:bg-gray-50 transition-colors"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-ally-teal/10 rounded-full flex items-center justify-center">
-                    <User className="w-5 h-5 text-ally-teal" />
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th 
+                  onClick={() => handleSort('name')}
+                  className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    Patient Name
+                    <svg className={`w-3 h-3 ${sortField === 'name' ? 'text-ally-teal' : 'text-gray-400 opacity-50'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                   </div>
-                  <div>
-                    <p className="font-medium text-gray-900">{c.patient_last_name}, {c.patient_first_name}</p>
-                    <p className="text-sm text-gray-500">{c.case_number} • {new Date(c.created_at).toLocaleDateString()}</p>
+                </th>
+                <th 
+                  onClick={() => handleSort('dob')}
+                  className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    Date of Birth
+                    <svg className={`w-3 h-3 ${sortField === 'dob' ? 'text-ally-teal' : 'text-gray-400 opacity-50'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <StatusBadge status={c.status} />
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
-                </div>
-              </div>
-            </button>
-          )) : (
-            <div className="px-6 py-12 text-center text-gray-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              {searchTerm ? (
-                <p>No cases found matching "{searchTerm}"</p>
-              ) : (
-                <>
-                  <p>No cases yet.</p>
-                  <Link to="/clinic/cases/new" className="text-ally-teal hover:underline">Submit your first requisition →</Link>
-                </>
+                </th>
+                <th 
+                  onClick={() => handleSort('doctor')}
+                  className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    Doctor
+                    <svg className={`w-3 h-3 ${sortField === 'doctor' ? 'text-ally-teal' : 'text-gray-400 opacity-50'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredPatients.length > 0 ? filteredPatients.map((patient, idx) => (
+                <tr 
+                  key={idx}
+                  onClick={() => setSelectedPatient(patient)}
+                  className="hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-ally-teal/10 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-ally-teal font-medium text-sm">
+                          {patient.first_name?.[0]}{patient.last_name?.[0]}
+                        </span>
+                      </div>
+                      <span className="font-medium text-gray-900">
+                        {patient.last_name}, {patient.first_name}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {patient.dob ? new Date(patient.dob).toLocaleDateString('en-US') : 'N/A'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{patient.doctor}</td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={3} className="px-6 py-12 text-center text-gray-500">
+                    <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    {searchTerm ? (
+                      <p>No patients found matching "{searchTerm}"</p>
+                    ) : (
+                      <div>
+                        <p className="mb-2">No patients yet.</p>
+                        <button 
+                          onClick={() => setShowRequisitionModal(true)}
+                          className="text-ally-teal hover:underline"
+                        >
+                          Submit your first requisition →
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
               )}
-            </div>
-          )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Patient Folder Modal */}
-      {selectedCase && (
-        <PatientFolderModal 
-          caseData={selectedCase} 
-          onClose={() => setSelectedCase(null)} 
+      {/* Patient Cycles Modal */}
+      {selectedPatient && (
+        <PatientCyclesModal
+          patient={selectedPatient}
+          onClose={() => setSelectedPatient(null)}
           supabase={supabase}
         />
       )}
+
+      {/* New Requisition Modal */}
+      {showRequisitionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowRequisitionModal(false)}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-ally-navy">New Requisition</h3>
+              <button onClick={() => setShowRequisitionModal(false)} className="p-1 hover:bg-gray-100 rounded">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-600 text-center py-8">
+                Requisition form will be displayed here.
+                <br />
+                <button 
+                  onClick={() => {
+                    setShowRequisitionModal(false)
+                    navigate('/clinic/cases/new')
+                  }}
+                  className="text-ally-teal hover:underline mt-2"
+                >
+                  Or go to full requisition page →
+                </button>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Supplies Modal */}
+      {showSuppliesModal && (
+        <OrderSuppliesModal onClose={() => setShowSuppliesModal(false)} />
+      )}
+    </>
+  )
+}
+
+// ============================================================================
+// PATIENT CYCLES MODAL
+// ============================================================================
+function PatientCyclesModal({ patient, onClose, supabase }) {
+  const [downloading, setDownloading] = useState(null)
+
+  async function handleDownload(caseId, docType) {
+    setDownloading(`${caseId}-${docType}`)
+    // Download logic here
+    setTimeout(() => setDownloading(null), 1000)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-200 flex items-start justify-between flex-shrink-0">
+          <div>
+            <h2 className="text-xl font-semibold text-ally-navy">
+              {patient.last_name}, {patient.first_name}
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              DOB: {patient.dob ? new Date(patient.dob).toLocaleDateString('en-US') : 'N/A'} • {patient.doctor} • {patient.cycles.length} {patient.cycles.length === 1 ? 'Cycle' : 'Cycles'}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Cycles */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {patient.cycles.map((cycle, idx) => (
+            <div key={cycle.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              {/* Cycle Header */}
+              <div className="flex items-center justify-between mb-4 pb-3 border-b-2 border-gray-300">
+                <div>
+                  <h3 className="text-base font-semibold text-ally-navy flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Cycle {patient.cycles.length - idx} - {cycle.test_type || 'PGT'}
+                  </h3>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Started: {new Date(cycle.created_at).toLocaleDateString('en-US')}
+                  </p>
+                </div>
+                <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                  cycle.status === 'complete' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                }`}>
+                  {cycle.status === 'complete' ? 'Completed' : 'Active'}
+                </span>
+              </div>
+
+              {/* Cycle Content Grid */}
+              <div className="grid grid-cols-3 gap-3">
+                {/* Requisition */}
+                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-ally-teal" />
+                    Requisition
+                  </div>
+                  <div className="space-y-2">
+                    <button 
+                      onClick={() => handleDownload(cycle.id, 'requisition')}
+                      className="w-full flex items-center justify-between p-2 bg-gray-50 hover:bg-ally-teal/10 border border-gray-200 hover:border-ally-teal rounded-md transition-all text-left group"
+                      disabled={downloading === `${cycle.id}-requisition`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-gray-900 truncate">Requisition Form</div>
+                        <div className="text-[10px] text-gray-500">
+                          {new Date(cycle.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
+                        </div>
+                      </div>
+                      {downloading === `${cycle.id}-requisition` ? (
+                        <Loader2 className="w-3.5 h-3.5 text-ally-teal animate-spin flex-shrink-0 ml-2" />
+                      ) : (
+                        <Download className="w-3.5 h-3.5 text-ally-teal flex-shrink-0 ml-2" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Consents */}
+                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <CheckCircle className="w-3.5 h-3.5 text-ally-teal" />
+                    Consents
+                  </div>
+                  <div className="space-y-1.5">
+                    <button 
+                      onClick={() => handleDownload(cycle.id, 'patient-consent')}
+                      className="w-full flex items-center justify-between p-2 bg-gray-50 hover:bg-ally-teal/10 border border-gray-200 hover:border-ally-teal rounded-md transition-all text-left"
+                      disabled={downloading === `${cycle.id}-patient-consent`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-gray-900 truncate">
+                          Patient 
+                          <span className="ml-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-medium rounded">Signed</span>
+                        </div>
+                        <div className="text-[10px] text-gray-500">01/16/24</div>
+                      </div>
+                      {downloading === `${cycle.id}-patient-consent` ? (
+                        <Loader2 className="w-3.5 h-3.5 text-ally-teal animate-spin flex-shrink-0 ml-2" />
+                      ) : (
+                        <Download className="w-3.5 h-3.5 text-ally-teal flex-shrink-0 ml-2" />
+                      )}
+                    </button>
+                    <button 
+                      onClick={() => handleDownload(cycle.id, 'partner-consent')}
+                      className="w-full flex items-center justify-between p-2 bg-gray-50 hover:bg-ally-teal/10 border border-gray-200 hover:border-ally-teal rounded-md transition-all text-left"
+                      disabled={downloading === `${cycle.id}-partner-consent`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-gray-900 truncate">
+                          Partner 
+                          <span className="ml-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-medium rounded">Signed</span>
+                        </div>
+                        <div className="text-[10px] text-gray-500">01/16/24</div>
+                      </div>
+                      {downloading === `${cycle.id}-partner-consent` ? (
+                        <Loader2 className="w-3.5 h-3.5 text-ally-teal animate-spin flex-shrink-0 ml-2" />
+                      ) : (
+                        <Download className="w-3.5 h-3.5 text-ally-teal flex-shrink-0 ml-2" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Reports */}
+                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-ally-teal" />
+                    Reports
+                  </div>
+                  {cycle.report_file ? (
+                    <button 
+                      onClick={() => handleDownload(cycle.id, 'report')}
+                      className="w-full flex items-center justify-between p-2 bg-gray-50 hover:bg-ally-teal/10 border border-gray-200 hover:border-ally-teal rounded-md transition-all text-left"
+                      disabled={downloading === `${cycle.id}-report`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-gray-900 truncate">PGT Report</div>
+                        <div className="text-[10px] text-gray-500">
+                          {cycle.report_date ? new Date(cycle.report_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : 'Available'}
+                        </div>
+                      </div>
+                      {downloading === `${cycle.id}-report` ? (
+                        <Loader2 className="w-3.5 h-3.5 text-ally-teal animate-spin flex-shrink-0 ml-2" />
+                      ) : (
+                        <Download className="w-3.5 h-3.5 text-ally-teal flex-shrink-0 ml-2" />
+                      )}
+                    </button>
+                  ) : (
+                    <div className="text-center py-4 text-gray-400 text-xs">No reports yet</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
+// ORDER SUPPLIES MODAL  
+// ============================================================================
+function OrderSuppliesModal({ onClose }) {
+  const { supabase, userData } = useAuth()
+  const [orderForm, setOrderForm] = useState({
+    biopsy_collection_kits: 0,
+    shipping_containers: 0,
+    collection_tubes: 0,
+    shipping_address: '',
+    notes: ''
+  })
+  const [submitting, setSubmitting] = useState(false)
+  const [success, setSuccess] = useState(false)
+
+  async function handleSubmitOrder(e) {
+    e.preventDefault()
+    setSubmitting(true)
+
+    // Save order to database
+    const { data: newOrder } = await supabase.from('kit_orders').insert({
+      clinic_id: userData.clinic_id,
+      ordered_by_user_id: userData.id,
+      status: 'pending',
+      items: {
+        biopsy_collection_kits: orderForm.biopsy_collection_kits,
+        shipping_containers: orderForm.shipping_containers,
+        collection_tubes: orderForm.collection_tubes,
+      },
+      shipping_address: orderForm.shipping_address || userData.clinic?.address || '',
+      notes: orderForm.notes,
+    }).select().single()
+
+    // Send email notification via Edge Function
+    try {
+      await supabase.functions.invoke('send-order-notification', {
+        body: {
+          to: 'lab@allygenetics.com',
+          clinic_name: userData.clinic?.name || 'Unknown Clinic',
+          clinic_contact: userData.email || '',
+          order_id: newOrder?.id || 'N/A',
+          items: {
+            biopsy_collection_kits: orderForm.biopsy_collection_kits,
+            shipping_containers: orderForm.shipping_containers,
+            collection_tubes: orderForm.collection_tubes,
+          },
+          shipping_address: orderForm.shipping_address || userData.clinic?.address || 'Use clinic default address',
+          notes: orderForm.notes || 'None',
+        }
+      })
+    } catch (error) {
+      console.log('Email notification error:', error)
+    }
+
+    setSubmitting(false)
+    setSuccess(true)
+  }
+
+  function handleNewOrder() {
+    setSuccess(false)
+    setOrderForm({ 
+      biopsy_collection_kits: 0, 
+      shipping_containers: 0, 
+      collection_tubes: 0, 
+      shipping_address: '', 
+      notes: '' 
+    })
+  }
+
+  if (success) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8 text-center" onClick={(e) => e.stopPropagation()}>
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Check className="w-8 h-8 text-green-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">We Have Received Your Order</h2>
+          <p className="text-gray-600 mb-6">
+            Your supply order has been submitted successfully. The Ally Genetics lab team will process your order and send out your kits shortly.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={handleNewOrder}
+              className="flex-1 bg-white border border-gray-300 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-50"
+            >
+              Place Another Order
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 bg-ally-teal text-white px-6 py-2 rounded-md hover:bg-ally-teal-dark"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-ally-navy">Order Supplies</h2>
+          <p className="text-sm text-gray-600 mt-1">Request collection kits and supplies for your clinic</p>
+        </div>
+        <form onSubmit={handleSubmitOrder} className="p-6 space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Biopsy Collection Kits</label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.biopsy_collection_kits}
+              onChange={(e) => setOrderForm(f => ({ ...f, biopsy_collection_kits: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Shipping Containers</label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.shipping_containers}
+              onChange={(e) => setOrderForm(f => ({ ...f, shipping_containers: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Collection Tubes (PCR tubes)</label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.collection_tubes}
+              onChange={(e) => setOrderForm(f => ({ ...f, collection_tubes: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Shipping Address</label>
+            <textarea
+              value={orderForm.shipping_address}
+              onChange={(e) => setOrderForm(f => ({ ...f, shipping_address: e.target.value }))}
+              rows={3}
+              placeholder="Enter shipping address or leave blank to use clinic default address"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+            <textarea
+              value={orderForm.notes}
+              onChange={(e) => setOrderForm(f => ({ ...f, notes: e.target.value }))}
+              rows={3}
+              placeholder="Any special instructions or additional items needed..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+          
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || (orderForm.biopsy_collection_kits === 0 && orderForm.shipping_containers === 0 && orderForm.collection_tubes === 0)}
+              className="flex items-center gap-2 bg-ally-teal text-white px-6 py-3 rounded-md hover:bg-ally-teal-dark disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              Submit Order
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
