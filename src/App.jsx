@@ -3548,6 +3548,7 @@ function BiopsyWorksheetPage() {
   const [selectedCase, setSelectedCase] = useState(null)
   const [currentDay, setCurrentDay] = useState(5)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
+  const [caseSearch, setCaseSearch] = useState('')
   
   const [worksheetData, setWorksheetData] = useState({
     case_id: '',
@@ -3570,9 +3571,9 @@ function BiopsyWorksheetPage() {
   async function fetchCases() {
     const { data } = await supabase
       .from('cases')
-      .select('id, case_number, patient_first_name, patient_last_name, patient_dob, partner_first_name, partner_last_name, partner_dob, is_egg_donor, egg_donor_age, is_sperm_donor, ordering_provider:providers(first_name, last_name, credentials), clinic:clinics(name)')
+      .select('id, case_number, patient_first_name, patient_last_name, patient_dob, partner_first_name, partner_last_name, partner_dob, is_egg_donor, egg_donor_age, is_sperm_donor, ordering_provider:providers(first_name, last_name, credentials), clinic:clinics(name), status')
       .eq('clinic_id', userData.clinic_id)
-      .in('status', ['samples_received', 'in_progress'])
+      .neq('status', 'complete')
       .order('created_at', { ascending: false })
     setCases(data || [])
   }
@@ -3878,17 +3879,40 @@ function BiopsyWorksheetPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Select Case *</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search by case # or patient name..."
+                value={caseSearch}
+                onChange={(e) => setCaseSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-t-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              />
+            </div>
             <select
               value={worksheetData.case_id}
               onChange={(e) => handleCaseSelect(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              className="w-full px-3 py-2 border border-t-0 border-gray-300 rounded-b-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              size="5"
             >
               <option value="">Select a case...</option>
-              {cases.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.case_number} - {c.patient_first_name} {c.patient_last_name}
-                </option>
-              ))}
+              {cases
+                .filter(c => {
+                  const searchLower = caseSearch.toLowerCase()
+                  return !caseSearch || 
+                    c.case_number?.toLowerCase().includes(searchLower) ||
+                    c.patient_first_name?.toLowerCase().includes(searchLower) ||
+                    c.patient_last_name?.toLowerCase().includes(searchLower) ||
+                    `${c.patient_first_name} ${c.patient_last_name}`.toLowerCase().includes(searchLower)
+                })
+                .map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.case_number} - {c.patient_first_name} {c.patient_last_name} ({c.status?.replace(/_/g, ' ')})
+                  </option>
+                ))
+              }
             </select>
           </div>
           <div>
