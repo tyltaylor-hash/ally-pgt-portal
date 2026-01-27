@@ -2420,6 +2420,8 @@ function NewRequisitionPage() {
     patient_phone: '',
     is_egg_donor: false,
     egg_donor_age: '',
+    no_partner: false,
+    sperm_source: 'partner', // 'partner' or 'donor'
     partner_first_name: '',
     partner_last_name: '',
     partner_dob: '',
@@ -2480,11 +2482,15 @@ function NewRequisitionPage() {
     setKaryotypeFile(file)
   }
 
+  // Determine if partner info is required
+  const isPartnerRequired = !formData.no_partner || formData.sperm_source === 'partner'
+
   async function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
     setError(null)
 
+    // Validation
     if (formData.tests_ordered.length === 0) {
       setError('Please select at least one test')
       setLoading(false)
@@ -2501,6 +2507,22 @@ function NewRequisitionPage() {
       setError('Please enter the egg donor age')
       setLoading(false)
       return
+    }
+
+    // Partner validation
+    if (isPartnerRequired) {
+      if (!formData.partner_first_name || !formData.partner_last_name || !formData.partner_dob || !formData.partner_email) {
+        setError('Partner information is required (First Name, Last Name, Date of Birth, and Email). Phone is optional.')
+        setLoading(false)
+        return
+      }
+
+      // Check that partner email is different from patient email
+      if (formData.partner_email.toLowerCase() === formData.patient_email.toLowerCase()) {
+        setError('Partner email must be different from patient email (used for separate consent)')
+        setLoading(false)
+        return
+      }
     }
 
     if (formData.tests_ordered.includes('pgt_sr') && !karyotypeFile) {
@@ -2559,8 +2581,8 @@ function NewRequisitionPage() {
       status: 'pending',
     })
 
-    // Create consent for partner if provided
-    if (formData.partner_email) {
+    // Create consent for partner if provided and required
+    if (isPartnerRequired && formData.partner_email) {
       await supabase.from('consents').insert({
         case_id: newCase.id,
         consent_for: 'partner',
@@ -2627,8 +2649,13 @@ function NewRequisitionPage() {
                 <option value="advanced_maternal_age">Advanced maternal age (≥35)</option>
                 <option value="recurrent_pregnancy_loss">Recurrent pregnancy loss</option>
                 <option value="previous_failed_ivf">Previous failed IVF cycles</option>
+                <option value="male_factor">Male factor</option>
+                <option value="unexplained_infertility">Unexplained infertility</option>
+                <option value="previous_aneuploid_conception">Previous aneuploid conception</option>
+                <option value="repetitive_implantation_failure">Repetitive implantation failure</option>
                 <option value="elective_pgt_a">Elective PGT-A</option>
                 <option value="pgt_sr">PGT-SR (Structural Rearrangement)</option>
+                <option value="other">Other</option>
               </select>
             </div>
 
@@ -2785,47 +2812,108 @@ function NewRequisitionPage() {
 
         {/* Partner Information */}
         <section>
-          <h2 className="text-lg font-semibold text-ally-navy border-b pb-2 mb-4">Partner Information <span className="text-gray-400 font-normal text-sm">(Optional)</span></h2>
+          <h2 className="text-lg font-semibold text-ally-navy border-b pb-2 mb-4">Partner Information</h2>
           <p className="text-sm text-gray-500 mb-4">If a partner is listed, they will receive a separate consent form to sign.</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          
+          {/* No Partner and Sperm Source */}
+          <div className="mb-6 space-y-3 bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="no_partner"
+                checked={formData.no_partner}
+                onChange={handleChange}
+                className="rounded border-gray-300 text-ally-teal focus:ring-ally-teal"
+              />
+              <span className="text-sm font-medium text-gray-700">No Partner</span>
+            </label>
+            
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Sperm Source *</label>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="sperm_source"
+                    value="partner"
+                    checked={formData.sperm_source === 'partner'}
+                    onChange={handleChange}
+                    className="border-gray-300 text-ally-teal focus:ring-ally-teal"
+                  />
+                  <span className="text-sm">Partner</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="sperm_source"
+                    value="donor"
+                    checked={formData.sperm_source === 'donor'}
+                    onChange={handleChange}
+                    className="border-gray-300 text-ally-teal focus:ring-ally-teal"
+                  />
+                  <span className="text-sm">Donor</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Partner fields - conditionally required */}
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${!isPartnerRequired ? 'opacity-60' : ''}`}>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                First Name {isPartnerRequired && <span className="text-red-500">*</span>}
+              </label>
               <input
                 type="text"
                 name="partner_first_name"
                 value={formData.partner_first_name}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+                required={isPartnerRequired}
+                disabled={!isPartnerRequired}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal disabled:bg-gray-100"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Last Name {isPartnerRequired && <span className="text-red-500">*</span>}
+              </label>
               <input
                 type="text"
                 name="partner_last_name"
                 value={formData.partner_last_name}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+                required={isPartnerRequired}
+                disabled={!isPartnerRequired}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal disabled:bg-gray-100"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Date of Birth {isPartnerRequired && <span className="text-red-500">*</span>}
+              </label>
               <input
                 type="date"
                 name="partner_dob"
                 value={formData.partner_dob}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+                required={isPartnerRequired}
+                disabled={!isPartnerRequired}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal disabled:bg-gray-100"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email {isPartnerRequired && <span className="text-red-500">*</span>}
+                {isPartnerRequired && <span className="text-gray-400 font-normal"> (for consent, must differ from patient)</span>}
+              </label>
               <input
                 type="email"
                 name="partner_email"
                 value={formData.partner_email}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+                required={isPartnerRequired}
+                disabled={!isPartnerRequired}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal disabled:bg-gray-100"
               />
             </div>
             <div>
@@ -2835,22 +2923,22 @@ function NewRequisitionPage() {
                 name="partner_phone"
                 value={formData.partner_phone}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+                disabled={!isPartnerRequired}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal disabled:bg-gray-100"
               />
             </div>
           </div>
-          <div className="mt-4">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                name="is_sperm_donor"
-                checked={formData.is_sperm_donor}
-                onChange={handleChange}
-                className="rounded border-gray-300 text-ally-teal focus:ring-ally-teal"
-              />
-              <span className="text-sm font-medium text-gray-700">Sperm Donor</span>
-            </label>
-          </div>
+          
+          {isPartnerRequired && (
+            <p className="text-xs text-amber-600 mt-3 bg-amber-50 border border-amber-200 rounded p-2">
+              Partner information is required. Partner email must be different from patient email for separate consent purposes.
+            </p>
+          )}
+          {!isPartnerRequired && (
+            <p className="text-xs text-gray-500 mt-3">
+              Partner information is not required when "No Partner" AND "Sperm Source: Donor" are both selected.
+            </p>
+          )}
         </section>
 
         {/* Ordering Information */}
@@ -2883,6 +2971,26 @@ function NewRequisitionPage() {
                 placeholder="Your name"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
               />
+            </div>
+          </div>
+        </section>
+
+        {/* Certification */}
+        <section className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-ally-navy mb-4">Certification</h2>
+          <div className="space-y-4">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                required
+                className="mt-1 rounded border-gray-300 text-ally-teal focus:ring-ally-teal"
+              />
+              <span className="text-sm text-gray-700 leading-relaxed">
+                By submitting this electronic test requisition form, I certify that (i) I agree to the terms and conditions written on the Ally Genetics Informed Consent and Privacy Disclosure, (ii) I have provided the Ally Genetics Informed Consent and Privacy Disclosure to the patient/partner, and they understand and agree to have this testing performed by Ally Genetics lab, (iii) the informed consent obtained from the patient meets the requirements of applicable law, (iv) and I am the authorized physician or an individual authorized by the physician to submit this test order.
+              </span>
+            </label>
+            <div className="text-sm text-gray-600">
+              <span className="font-medium">Signed Date:</span> {new Date().toLocaleDateString('en-US')}
             </div>
           </div>
         </section>
