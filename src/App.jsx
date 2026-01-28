@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react'
+import { useState, useEffect, createContext, useContext, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate, useParams } from 'react-router-dom'
 import { 
@@ -7,6 +7,8 @@ import {
   BarChart3, Phone, MapPin, Calendar, Filter, Download, User, Settings, Upload, FileUp,
   ClipboardList, Save, Trash2, Printer, Check, Unlock
 } from 'lucide-react'
+// NOTE: Install with: npm install react-signature-canvas
+import SignatureCanvas from 'react-signature-canvas'
 
 // ============================================================================
 // ALLY GENETICS LOGO COMPONENT (using actual logo image)
@@ -1274,9 +1276,12 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
 function OrderSuppliesModal({ onClose }) {
   const { supabase, userData } = useAuth()
   const [orderForm, setOrderForm] = useState({
+    complete_kits: 0,
     biopsy_collection_kits: 0,
     shipping_containers: 0,
     collection_tubes: 0,
+    fedex_labels: 0,
+    ice_packs: 0,
     shipping_address: '',
     notes: ''
   })
@@ -1293,9 +1298,12 @@ function OrderSuppliesModal({ onClose }) {
       ordered_by_user_id: userData.id,
       status: 'pending',
       items: {
+        complete_kits: orderForm.complete_kits,
         biopsy_collection_kits: orderForm.biopsy_collection_kits,
         shipping_containers: orderForm.shipping_containers,
         collection_tubes: orderForm.collection_tubes,
+        fedex_labels: orderForm.fedex_labels,
+        ice_packs: orderForm.ice_packs,
       },
       shipping_address: orderForm.shipping_address || userData.clinic?.address || '',
       notes: orderForm.notes,
@@ -1310,9 +1318,12 @@ function OrderSuppliesModal({ onClose }) {
           clinic_contact: userData.email || '',
           order_id: newOrder?.id || 'N/A',
           items: {
+            complete_kits: orderForm.complete_kits,
             biopsy_collection_kits: orderForm.biopsy_collection_kits,
             shipping_containers: orderForm.shipping_containers,
             collection_tubes: orderForm.collection_tubes,
+            fedex_labels: orderForm.fedex_labels,
+            ice_packs: orderForm.ice_packs,
           },
           shipping_address: orderForm.shipping_address || userData.clinic?.address || 'Use clinic default address',
           notes: orderForm.notes || 'None',
@@ -1329,9 +1340,12 @@ function OrderSuppliesModal({ onClose }) {
   function handleNewOrder() {
     setSuccess(false)
     setOrderForm({ 
+      complete_kits: 0,
       biopsy_collection_kits: 0, 
       shipping_containers: 0, 
-      collection_tubes: 0, 
+      collection_tubes: 0,
+      fedex_labels: 0,
+      ice_packs: 0,
       shipping_address: '', 
       notes: '' 
     })
@@ -1376,6 +1390,24 @@ function OrderSuppliesModal({ onClose }) {
         </div>
         <form onSubmit={handleSubmitOrder} className="p-6 space-y-6">
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Complete Kits
+              <span className="text-xs text-gray-500 ml-2">(Includes: PCR tube, shipping container, biopsy collection kit, FedEx label)</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.complete_kits}
+              onChange={(e) => setOrderForm(f => ({ ...f, complete_kits: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+
+          <div className="border-t pt-4">
+            <p className="text-sm font-medium text-gray-700 mb-4">Or order individual items:</p>
+          </div>
+          
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Biopsy Collection Kits</label>
             <input
               type="number"
@@ -1404,6 +1436,28 @@ function OrderSuppliesModal({ onClose }) {
               min="0"
               value={orderForm.collection_tubes}
               onChange={(e) => setOrderForm(f => ({ ...f, collection_tubes: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">FedEx Labels</label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.fedex_labels}
+              onChange={(e) => setOrderForm(f => ({ ...f, fedex_labels: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Ice Packs</label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.ice_packs}
+              onChange={(e) => setOrderForm(f => ({ ...f, ice_packs: parseInt(e.target.value) || 0 }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             />
           </div>
@@ -1440,7 +1494,7 @@ function OrderSuppliesModal({ onClose }) {
             </button>
             <button
               type="submit"
-              disabled={submitting || (orderForm.biopsy_collection_kits === 0 && orderForm.shipping_containers === 0 && orderForm.collection_tubes === 0)}
+              disabled={submitting || (orderForm.complete_kits === 0 && orderForm.biopsy_collection_kits === 0 && orderForm.shipping_containers === 0 && orderForm.collection_tubes === 0 && orderForm.fedex_labels === 0 && orderForm.ice_packs === 0)}
               className="flex items-center gap-2 bg-ally-teal text-white px-6 py-3 rounded-md hover:bg-ally-teal-dark disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -1500,11 +1554,359 @@ function PatientFolderModal({ caseData, onClose, supabase }) {
   async function handleDownload(docType) {
     setDownloading(docType)
     
-    // For now, navigate to case details page where files can be accessed
-    // In production, this would download actual files from Supabase storage
+    if (docType === 'requisition') {
+      // Fetch full case data with provider info
+      const { data: fullCase, error } = await supabase
+        .from('cases')
+        .select(`
+          *,
+          provider:ordering_provider_id (
+            first_name,
+            last_name
+          ),
+          clinic:clinic_id (
+            name,
+            address
+          )
+        `)
+        .eq('id', caseData.id)
+        .single()
+      
+      if (error) {
+        console.error('Error fetching case data:', error)
+        setDownloading(null)
+        return
+      }
+
+      // Create printable requisition HTML matching Gattaca format
+      const printContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Test Requisition - ${fullCase.case_number}</title>
+  <style>
+    @media print {
+      @page { margin: 0.5in; }
+      body { margin: 0; }
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 9pt;
+      line-height: 1.3;
+      color: #000;
+      max-width: 8.5in;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 15px;
+      border-bottom: 3px solid #0d9488;
+      padding-bottom: 10px;
+    }
+    .header h1 {
+      color: #0d9488;
+      font-size: 20pt;
+      margin: 0 0 3px 0;
+      font-weight: bold;
+    }
+    .header .subtitle {
+      color: #000;
+      font-size: 11pt;
+      font-weight: bold;
+      margin: 0;
+    }
+    .header .contact {
+      color: #0d9488;
+      font-size: 8pt;
+      margin: 5px 0 0 0;
+    }
+    .section {
+      margin-bottom: 12px;
+      border: 1px solid #0d9488;
+      padding: 8px;
+    }
+    .section-title {
+      background: #0d9488;
+      color: white;
+      padding: 4px 8px;
+      font-weight: bold;
+      font-size: 9pt;
+      margin: -8px -8px 8px -8px;
+      text-transform: uppercase;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .field {
+      flex: 1;
+      min-width: 0;
+    }
+    .field-label {
+      font-weight: bold;
+      font-size: 8pt;
+      margin-bottom: 2px;
+    }
+    .field-value {
+      border-bottom: 1px solid #000;
+      padding: 2px 0;
+      min-height: 16px;
+      font-size: 9pt;
+    }
+    .checkbox-row {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      margin: 4px 0;
+    }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .checkbox {
+      width: 12px;
+      height: 12px;
+      border: 1.5px solid #000;
+      display: inline-block;
+      position: relative;
+    }
+    .checkbox.checked::after {
+      content: '✓';
+      position: absolute;
+      top: -3px;
+      left: 1px;
+      font-size: 11pt;
+      font-weight: bold;
+    }
+    .note {
+      background: #f0f0f0;
+      border: 1px solid #0d9488;
+      padding: 6px;
+      margin: 10px 0;
+      font-size: 8pt;
+      font-weight: bold;
+      text-align: center;
+    }
+    .signature-section {
+      margin-top: 15px;
+      border-top: 2px solid #0d9488;
+      padding-top: 10px;
+    }
+    .sig-row {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 8px;
+    }
+    .sig-field {
+      flex: 1;
+    }
+    .digital-sig {
+      font-style: italic;
+      color: #0d9488;
+      font-size: 8pt;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Ally Genetics</h1>
+    <p class="subtitle">Preimplantation Genetic Testing<br>Test Requisition Form</p>
+    <p class="contact">lab@allygenetics.com | (800) 555-1234 | www.allygenetics.com</p>
+  </div>
+
+  <div class="note">
+    COMPLETED TEST REQUISITION FORM MUST BE RECEIVED PRIOR TO SAMPLES & BIOPSY WORKSHEET.
+  </div>
+
+  <!-- PATIENT INFORMATION -->
+  <div class="section">
+    <div class="section-title">Patient Information</div>
+    <div class="row">
+      <div class="field">
+        <div class="field-label">Patient First Name:</div>
+        <div class="field-value">${fullCase.patient_first_name || ''}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Patient Last Name:</div>
+        <div class="field-value">${fullCase.patient_last_name || ''}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Patient DOB:</div>
+        <div class="field-value">${fullCase.patient_dob ? new Date(fullCase.patient_dob).toLocaleDateString() : ''}</div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <div class="field-label">Email:</div>
+        <div class="field-value">${fullCase.patient_email || ''}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Phone:</div>
+        <div class="field-value">${fullCase.patient_phone || ''}</div>
+      </div>
+      <div class="field"></div>
+    </div>
+  </div>
+
+  <!-- PARTNER INFORMATION -->
+  <div class="section">
+    <div class="section-title">Partner Information</div>
+    <div class="row">
+      <div class="field">
+        <div class="field-label">Partner First Name:</div>
+        <div class="field-value">${fullCase.partner_first_name || ''}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Partner Last Name:</div>
+        <div class="field-value">${fullCase.partner_last_name || ''}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Partner DOB:</div>
+        <div class="field-value">${fullCase.partner_dob ? new Date(fullCase.partner_dob).toLocaleDateString() : ''}</div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <div class="field-label">Email:</div>
+        <div class="field-value">${fullCase.partner_email || ''}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Phone:</div>
+        <div class="field-value">${fullCase.partner_phone || ''}</div>
+      </div>
+      <div class="field"></div>
+    </div>
+  </div>
+
+  <!-- IVF CENTER INFORMATION -->
+  <div class="section">
+    <div class="section-title">IVF Center Information</div>
+    <div class="row">
+      <div class="field" style="flex: 2;">
+        <div class="field-label">IVF Center Name:</div>
+        <div class="field-value">${fullCase.clinic?.name || ''}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Phone:</div>
+        <div class="field-value"></div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field" style="flex: 2;">
+        <div class="field-label">Address:</div>
+        <div class="field-value">${fullCase.clinic?.address || ''}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">City:</div>
+        <div class="field-value"></div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <div class="field-label">State/Prov:</div>
+        <div class="field-value"></div>
+      </div>
+      <div class="field">
+        <div class="field-label">Zip Code:</div>
+        <div class="field-value"></div>
+      </div>
+      <div class="field">
+        <div class="field-label">Email:</div>
+        <div class="field-value"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TEST INFORMATION -->
+  <div class="section">
+    <div class="section-title">Test Information</div>
+    <div class="checkbox-row">
+      <div class="checkbox-item">
+        <span class="checkbox ${fullCase.tests_ordered?.includes('pgt_a') ? 'checked' : ''}"></span>
+        <span>PGT-A</span>
+      </div>
+      <div class="checkbox-item">
+        <span class="checkbox ${fullCase.tests_ordered?.includes('pgt_m') ? 'checked' : ''}"></span>
+        <span>PGT-M</span>
+      </div>
+      <div class="checkbox-item">
+        <span class="checkbox ${fullCase.tests_ordered?.includes('pgt_sr') ? 'checked' : ''}"></span>
+        <span>PGT-SR</span>
+      </div>
+      <div class="checkbox-item" style="margin-left: auto;">
+        <span class="checkbox ${fullCase.mask_sex_results ? 'checked' : ''}"></span>
+        <span>Mask Sex Results</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CYCLE INFORMATION -->
+  <div class="section">
+    <div class="section-title">Cycle Information</div>
+    <div class="row">
+      <div class="field">
+        <div class="field-label">Diagnosis:</div>
+        <div class="field-value"></div>
+      </div>
+      <div class="field">
+        <div class="field-label">Sample Type:</div>
+        <div class="field-value">D5/6/7 Trophectoderm</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIGNATURE SECTION -->
+  <div class="signature-section">
+    <div class="sig-row">
+      <div class="sig-field">
+        <div class="field-label">Ordering Physician:</div>
+        <div class="field-value">${fullCase.provider ? fullCase.provider.first_name + ' ' + fullCase.provider.last_name : ''}</div>
+      </div>
+      <div class="sig-field">
+        <div class="field-label">Physician Signature:</div>
+        <div class="field-value"><span class="digital-sig">[Digitally Signed]</span></div>
+      </div>
+    </div>
+    <div class="sig-row">
+      <div class="sig-field">
+        <div class="field-label">Form Completed By (print name):</div>
+        <div class="field-value"></div>
+      </div>
+      <div class="sig-field">
+        <div class="field-label">Date:</div>
+        <div class="field-value">${new Date(fullCase.created_at).toLocaleDateString()}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top: 15px;">
+    TESTING WILL NOT BE COMPLETED WITHOUT A SIGNED PATIENT CONSENT FORM.
+  </div>
+
+</body>
+</html>
+      `
+
+      // Open print window
+      const printWindow = window.open('', '_blank')
+      printWindow.document.write(printContent)
+      printWindow.document.close()
+      printWindow.focus()
+      setTimeout(() => {
+        printWindow.print()
+        setDownloading(null)
+      }, 250)
+      return
+    }
+    
+    // For other document types, show placeholder
     setTimeout(() => {
       setDownloading(null)
-      // You can implement actual file download logic here
       alert(`Download ${docType} - This will be connected to your file storage`)
     }, 500)
   }
@@ -3192,9 +3594,12 @@ function ClinicCasesPage() {
 function OrderSuppliesPage() {
   const { supabase, userData } = useAuth()
   const [orderForm, setOrderForm] = useState({
+    complete_kits: 0,
     biopsy_collection_kits: 0,
     shipping_containers: 0,
     collection_tubes: 0,
+    fedex_labels: 0,
+    ice_packs: 0,
     shipping_address: '',
     notes: ''
   })
@@ -3211,9 +3616,12 @@ function OrderSuppliesPage() {
       ordered_by_user_id: userData.id,
       status: 'pending',
       items: {
+        complete_kits: orderForm.complete_kits,
         biopsy_collection_kits: orderForm.biopsy_collection_kits,
         shipping_containers: orderForm.shipping_containers,
         collection_tubes: orderForm.collection_tubes,
+        fedex_labels: orderForm.fedex_labels,
+        ice_packs: orderForm.ice_packs,
       },
       shipping_address: orderForm.shipping_address || userData.clinic?.address || '',
       notes: orderForm.notes,
@@ -3228,9 +3636,12 @@ function OrderSuppliesPage() {
           clinic_contact: userData.email || '',
           order_id: newOrder?.id || 'N/A',
           items: {
+            complete_kits: orderForm.complete_kits,
             biopsy_collection_kits: orderForm.biopsy_collection_kits,
             shipping_containers: orderForm.shipping_containers,
             collection_tubes: orderForm.collection_tubes,
+            fedex_labels: orderForm.fedex_labels,
+            ice_packs: orderForm.ice_packs,
           },
           shipping_address: orderForm.shipping_address || userData.clinic?.address || 'Use clinic default address',
           notes: orderForm.notes || 'None',
@@ -3249,9 +3660,12 @@ function OrderSuppliesPage() {
   function handleNewOrder() {
     setSuccess(false)
     setOrderForm({ 
+      complete_kits: 0,
       biopsy_collection_kits: 0, 
       shipping_containers: 0, 
-      collection_tubes: 0, 
+      collection_tubes: 0,
+      fedex_labels: 0,
+      ice_packs: 0,
       shipping_address: '', 
       notes: '' 
     })
@@ -3298,6 +3712,24 @@ function OrderSuppliesPage() {
         </div>
         <form onSubmit={handleSubmitOrder} className="p-6 space-y-6">
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Complete Kits
+              <span className="text-xs text-gray-500 ml-2">(Includes: PCR tube, shipping container, biopsy collection kit, FedEx label)</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.complete_kits}
+              onChange={(e) => setOrderForm(f => ({ ...f, complete_kits: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+
+          <div className="border-t pt-4">
+            <p className="text-sm font-medium text-gray-700 mb-4">Or order individual items:</p>
+          </div>
+          
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Biopsy Collection Kits</label>
             <input
               type="number"
@@ -3329,6 +3761,28 @@ function OrderSuppliesPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">FedEx Labels</label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.fedex_labels}
+              onChange={(e) => setOrderForm(f => ({ ...f, fedex_labels: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Ice Packs</label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.ice_packs}
+              onChange={(e) => setOrderForm(f => ({ ...f, ice_packs: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Shipping Address</label>
@@ -3355,7 +3809,7 @@ function OrderSuppliesPage() {
           <div className="flex justify-end pt-4">
             <button
               type="submit"
-              disabled={submitting || (orderForm.biopsy_collection_kits === 0 && orderForm.shipping_containers === 0 && orderForm.collection_tubes === 0)}
+              disabled={submitting || (orderForm.complete_kits === 0 && orderForm.biopsy_collection_kits === 0 && orderForm.shipping_containers === 0 && orderForm.collection_tubes === 0 && orderForm.fedex_labels === 0 && orderForm.ice_packs === 0)}
               className="flex items-center gap-2 bg-ally-teal text-white px-6 py-3 rounded-md hover:bg-ally-teal-dark disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -3372,1139 +3826,17 @@ function OrderSuppliesPage() {
 // LAB STATISTICS PAGE
 // ============================================================================
 function LabStatisticsPage() {
-  const { supabase, userData } = useAuth()
-  const [stats, setStats] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (userData?.clinic_id) {
-      fetchStats()
-    } else if (userData) {
-      setLoading(false)
-    }
-  }, [userData])
-
-  async function fetchStats() {
-    // Get all cases for this clinic
-    const { data: cases } = await supabase
-      .from('cases')
-      .select('status, created_at, tests_ordered')
-      .eq('clinic_id', userData.clinic_id)
-
-    if (!cases) {
-      setLoading(false)
-      return
-    }
-
-    // Calculate stats
-    const now = new Date()
-    const thisMonth = cases.filter(c => new Date(c.created_at).getMonth() === now.getMonth())
-    const lastMonth = cases.filter(c => {
-      const d = new Date(c.created_at)
-      return d.getMonth() === (now.getMonth() - 1 + 12) % 12
-    })
-
-    const completedCases = cases.filter(c => c.status === 'complete' || c.status === 'report_ready')
-    const pgtaCases = cases.filter(c => c.tests_ordered?.includes('pgt_a'))
-    const pgtSRCases = cases.filter(c => c.tests_ordered?.includes('pgt_sr'))
-
-    setStats({
-      totalCases: cases.length,
-      thisMonthCases: thisMonth.length,
-      lastMonthCases: lastMonth.length,
-      completedCases: completedCases.length,
-      pendingCases: cases.length - completedCases.length,
-      pgtaCases: pgtaCases.length,
-      pgtSRCases: pgtSRCases.length,
-      byStatus: {
-        consent_pending: cases.filter(c => c.status === 'consent_pending').length,
-        consent_complete: cases.filter(c => c.status === 'consent_complete').length,
-        samples_received: cases.filter(c => c.status === 'samples_received').length,
-        in_progress: cases.filter(c => c.status === 'in_progress').length,
-        report_ready: cases.filter(c => c.status === 'report_ready').length,
-        complete: cases.filter(c => c.status === 'complete').length,
-      }
-    })
-    setLoading(false)
-  }
-
-  if (loading) {
-    return <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-ally-teal" /></div>
-  }
-
-  if (!userData?.clinic_id) {
-    return (
-      <div className="text-center py-12">
-        <Building2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">No Clinic Assigned</h2>
-        <p className="text-gray-500">Your account is not associated with a clinic.</p>
-      </div>
-    )
-  }
-
-  if (!stats) {
-    return (
-      <div className="text-center py-12">
-        <BarChart3 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-        <p className="text-gray-500">No data available yet.</p>
-      </div>
-    )
-  }
-
-
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Lab Statistics</h1>
-        <p className="text-gray-500">Overview of your clinic's PGT testing activity</p>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg border p-6">
-          <p className="text-sm text-gray-500">Total Cases</p>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalCases}</p>
-        </div>
-        <div className="bg-white rounded-lg border p-6">
-          <p className="text-sm text-gray-500">This Month</p>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{stats.thisMonthCases}</p>
-          <p className="text-xs text-gray-400 mt-1">
-            {stats.lastMonthCases > 0 && (
-              stats.thisMonthCases >= stats.lastMonthCases 
-                ? <span className="text-green-600">↑ vs last month ({stats.lastMonthCases})</span>
-                : <span className="text-red-600">↓ vs last month ({stats.lastMonthCases})</span>
-            )}
-          </p>
-        </div>
-        <div className="bg-white rounded-lg border p-6">
-          <p className="text-sm text-gray-500">Completed</p>
-          <p className="text-3xl font-bold text-green-600 mt-1">{stats.completedCases}</p>
-        </div>
-        <div className="bg-white rounded-lg border p-6">
-          <p className="text-sm text-gray-500">In Progress</p>
-          <p className="text-3xl font-bold text-ally-teal mt-1">{stats.pendingCases}</p>
-        </div>
-      </div>
-
-      {/* Test Types */}
-      <div className="bg-white rounded-lg border p-6">
-        <h2 className="font-semibold text-gray-900 mb-4">Cases by Test Type</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-sm text-gray-500">PGT-A (Aneuploidy)</p>
-            <p className="text-2xl font-bold text-gray-900">{stats.pgtaCases}</p>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-              <div 
-                className="bg-ally-teal h-2 rounded-full" 
-                style={{ width: stats.totalCases > 0 ? `${(stats.pgtaCases / stats.totalCases) * 100}%` : '0%' }}
-              />
-            </div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-sm text-gray-500">PGT-SR (Structural)</p>
-            <p className="text-2xl font-bold text-gray-900">{stats.pgtSRCases}</p>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-              <div 
-                className="bg-purple-500 h-2 rounded-full" 
-                style={{ width: stats.totalCases > 0 ? `${(stats.pgtSRCases / stats.totalCases) * 100}%` : '0%' }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Status Breakdown */}
-      <div className="bg-white rounded-lg border p-6">
-        <h2 className="font-semibold text-gray-900 mb-4">Cases by Status</h2>
-        <div className="space-y-3">
-          {[
-            { key: 'consent_pending', label: 'Consent Pending', color: 'bg-yellow-500' },
-            { key: 'consent_complete', label: 'Consent Complete', color: 'bg-blue-400' },
-            { key: 'samples_received', label: 'Samples Received', color: 'bg-blue-500' },
-            { key: 'in_progress', label: 'In Progress', color: 'bg-purple-500' },
-            { key: 'report_ready', label: 'Report Ready', color: 'bg-green-400' },
-            { key: 'complete', label: 'Complete', color: 'bg-green-600' },
-          ].map(({ key, label, color }) => (
-            <div key={key} className="flex items-center gap-4">
-              <div className="w-32 text-sm text-gray-600">{label}</div>
-              <div className="flex-1 bg-gray-100 rounded-full h-4">
-                <div 
-                  className={`${color} h-4 rounded-full`}
-                  style={{ width: stats.totalCases > 0 ? `${(stats.byStatus[key] / stats.totalCases) * 100}%` : '0%' }}
-                />
-              </div>
-              <div className="w-10 text-sm text-gray-900 font-medium text-right">{stats.byStatus[key]}</div>
-            </div>
-          ))}
-        </div>
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="text-center">
+        <BarChart3 className="w-16 h-16 mx-auto mb-4 text-ally-teal" />
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Coming Soon</h1>
+        <p className="text-gray-500 text-lg">Lab Statistics and analytics dashboard will be available soon.</p>
       </div>
     </div>
   )
 }
 
-// ============================================================================
-// BIOPSY WORKSHEET PAGE
-// ============================================================================
-function BiopsyWorksheetPage() {
-  const { supabase, userData } = useAuth()
-  const [loading, setLoading] = useState(false)
-  const [savingDraft, setSavingDraft] = useState(false)
-  const [error, setError] = useState(null)
-  const [success, setSuccess] = useState(null)
-  const [cases, setCases] = useState([])
-  const [selectedCase, setSelectedCase] = useState(null)
-  const [currentDay, setCurrentDay] = useState(5)
-  const [showPrintPreview, setShowPrintPreview] = useState(false)
-  const [caseSearch, setCaseSearch] = useState('')
-  const [showConfirmModal, setShowConfirmModal] = useState(false)
-  const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState(false)
-  const [pendingCase, setPendingCase] = useState(null)
-  const [existingWorksheet, setExistingWorksheet] = useState(null)
-  const [lastSaved, setLastSaved] = useState(null)
-  
-  const [worksheetData, setWorksheetData] = useState({
-    case_id: '',
-    patient_name: '',
-    day5_date: new Date().toISOString().split('T')[0],
-    samples: {
-      5: Array(5).fill(null).map((_, i) => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
-      6: [],
-      7: []
-    }
-  })
-
-  useEffect(() => {
-    if (userData?.clinic_id) {
-      fetchCases()
-    }
-  }, [userData])
-
-  async function fetchCases() {
-    const { data } = await supabase
-      .from('cases')
-      .select('id, case_number, patient_first_name, patient_last_name, patient_dob, partner_first_name, partner_last_name, ordering_provider:providers(first_name, last_name, credentials), clinic:clinics(name), status')
-      .eq('clinic_id', userData.clinic_id)
-      .neq('status', 'complete')
-      .order('created_at', { ascending: false })
-    setCases(data || [])
-  }
-
-  function handleCaseSelect(caseId) {
-    if (!caseId) return
-    const selectedCaseData = cases.find(c => c.id === caseId)
-    if (selectedCaseData) {
-      setPendingCase(selectedCaseData)
-      setShowConfirmModal(true)
-    }
-  }
-
-  async function confirmCaseSelection() {
-    if (pendingCase) {
-      setSelectedCase(pendingCase)
-      
-      // Check if a worksheet already exists for this case
-      const { data: worksheets } = await supabase
-        .from('biopsy_worksheets')
-        .select('*')
-        .eq('case_id', pendingCase.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-      
-      if (worksheets && worksheets.length > 0) {
-        const worksheet = worksheets[0]
-        setExistingWorksheet(worksheet)
-        setLastSaved(worksheet.updated_at || worksheet.created_at)
-        
-        // Load existing data
-        const allSamples = worksheet.samples || []
-        setWorksheetData({
-          case_id: pendingCase.id,
-          patient_name: `${pendingCase.patient_first_name} ${pendingCase.patient_last_name}`,
-          day5_date: worksheet.day5_date,
-          samples: {
-            5: allSamples.filter(s => s.day === '5' || s.day === 5).concat(
-              Array(Math.max(0, 5 - allSamples.filter(s => s.day === '5' || s.day === 5).length))
-                .fill(null)
-                .map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' }))
-            ),
-            6: allSamples.filter(s => s.day === '6' || s.day === 6),
-            7: allSamples.filter(s => s.day === '7' || s.day === 7)
-          }
-        })
-      } else {
-        setExistingWorksheet(null)
-        setLastSaved(null)
-        setWorksheetData(prev => ({
-          ...prev,
-          case_id: pendingCase.id,
-          patient_name: `${pendingCase.patient_first_name} ${pendingCase.patient_last_name}`
-        }))
-      }
-      
-      setShowConfirmModal(false)
-      setPendingCase(null)
-    }
-  }
-
-  function cancelCaseSelection() {
-    setShowConfirmModal(false)
-    setPendingCase(null)
-    setWorksheetData(prev => ({
-      ...prev,
-      case_id: ''
-    }))
-  }
-
-  function handleSampleChange(dayIndex, sampleIndex, field, value) {
-    setWorksheetData(prev => {
-      const newSamples = { ...prev.samples }
-      newSamples[dayIndex] = [...newSamples[dayIndex]]
-      newSamples[dayIndex][sampleIndex] = { ...newSamples[dayIndex][sampleIndex], [field]: value }
-      return { ...prev, samples: newSamples }
-    })
-  }
-
-  function addSampleRow(day) {
-    setWorksheetData(prev => {
-      const newSamples = { ...prev.samples }
-      newSamples[day] = [...newSamples[day], { sample_id: '', day: day.toString(), grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' }]
-      return { ...prev, samples: newSamples }
-    })
-  }
-
-  function removeSampleRow(day, index) {
-    setWorksheetData(prev => {
-      const newSamples = { ...prev.samples }
-      newSamples[day] = newSamples[day].filter((_, i) => i !== index)
-      return { ...prev, samples: newSamples }
-    })
-  }
-
-  async function saveDraft() {
-    if (!worksheetData.case_id) {
-      setError('Please select a case')
-      return
-    }
-    if (!worksheetData.day5_date) {
-      setError('Please enter a date')
-      return
-    }
-
-    setSavingDraft(true)
-    setError(null)
-
-    const allSamples = [...worksheetData.samples[5], ...worksheetData.samples[6], ...worksheetData.samples[7]]
-      .filter(s => s.sample_id || s.grade)
-
-    const worksheetPayload = {
-      case_id: worksheetData.case_id,
-      clinic_id: userData.clinic_id,
-      day5_date: worksheetData.day5_date,
-      samples: allSamples,
-      status: 'draft',
-      submitted_by: userData.id,
-    }
-
-    if (existingWorksheet) {
-      // Update existing worksheet
-      const { error: updateError } = await supabase
-        .from('biopsy_worksheets')
-        .update(worksheetPayload)
-        .eq('id', existingWorksheet.id)
-
-      if (updateError) {
-        console.error('Error updating draft:', updateError)
-        setError('Failed to save draft')
-      } else {
-        setSuccess('Draft saved successfully!')
-        setLastSaved(new Date().toISOString())
-        setTimeout(() => setSuccess(null), 3000)
-      }
-    } else {
-      // Create new worksheet
-      const { data: newWorksheet, error: insertError } = await supabase
-        .from('biopsy_worksheets')
-        .insert(worksheetPayload)
-        .select()
-        .single()
-
-      if (insertError) {
-        console.error('Error creating draft:', insertError)
-        setError('Failed to save draft')
-      } else {
-        setExistingWorksheet(newWorksheet)
-        setSuccess('Draft saved successfully!')
-        setLastSaved(new Date().toISOString())
-        setTimeout(() => setSuccess(null), 3000)
-      }
-    }
-
-    setSavingDraft(false)
-  }
-
-  async function saveDraftAndClear() {
-    if (!worksheetData.case_id) {
-      setError('Please select a case')
-      return
-    }
-    if (!worksheetData.day5_date) {
-      setError('Please enter a date')
-      return
-    }
-
-    setSavingDraft(true)
-    setError(null)
-
-    // Include ALL samples that have any data at all (not just sample_id or grade)
-    const allSamples = [...worksheetData.samples[5], ...worksheetData.samples[6], ...worksheetData.samples[7]]
-      .filter(s => s.sample_id || s.grade || s.embryologist_bx || s.embryologist_tubing || s.notes)
-
-    const worksheetPayload = {
-      case_id: worksheetData.case_id,
-      clinic_id: userData.clinic_id,
-      day5_date: worksheetData.day5_date,
-      samples: allSamples,
-      status: 'draft',
-      submitted_by: userData.id,
-    }
-
-    try {
-      if (existingWorksheet) {
-        // Update existing worksheet
-        const { error: updateError } = await supabase
-          .from('biopsy_worksheets')
-          .update(worksheetPayload)
-          .eq('id', existingWorksheet.id)
-
-        if (updateError) {
-          console.error('Error updating draft:', updateError)
-          setError('Failed to save draft: ' + updateError.message)
-          setSavingDraft(false)
-          return
-        }
-      } else {
-        // Create new worksheet
-        const { error: insertError } = await supabase
-          .from('biopsy_worksheets')
-          .insert(worksheetPayload)
-
-        if (insertError) {
-          console.error('Error creating draft:', insertError)
-          setError('Failed to save draft: ' + insertError.message)
-          setSavingDraft(false)
-          return
-        }
-      }
-
-      setSuccess('Draft saved! Ready for next patient.')
-      
-      // Clear the form
-      setSelectedCase(null)
-      setExistingWorksheet(null)
-      setLastSaved(null)
-      setWorksheetData({
-        case_id: '',
-        patient_name: '',
-        day5_date: new Date().toISOString().split('T')[0],
-        samples: {
-          5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
-          6: [],
-          7: []
-        }
-      })
-      
-      setSavingDraft(false)
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err) {
-      console.error('Unexpected error:', err)
-      setError('Unexpected error occurred')
-      setSavingDraft(false)
-    }
-  }
-
-  async function submitWorksheet() {
-    // Show confirmation modal instead of submitting directly
-    if (!worksheetData.case_id) {
-      setError('Please select a case')
-      return
-    }
-    if (!worksheetData.day5_date) {
-      setError('Please enter a date')
-      return
-    }
-
-    // Check if there's at least one sample with data
-    const allSamples = [...worksheetData.samples[5], ...worksheetData.samples[6], ...worksheetData.samples[7]]
-    const hasData = allSamples.some(s => s.sample_id || s.grade)
-    if (!hasData) {
-      setError('Please enter at least one sample')
-      return
-    }
-
-    // Show confirmation modal
-    setShowSubmitConfirmModal(true)
-  }
-
-  async function confirmSubmitWorksheet() {
-    setShowSubmitConfirmModal(false)
-    setLoading(true)
-    setError(null)
-
-    // Include ALL samples that have any data
-    const allSamples = [...worksheetData.samples[5], ...worksheetData.samples[6], ...worksheetData.samples[7]]
-      .filter(s => s.sample_id || s.grade || s.embryologist_bx || s.embryologist_tubing || s.notes)
-
-    const worksheetPayload = {
-      case_id: worksheetData.case_id,
-      clinic_id: userData.clinic_id,
-      day5_date: worksheetData.day5_date,
-      samples: allSamples,
-      status: 'submitted',
-      submitted_by: userData.id,
-      submitted_at: new Date().toISOString()
-    }
-
-    try {
-      if (existingWorksheet) {
-        // Update existing worksheet to submitted
-        const { error: updateError } = await supabase
-          .from('biopsy_worksheets')
-          .update(worksheetPayload)
-          .eq('id', existingWorksheet.id)
-
-        if (updateError) {
-          console.error('Error submitting worksheet:', updateError)
-          setError('Failed to submit worksheet: ' + updateError.message)
-          setLoading(false)
-          return
-        }
-      } else {
-        // Create new worksheet as submitted
-        const { error: insertError } = await supabase
-          .from('biopsy_worksheets')
-          .insert(worksheetPayload)
-
-        if (insertError) {
-          console.error('Error submitting worksheet:', insertError)
-          setError('Failed to submit worksheet: ' + insertError.message)
-          setLoading(false)
-          return
-        }
-      }
-      
-      setSuccess('Biopsy worksheet submitted successfully!')
-      setLoading(false)
-      
-      // Reset form
-      setSelectedCase(null)
-      setExistingWorksheet(null)
-      setLastSaved(null)
-      setWorksheetData({
-        case_id: '',
-        patient_name: '',
-        day5_date: new Date().toISOString().split('T')[0],
-        samples: {
-          5: Array(5).fill(null).map(() => ({ sample_id: '', day: '5', grade: '', embryologist_bx: '', embryologist_tubing: '', cells_visualized: '', notes: '' })),
-          6: [],
-          7: []
-        }
-      })
-    } catch (err) {
-      console.error('Unexpected error:', err)
-      setError('Unexpected error occurred')
-      setLoading(false)
-    }
-  }
-
-  async function unlockWorksheet() {
-    if (!existingWorksheet) return
-
-    const { error: updateError } = await supabase
-      .from('biopsy_worksheets')
-      .update({ status: 'draft' })
-      .eq('id', existingWorksheet.id)
-
-    if (updateError) {
-      setError('Failed to unlock worksheet')
-    } else {
-      setExistingWorksheet({ ...existingWorksheet, status: 'draft' })
-      setSuccess('Worksheet unlocked for editing')
-      setTimeout(() => setSuccess(null), 3000)
-    }
-  }
-
-  const currentSamples = worksheetData.samples[currentDay] || []
-
-  // Helper function to format dates in American format (M/D/YYYY)
-  const formatDateUS = (dateString) => {
-    if (!dateString) return ''
-    const date = new Date(dateString)
-    // Check if date is valid
-    if (isNaN(date.getTime())) return ''
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'numeric', 
-      day: 'numeric' 
-    })
-  }
-
-  // Printable Worksheet Component
-  const PrintableWorksheet = () => {
-    const allSamples = [...worksheetData.samples[5], ...worksheetData.samples[6], ...worksheetData.samples[7]].filter(s => s.sample_id || s.grade)
-    
-    return (
-      <div className="printable-worksheet hidden print:block">
-        <style>{`
-          @media print {
-            .printable-worksheet { display: block !important; }
-            body * { visibility: hidden; }
-            .printable-worksheet, .printable-worksheet * { visibility: visible; }
-            .printable-worksheet { position: absolute; left: 0; top: 0; width: 100%; }
-            @page { margin: 0.5in; }
-          }
-        `}</style>
-        
-        <div className="bg-white p-8 font-sans text-sm">
-          {/* Header with Logo */}
-          <div className="flex items-start justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center">
-                <span className="text-white text-2xl font-bold">AG</span>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-gray-800">Ally Genetics</div>
-                <div className="text-xs text-gray-600">Better Partnerships. Better Results.</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Title */}
-          <div className="bg-gradient-to-r from-indigo-900 to-indigo-800 text-white text-center py-3 mb-4">
-            <h1 className="text-xl font-bold">PGT Biopsy Worksheet</h1>
-          </div>
-
-          {/* Patient Information */}
-          <div className="border-2 border-gray-800 mb-4">
-            <div className="grid grid-cols-2 border-b border-gray-800">
-              <div className="p-2 border-r border-gray-800">
-                <span className="font-semibold">Patient name (Last, First): </span>
-                {selectedCase ? `${selectedCase.patient_last_name}, ${selectedCase.patient_first_name}` : ''}
-              </div>
-              <div className="p-2">
-                <span className="font-semibold">DOB: </span>
-                {formatDateUS(selectedCase?.patient_dob)}
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 border-b border-gray-800">
-              <div className="p-2 border-r border-gray-800">
-                <span className="font-semibold">Partner name (Last, First): </span>
-                {selectedCase?.partner_last_name ? `${selectedCase.partner_last_name}, ${selectedCase.partner_first_name}` : ''}
-              </div>
-              <div className="p-2">
-                <span className="font-semibold">DOB: </span>
-                {selectedCase?.partner_dob ? formatDateUS(selectedCase.partner_dob) : '_______'}
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-3 border-b border-gray-800">
-              <div className="p-2 border-r border-gray-800">
-                <span className="font-semibold">Donor gametes (circle one): </span>
-                <span className={selectedCase?.is_egg_donor || selectedCase?.is_sperm_donor ? 'font-bold' : ''}>Y</span> / 
-                <span className={!selectedCase?.is_egg_donor && !selectedCase?.is_sperm_donor ? 'font-bold' : ''}>N</span>
-              </div>
-              <div className="p-2 border-r border-gray-800">
-                <span className="font-semibold">Egg donor age: </span>
-                {selectedCase?.egg_donor_age || '_______'}
-              </div>
-              <div className="p-2">
-                <span className="font-semibold">Sperm donor age: </span>
-                _______
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 border-b border-gray-800">
-              <div className="p-2 border-r border-gray-800">
-                <span className="font-semibold">Clinic name: </span>
-                {selectedCase?.clinic?.name || userData?.clinic?.name || ''}
-              </div>
-              <div className="p-2">
-                <span className="font-semibold">Ordering Provider: </span>
-                {selectedCase?.ordering_provider 
-                  ? `${selectedCase.ordering_provider.first_name} ${selectedCase.ordering_provider.last_name}${selectedCase.ordering_provider.credentials ? ', ' + selectedCase.ordering_provider.credentials : ''}`
-                  : ''}
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 border-gray-800">
-              <div className="p-2 border-r border-gray-800">
-                <span className="font-semibold">Day-5 date: </span>
-                {formatDateUS(worksheetData.day5_date)}
-              </div>
-              <div className="p-2">
-                <span className="font-semibold">Buffer Lot: </span>
-                _______________
-              </div>
-            </div>
-          </div>
-
-          <div className="text-xs mb-4 italic">
-            <strong>Note:</strong> If a rebiopsy of a previously tested embryo is included, please specify the original collection tube code (e.g. rebiopsy of AABCE) in the comments.
-          </div>
-
-          {/* Biopsy Information Table */}
-          <div className="mb-4">
-            <h2 className="text-center font-bold mb-2">Biopsy Information</h2>
-            <table className="w-full border-2 border-gray-800 text-xs">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="border border-gray-800 p-1 font-semibold">Sample ID</th>
-                  <th className="border border-gray-800 p-1 font-semibold">Embryo<br/>Grade</th>
-                  <th className="border border-gray-800 p-1 font-semibold">Biopsy<br/>Day</th>
-                  <th className="border border-gray-800 p-1 font-semibold">Biopsy<br/>Embryologist<br/>Initials</th>
-                  <th className="border border-gray-800 p-1 font-semibold">Tube Loading<br/>Embryologist<br/>Initials</th>
-                  <th className="border border-gray-800 p-1 font-semibold">Comments</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array(20).fill(null).map((_, idx) => {
-                  const sample = allSamples[idx]
-                  return (
-                    <tr key={idx}>
-                      <td className="border border-gray-800 p-2 h-16">{sample?.sample_id || ''}</td>
-                      <td className="border border-gray-800 p-2 h-16">{sample?.grade || ''}</td>
-                      <td className="border border-gray-800 p-2 h-16">{sample?.day || ''}</td>
-                      <td className="border border-gray-800 p-2 h-16">{sample?.embryologist_bx || ''}</td>
-                      <td className="border border-gray-800 p-2 h-16">{sample?.embryologist_tubing || ''}</td>
-                      <td className="border border-gray-800 p-2 h-16">{sample?.notes || ''}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Footer */}
-          <div className="grid grid-cols-2 text-xs">
-            <div className="bg-gradient-to-r from-indigo-900 to-indigo-800 text-white p-2">
-              <div>phone: (616) 465-2400</div>
-              <div>fax: (616) 616-5887</div>
-            </div>
-            <div className="bg-gradient-to-r from-teal-500 to-teal-400 text-white p-2">
-              <div>email: lab@allygenetics.com</div>
-              <div>web: www.allygenetics.com</div>
-            </div>
-            <div className="col-span-2 bg-white text-right pr-2 pt-1">
-              <div className="text-teal-600">1001 Parchment Dr SE</div>
-              <div className="text-teal-600">Grand Rapids, MI 49546</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Biopsy Worksheet</h1>
-          <p className="text-gray-500">Document embryo biopsy details for each case</p>
-        </div>
-        <button
-          onClick={() => window.print()}
-          disabled={!selectedCase}
-          className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          title={!selectedCase ? "Select a case first" : "Print worksheet"}
-        >
-          <Printer className="w-4 h-4" />
-          Print Worksheet
-        </button>
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-800 flex items-center gap-2">
-          <AlertCircle className="w-5 h-5" />
-          {error}
-        </div>
-      )}
-      
-      {success && (
-        <div className="bg-green-50 border border-green-200 rounded-md p-4 text-green-800 flex items-center gap-2">
-          <CheckCircle className="w-5 h-5" />
-          {success}
-        </div>
-      )}
-
-      {/* Header Info */}
-      <div className="bg-white rounded-lg border p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Select Case *</label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search by case # or patient name..."
-                value={caseSearch}
-                onChange={(e) => setCaseSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-t-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-              />
-            </div>
-            <select
-              value={worksheetData.case_id}
-              onChange={(e) => handleCaseSelect(e.target.value)}
-              className="w-full px-3 py-2 border border-t-0 border-gray-300 rounded-b-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-              size="5"
-            >
-              <option value="">Select a case...</option>
-              {cases
-                .filter(c => {
-                  const searchLower = caseSearch.toLowerCase()
-                  return !caseSearch || 
-                    c.case_number?.toLowerCase().includes(searchLower) ||
-                    c.patient_first_name?.toLowerCase().includes(searchLower) ||
-                    c.patient_last_name?.toLowerCase().includes(searchLower) ||
-                    `${c.patient_first_name} ${c.patient_last_name}`.toLowerCase().includes(searchLower)
-                })
-                .map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.patient_first_name} {c.patient_last_name} - {new Date(c.patient_dob).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}
-                  </option>
-                ))
-              }
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Patient Name</label>
-            <input
-              type="text"
-              value={worksheetData.patient_name}
-              readOnly
-              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Day 5 Date *</label>
-            <input
-              type="date"
-              value={worksheetData.day5_date}
-              onChange={(e) => setWorksheetData(prev => ({ ...prev, day5_date: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-              disabled={existingWorksheet?.status === 'submitted'}
-            />
-          </div>
-        </div>
-
-        {/* Worksheet Status Indicator */}
-        {selectedCase && (
-          <div className="mt-4 flex items-center justify-between p-3 bg-gray-50 rounded-md border">
-            <div className="flex items-center gap-3">
-              {existingWorksheet?.status === 'submitted' ? (
-                <>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    <span className="text-sm font-medium text-green-700">Worksheet Submitted</span>
-                  </div>
-                  {existingWorksheet.submitted_at && (
-                    <span className="text-xs text-gray-500">
-                      on {new Date(existingWorksheet.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                    </span>
-                  )}
-                </>
-              ) : existingWorksheet?.status === 'draft' && lastSaved ? (
-                <>
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-yellow-600" />
-                    <span className="text-sm font-medium text-yellow-700">Draft</span>
-                  </div>
-                  <span className="text-xs text-gray-500">
-                    Last saved: {new Date(lastSaved).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                  </span>
-                </>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-gray-400" />
-                  <span className="text-sm font-medium text-gray-600">New Worksheet</span>
-                </div>
-              )}
-            </div>
-            {existingWorksheet?.status === 'submitted' && (
-              <button
-                onClick={unlockWorksheet}
-                className="flex items-center gap-1 px-3 py-1 text-xs bg-white border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700"
-              >
-                <Unlock className="w-3 h-3" />
-                Unlock to Edit
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Sample Table */}
-      <div className="bg-white rounded-lg border overflow-hidden">
-        <div className="px-6 py-4 border-b flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Sample Details</h2>
-          <button
-            onClick={() => addSampleRow(currentDay)}
-            disabled={existingWorksheet?.status === 'submitted'}
-            className="flex items-center gap-2 text-ally-teal hover:text-ally-teal-dark text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="w-4 h-4" />
-            Add Sample Row
-          </button>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sample ID</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grade</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Embryologist BX</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Embryologist Tubing</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Indicate if Rebiopsy</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {currentSamples.map((sample, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      value={sample.sample_id}
-                      onChange={(e) => handleSampleChange(currentDay, index, 'sample_id', e.target.value)}
-                      placeholder={`S${index + 1}`}
-                      disabled={existingWorksheet?.status === 'submitted'}
-                      className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <select
-                      value={sample.day}
-                      onChange={(e) => handleSampleChange(currentDay, index, 'day', e.target.value)}
-                      disabled={existingWorksheet?.status === 'submitted'}
-                      className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    >
-                      <option value="5">Day 5</option>
-                      <option value="6">Day 6</option>
-                      <option value="7">Day 7</option>
-                    </select>
-                  </td>
-                  <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      value={sample.grade}
-                      onChange={(e) => handleSampleChange(currentDay, index, 'grade', e.target.value)}
-                      placeholder="e.g., 4AA"
-                      disabled={existingWorksheet?.status === 'submitted'}
-                      className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      value={sample.embryologist_bx}
-                      onChange={(e) => handleSampleChange(currentDay, index, 'embryologist_bx', e.target.value)}
-                      placeholder="Initials"
-                      disabled={existingWorksheet?.status === 'submitted'}
-                      className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      value={sample.embryologist_tubing}
-                      onChange={(e) => handleSampleChange(currentDay, index, 'embryologist_tubing', e.target.value)}
-                      placeholder="Initials"
-                      disabled={existingWorksheet?.status === 'submitted'}
-                      className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      value={sample.notes}
-                      onChange={(e) => handleSampleChange(currentDay, index, 'notes', e.target.value)}
-                      placeholder="Rebiopsy notes..."
-                      disabled={existingWorksheet?.status === 'submitted'}
-                      className="w-32 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-ally-teal disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <button
-                      onClick={() => removeSampleRow(currentDay, index)}
-                      disabled={existingWorksheet?.status === 'submitted'}
-                      className="text-gray-400 hover:text-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {currentSamples.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                    No samples added yet. Click "Add Sample Row" to begin.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center justify-end gap-3">
-        {existingWorksheet?.status !== 'submitted' && (
-          <>
-            <button
-              onClick={saveDraftAndClear}
-              disabled={savingDraft || !selectedCase}
-              className="flex items-center gap-2 border border-ally-teal text-ally-teal px-6 py-2 rounded-md hover:bg-ally-teal hover:text-white disabled:opacity-50"
-            >
-              {savingDraft && <Loader2 className="w-4 h-4 animate-spin" />}
-              <Save className="w-4 h-4" />
-              Save & New Patient
-            </button>
-            <button
-              onClick={submitWorksheet}
-              disabled={loading || !selectedCase}
-              className="flex items-center gap-2 bg-ally-teal text-white px-6 py-2 rounded-md hover:bg-ally-teal-dark disabled:opacity-50"
-            >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              <CheckCircle className="w-4 h-4" />
-              Submit Worksheet
-            </button>
-          </>
-        )}
-        {existingWorksheet?.status === 'submitted' && (
-          <div className="text-sm text-gray-500 italic">
-            Worksheet is submitted and locked. Click "Unlock to Edit" above to make changes.
-          </div>
-        )}
-      </div>
-
-      {/* Patient Confirmation Modal */}
-      {showConfirmModal && pendingCase && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="px-6 py-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">Confirm Patient Selection</h3>
-            </div>
-            <div className="px-6 py-4 space-y-3">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Patient Name</p>
-                <p className="text-base text-gray-900">{pendingCase.patient_first_name} {pendingCase.patient_last_name}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Date of Birth</p>
-                <p className="text-base text-gray-900">{new Date(pendingCase.patient_dob).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Case Number</p>
-                <p className="text-base text-gray-900">{pendingCase.case_number}</p>
-              </div>
-              {pendingCase.partner_first_name && (
-                <>
-                  <div className="pt-2 border-t">
-                    <p className="text-sm font-medium text-gray-500">Partner Name</p>
-                    <p className="text-base text-gray-900">{pendingCase.partner_first_name} {pendingCase.partner_last_name}</p>
-                  </div>
-                </>
-              )}
-              {pendingCase.ordering_provider && (
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Ordering Provider</p>
-                  <p className="text-base text-gray-900">
-                    {pendingCase.ordering_provider.first_name} {pendingCase.ordering_provider.last_name}
-                    {pendingCase.ordering_provider.credentials && `, ${pendingCase.ordering_provider.credentials}`}
-                  </p>
-                </div>
-              )}
-            </div>
-            <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex gap-3 justify-end">
-              <button
-                onClick={cancelCaseSelection}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmCaseSelection}
-                className="px-4 py-2 bg-ally-teal text-white rounded-md hover:bg-ally-teal-dark"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Submit Confirmation Modal */}
-      {showSubmitConfirmModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="px-6 py-4 border-b flex items-center gap-3">
-              <AlertCircle className="w-6 h-6 text-yellow-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Submit Worksheet?</h3>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <p className="text-gray-700">
-                Are you sure you want to submit this worksheet for <strong>{worksheetData.patient_name}</strong>?
-              </p>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-                <div className="flex gap-2">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-yellow-800">
-                    <p className="font-semibold mb-1">This will lock the worksheet</p>
-                    <p>Once submitted, the worksheet will be locked and all fields will become read-only. You can unlock it later if you need to make corrections.</p>
-                  </div>
-                </div>
-              </div>
-              <div className="text-sm text-gray-600">
-                <p className="font-medium mb-1">Submitting with:</p>
-                <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>Day 5 samples: {worksheetData.samples[5].filter(s => s.sample_id || s.grade).length}</li>
-                  <li>Day 6 samples: {worksheetData.samples[6].filter(s => s.sample_id || s.grade).length}</li>
-                  <li>Day 7 samples: {worksheetData.samples[7].filter(s => s.sample_id || s.grade).length}</li>
-                </ul>
-              </div>
-            </div>
-            <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex gap-3 justify-end">
-              <button
-                onClick={() => setShowSubmitConfirmModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmSubmitWorksheet}
-                className="px-4 py-2 bg-ally-teal text-white rounded-md hover:bg-ally-teal-dark flex items-center gap-2"
-              >
-                <CheckCircle className="w-4 h-4" />
-                Yes, Submit Worksheet
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Printable Worksheet (hidden on screen, visible on print) */}
-      {selectedCase && <PrintableWorksheet />}
-    </div>
-  )
-}
-
-// ============================================================================
 // CONTACT US PAGE
 // ============================================================================
 function ContactUsPage() {
@@ -4515,86 +3847,46 @@ function ContactUsPage() {
         <p className="text-gray-500">Get in touch with the Ally Genetics team</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="max-w-2xl mx-auto">
         {/* Contact Info */}
-        <div className="bg-white rounded-lg border p-6 space-y-6">
+        <div className="bg-white rounded-lg border p-8 space-y-6">
           <div>
-            <h2 className="font-semibold text-gray-900 mb-4">Lab Contact Information</h2>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-ally-teal/10 rounded-lg">
-                  <Phone className="w-5 h-5 text-ally-teal" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Ally Genetics Contact Information</h2>
+            <div className="space-y-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-ally-teal/10 rounded-lg">
+                  <Phone className="w-6 h-6 text-ally-teal" />
                 </div>
                 <div>
-                  <p className="font-medium text-gray-900">Phone</p>
-                  <a href="tel:+18005551234" className="text-ally-teal hover:underline">(800) 555-1234</a>
-                  <p className="text-sm text-gray-500">Mon-Fri, 8am-6pm EST</p>
+                  <p className="font-medium text-gray-900 text-lg">Phone</p>
+                  <a href="tel:+18005551234" className="text-ally-teal hover:underline text-lg">(800) 555-1234</a>
+                  <p className="text-sm text-gray-500 mt-1">Monday - Friday, 8:00 AM - 6:00 PM EST</p>
                 </div>
               </div>
               
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-ally-teal/10 rounded-lg">
-                  <Mail className="w-5 h-5 text-ally-teal" />
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-ally-teal/10 rounded-lg">
+                  <Mail className="w-6 h-6 text-ally-teal" />
                 </div>
                 <div>
-                  <p className="font-medium text-gray-900">Email</p>
-                  <a href="mailto:lab@allygenetics.com" className="text-ally-teal hover:underline">lab@allygenetics.com</a>
-                  <p className="text-sm text-gray-500">We respond within 24 hours</p>
+                  <p className="font-medium text-gray-900 text-lg">Email</p>
+                  <a href="mailto:lab@allygenetics.com" className="text-ally-teal hover:underline text-lg">lab@allygenetics.com</a>
+                  <p className="text-sm text-gray-500 mt-1">We respond within 24 hours</p>
                 </div>
               </div>
               
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-ally-teal/10 rounded-lg">
-                  <MapPin className="w-5 h-5 text-ally-teal" />
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-ally-teal/10 rounded-lg">
+                  <MapPin className="w-6 h-6 text-ally-teal" />
                 </div>
                 <div>
-                  <p className="font-medium text-gray-900">Laboratory Address</p>
-                  <p className="text-gray-600">Ally Genetics Laboratory</p>
-                  <p className="text-gray-600">123 Science Park Drive</p>
-                  <p className="text-gray-600">Suite 400</p>
-                  <p className="text-gray-600">Grand Rapids, MI 49503</p>
+                  <p className="font-medium text-gray-900 text-lg">Laboratory Address</p>
+                  <p className="text-gray-700 mt-1">Ally Genetics</p>
+                  <p className="text-gray-700">1001 Parchment Dr SE</p>
+                  <p className="text-gray-700">Grand Rapids, MI 49546</p>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Quick Links */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg border p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Quick Support</h2>
-            <div className="space-y-3">
-              <a href="mailto:lab@allygenetics.com?subject=Sample%20Shipping%20Question" className="block p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                <p className="font-medium text-gray-900">Sample Shipping Questions</p>
-                <p className="text-sm text-gray-500">Questions about shipping samples or kits</p>
-              </a>
-              <a href="mailto:lab@allygenetics.com?subject=Results%20Question" className="block p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                <p className="font-medium text-gray-900">Results Inquiry</p>
-                <p className="text-sm text-gray-500">Questions about test results</p>
-              </a>
-              <a href="mailto:lab@allygenetics.com?subject=Technical%20Support" className="block p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                <p className="font-medium text-gray-900">Technical Support</p>
-                <p className="text-sm text-gray-500">Portal or technical issues</p>
-              </a>
-              <a href="mailto:lab@allygenetics.com?subject=Billing%20Question" className="block p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                <p className="font-medium text-gray-900">Billing Questions</p>
-                <p className="text-sm text-gray-500">Invoices and payment inquiries</p>
-              </a>
-            </div>
-          </div>
-
-          <div className="bg-ally-teal/10 rounded-lg p-6">
-            <h2 className="font-semibold text-ally-navy mb-2">Urgent Results?</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              For time-sensitive result inquiries, please call us directly at <strong>(800) 555-1234</strong> and press 1 for priority support.
-            </p>
-            <a 
-              href="tel:+18005551234" 
-              className="inline-flex items-center gap-2 bg-ally-teal text-white px-4 py-2 rounded-md hover:bg-ally-teal-dark"
-            >
-              <Phone className="w-4 h-4" />
-              Call Now
-            </a>
           </div>
         </div>
       </div>
@@ -5749,6 +5041,501 @@ function ProfileModal({ onClose }) {
 }
 
 // ============================================================================
+// CONSENT SIGNING PAGE (Public - No Auth Required)
+// ============================================================================
+function ConsentSigningPage() {
+  const { token } = useParams()
+  const { supabase } = useAuth()
+  const [loading, setLoading] = useState(true)
+  const [consent, setConsent] = useState(null)
+  const [caseData, setCaseData] = useState(null)
+  const [error, setError] = useState(null)
+  const [signatureType, setSignatureType] = useState('typed') // 'typed' or 'drawn'
+  const [typedName, setTypedName] = useState('')
+  const sigCanvas = useRef(null)
+  const [checkboxes, setCheckboxes] = useState({
+    readUnderstood: false,
+    electronicConsent: false,
+    agreeTerms: false,
+    keyPoint1: false, // PGT-A accuracy and viable embryo discard
+    keyPoint2: false  // No sex selection/family balancing
+  })
+  const [submitting, setSubmitting] = useState(false)
+  const [success, setSuccess] = useState(false)
+
+  useEffect(() => {
+    if (token) {
+      loadConsent()
+    }
+  }, [token])
+
+  async function loadConsent() {
+    try {
+      // Fetch consent record by token
+      const { data: consentData, error: consentError } = await supabase
+        .from('consents')
+        .select(`
+          *,
+          case:case_id (
+            id,
+            case_number,
+            patient_first_name,
+            patient_last_name,
+            partner_first_name,
+            partner_last_name,
+            clinic:clinic_id (name)
+          )
+        `)
+        .eq('consent_token', token)
+        .single()
+
+      if (consentError || !consentData) {
+        setError('Invalid or expired consent link')
+        setLoading(false)
+        return
+      }
+
+      if (consentData.status === 'signed') {
+        setError('This consent has already been signed')
+        setLoading(false)
+        return
+      }
+
+      setConsent(consentData)
+      setCaseData(consentData.case)
+      setLoading(false)
+    } catch (err) {
+      setError('Failed to load consent')
+      setLoading(false)
+    }
+  }
+
+  function clearSignature() {
+    if (sigCanvas.current) {
+      sigCanvas.current.clear()
+    }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    
+    // Validation - ALL 5 checkboxes must be checked
+    if (!checkboxes.readUnderstood || !checkboxes.electronicConsent || !checkboxes.agreeTerms || !checkboxes.keyPoint1 || !checkboxes.keyPoint2) {
+      setError('Please check all required boxes, including the two key acknowledgment points')
+      return
+    }
+
+    if (signatureType === 'typed' && !typedName.trim()) {
+      setError('Please enter your full legal name')
+      return
+    }
+
+    if (signatureType === 'drawn' && sigCanvas.current && sigCanvas.current.isEmpty()) {
+      setError('Please provide your signature')
+      return
+    }
+
+    setSubmitting(true)
+    setError(null)
+
+    try {
+      // Capture signature data
+      const signatureData = signatureType === 'typed' 
+        ? typedName 
+        : sigCanvas.current.toDataURL()
+
+      // Get IP address
+      let ipAddress = ''
+      try {
+        const ipResponse = await fetch('https://api.ipify.org?format=json')
+        const ipData = await ipResponse.json()
+        ipAddress = ipData.ip
+      } catch (e) {
+        ipAddress = 'unknown'
+      }
+
+      // Update consent record
+      const { error: updateError } = await supabase
+        .from('consents')
+        .update({
+          status: 'signed',
+          signed_at: new Date().toISOString(),
+          signature_type: signatureType,
+          signature_data: signatureData,
+          ip_address: ipAddress,
+          metadata: {
+            checkboxes: checkboxes,
+            keyAcknowledgments: {
+              pgtAccuracy: checkboxes.keyPoint1,
+              noSexSelection: checkboxes.keyPoint2
+            },
+            user_agent: navigator.userAgent,
+            signed_at: new Date().toISOString(),
+            ip_address: ipAddress
+          }
+        })
+        .eq('consent_token', token)
+
+      if (updateError) {
+        throw updateError
+      }
+
+      setSubmitting(false)
+      setSuccess(true)
+    } catch (err) {
+      console.error('Error submitting consent:', err)
+      setError('Failed to submit consent. Please try again.')
+      setSubmitting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-ally-teal" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <X className="w-8 h-8 text-red-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Unable to Load Consent</h1>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <p className="text-sm text-gray-500">If you believe this is an error, please contact us at lab@allygenetics.com</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-green-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Consent Successfully Signed!</h1>
+          <p className="text-gray-600 mb-2">Thank you for signing your consent form.</p>
+          <p className="text-sm text-gray-500 mb-6">
+            Signed on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+          </p>
+          <div className="text-sm text-gray-500 bg-gray-50 p-4 rounded-md">
+            <p className="font-medium mb-2">What happens next?</p>
+            <p>Your signed consent has been recorded and added to your case file. We will begin processing your PGT test request.</p>
+          </div>
+          <p className="text-sm text-gray-500 mt-6">
+            Questions? Contact us at <a href="mailto:lab@allygenetics.com" className="text-ally-teal hover:underline">lab@allygenetics.com</a> or (800) 555-1234
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const signerName = consent.signer_type === 'patient' 
+    ? `${caseData.patient_first_name} ${caseData.patient_last_name}`
+    : `${caseData.partner_first_name} ${caseData.partner_last_name}`
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="text-center border-b-3 border-ally-teal pb-4 mb-4">
+            <h1 className="text-3xl font-bold text-ally-teal">Ally Genetics</h1>
+            <p className="text-lg font-semibold text-gray-900 mt-2">Informed Consent for PGT Testing</p>
+            <p className="text-sm text-ally-teal mt-1">lab@allygenetics.com | (800) 555-1234</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="font-semibold">Patient Name:</span> {signerName}
+            </div>
+            <div>
+              <span className="font-semibold">Case Number:</span> {caseData.case_number}
+            </div>
+            <div>
+              <span className="font-semibold">Clinic:</span> {caseData.clinic?.name}
+            </div>
+            <div>
+              <span className="font-semibold">Date:</span> {new Date().toLocaleDateString()}
+            </div>
+          </div>
+        </div>
+
+        {/* Consent Form */}
+        <form onSubmit={handleSubmit}>
+          {/* Consent Text */}
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Consent for Preimplantation Genetic Testing for Aneuploidy (PGT-A)</h2>
+            <div className="prose prose-sm max-w-none text-gray-700 max-h-96 overflow-y-auto border border-gray-200 rounded p-4">
+              
+              <p className="mb-4"><strong>Introduction</strong></p>
+              <p className="mb-4">
+                Preimplantation Genetic Testing for Aneuploidy (PGT-A) is a test performed on a small sample of cells from an in vitro fertilization (IVF) embryo to screen for numerical chromosomal abnormalities prior to transfer. The purpose of PGT-A is to help IVF physicians and patients decide which embryos to transfer. This consent form reviews the benefits and limitations of PGT-A. Prior to initiating testing, Ally Genetics must receive a signed copy of this form.
+              </p>
+
+              <p className="mb-4"><strong>Genetic Counseling</strong></p>
+              <p className="mb-4">
+                Ally Genetics recommends that you consult with a genetic counselor before consenting to this test and a genetic counselor or your healthcare provider about your results. For a list of independent medical genetic counselors who may be available in your area, visit the National Society of Genetic Counselors website at www.nsgc.org. Additionally, an appointment with an Ally Genetics affiliated genetic counselor can be scheduled through our website allygenetics.com. Please note that a minimum lead time of 10 business days prior to your biopsy date is required.
+              </p>
+
+              <p className="mb-4"><strong>Chromosomal Abnormalities</strong></p>
+              <p className="mb-4">
+                There are a total of 46 chromosomes (23 pairs) in each human cell. Half of these chromosomes are inherited from the egg and the other half from the sperm. For normal growth and development, a person must inherit the correct number of chromosomes from each reproductive parent: one each of the 22 autosomes (numbered 1–22) and a sex chromosome (X or Y). Aneuploidy refers to a type of chromosome abnormality where there are more or fewer than the normal 46 chromosomes present. The extra or missing chromosome(s) can come from the egg or the sperm, however, most come from the egg and the chance of aneuploid embryos increases with maternal age. Most aneuploid embryos do not implant and fail to achieve pregnancy; however, those that do may result in miscarriage. In the general population, 20% of all clinical pregnancies miscarry and about half are chromosomally abnormal.
+              </p>
+
+              <p className="mb-4"><strong>Benefits of PGT-A</strong></p>
+              <p className="mb-4">
+                Chromosomally abnormal embryos may not differ in overall microscopic appearance from chromosomally normal embryos, thus making it difficult to identify which embryo(s) have the best chance of resulting in successful implantation and pregnancy. Chromosomal abnormalities are one of the most common reasons for implantation failure and miscarriages that occur within the first 12 weeks of pregnancy. PGT-A can help identify which of your embryos are most likely to be chromosomally normal (euploid). By implanting a euploid embryo, the possibility of a successful implantation rises, the risk of a miscarriage decreases, and the chances of delivering a healthy chromosomally normal baby increase.
+              </p>
+
+              <p className="mb-4"><strong>Embryo Biopsy Related Risks</strong></p>
+              <p className="mb-4">
+                Although in vitro fertilization (IVF) has been used successfully in millions of pregnancies worldwide with no documented increase in risk for congenital malformations or developmental disorders, the PGT-A process requires an embryo biopsy, and this biopsy process is not without risk. Biopsies are typically performed 5-7 days following fertilization. Such biopsies involve the removal of approximately 5-10 cells from the outer cell layer of the embryo, leaving the inner cell mass, which will become the developing baby, intact.
+              </p>
+              <p className="mb-4">Your IVF physician has recommended PGT-A because they believe that the benefits of PGT-A are likely to outweigh the risks, which include the following:</p>
+              <ul className="mb-4 list-disc pl-6">
+                <li>An embryo may be damaged during the biopsy.</li>
+                <li>It may not be possible to obtain cells from the embryo for testing or the cells obtained may not be of sufficient quality to yield results.</li>
+                <li>Although data has shown that embryo biopsy has no adverse impact on growth or medical outcomes, the technique is still relatively new and the potential for unknown consequences to a live born baby cannot be excluded.</li>
+              </ul>
+
+              <p className="mb-4"><strong>Technical and Analytic Risks</strong></p>
+              <p className="mb-4">
+                Ally Genetics employs unique coding of collection tubes, molecular labeling of amplified DNA, and stringent sample tracking and control procedures to minimize the risk of technical errors; however, errors may still occur that result in no diagnosis or a misdiagnosis.
+              </p>
+
+              <p className="mb-4"><strong>Misdiagnosis:</strong></p>
+              <p className="mb-4">
+                No genetic testing is 100% accurate and PGT-A is no different. There remains an empirically determined 1-5% chance of misdiagnosis, either by false negative or false positive result. A false negative result will indicate an embryo has a normal number of chromosomes when there is actually a chromosomal abnormality. <strong>A false positive result will indicate an embryo has an abnormal chromosome copy number when it is actually normal, potentially leading to the discard of viable embryos.</strong> One recognized source of misdiagnosis is embryo mosaicism; a phenomenon in which the cells biopsied and analyzed are not genetically representative of the remainder of the embryo.
+              </p>
+
+              <p className="mb-4"><strong>Technical Limits of Detection</strong></p>
+              <p className="mb-4">
+                Ally Genetics uses Next Generation Sequencing (NGS) to evaluate the amount of chromosomal material present across the entire genome. This test cannot detect chromosomal abnormalities without an imbalance in genetic material. Ally Genetics PGT-A does not detect single gene disorders (such as Cystic Fibrosis, Spinal Muscular Atrophy, Sickle Cell Anemia), multifactorial conditions, polyploidy/haploidy, balanced chromosomal rearrangements, uniparental disomy (UPD), or small segmental changes smaller than 20Mb.
+              </p>
+
+              <p className="mb-4"><strong>Mosaic Results</strong></p>
+              <p className="mb-4">
+                Ally Genetics reports samples as mosaic when more than 40% and less than 70% of a sample biopsy's amplified DNA appears aneuploid (abnormal). Mosaic embryos contain two or more populations of cells with differing chromosome content. The outcome of transferring an embryo with a mosaic PGT-A result cannot be predicted. Due to the uncertainty surrounding PGT-A mosaic embryos, Ally Genetics does not recommend their transfer; however, the determination of which embryo(s) to transfer and/or discard should always be made with the guidance of your physician and/or a licensed genetic counselor.
+              </p>
+
+              <p className="mb-4"><strong>Follow-Up Recommendation for Prenatal Diagnosis</strong></p>
+              <p className="mb-4">
+                PGT-A cannot guarantee the birth of a chromosomally normal child. Due to inherent limitations and the chance of misdiagnosis, PGT-A should not be viewed as a replacement for prenatal testing and prenatal testing for ongoing pregnancies is recommended.
+              </p>
+
+              <p className="mb-4"><strong>Confidentiality and HIPAA</strong></p>
+              <p className="mb-4">
+                Ally Genetics keeps test results confidential and is in compliance with all Health Insurance Portability and Accountability Act (HIPAA) regulations.
+              </p>
+
+              <p className="mb-4"><strong>Retention of Samples</strong></p>
+              <p className="mb-4">
+                PGT-A samples and/or DNA may be discarded after a time period of 60 days following results reporting. Ally Genetics may keep leftover de-identified sample DNA for ongoing research to help couples have healthy babies. Your sample material will never be used to make new embryos or future babies.
+              </p>
+            </div>
+          </div>
+
+          {/* KEY ACKNOWLEDGMENT POINT #1 - MUST ACKNOWLEDGE */}
+          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
+            <div className="flex items-start gap-3 mb-4">
+              <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">IMPORTANT: Please Read and Acknowledge</h3>
+                <p className="text-gray-800 font-semibold">
+                  I understand that PGT-A is not 100% accurate. There is a 1-5% chance of misdiagnosis. 
+                  A false positive result could incorrectly identify a chromosomally normal (viable) embryo as abnormal, 
+                  potentially leading to the discard of an embryo that could have resulted in a healthy pregnancy.
+                </p>
+              </div>
+            </div>
+            <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
+              <input
+                type="checkbox"
+                checked={checkboxes.keyPoint1}
+                onChange={(e) => setCheckboxes(prev => ({ ...prev, keyPoint1: e.target.checked }))}
+                className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+              />
+              <span className="text-sm font-semibold text-gray-900">
+                ✓ I acknowledge and understand that PGT-A is not 100% accurate and that viable embryos could potentially be discarded due to false positive results
+              </span>
+            </label>
+          </div>
+
+          {/* KEY ACKNOWLEDGMENT POINT #2 - MUST ACKNOWLEDGE */}
+          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
+            <div className="flex items-start gap-3 mb-4">
+              <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">IMPORTANT: Please Read and Acknowledge</h3>
+                <p className="text-gray-800 font-semibold">
+                  Ally Genetics does not perform PGT for sex selection or family balancing purposes. 
+                  While PGT-A testing may identify sex chromosomes, sex chromosome discrepancies are possible (incorrect gender prediction). 
+                  Ally Genetics makes no guarantee regarding the determination of sex from the sample.
+                </p>
+              </div>
+            </div>
+            <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
+              <input
+                type="checkbox"
+                checked={checkboxes.keyPoint2}
+                onChange={(e) => setCheckboxes(prev => ({ ...prev, keyPoint2: e.target.checked }))}
+                className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+              />
+              <span className="text-sm font-semibold text-gray-900">
+                ✓ I acknowledge and understand that Ally Genetics does not perform sex selection or family balancing, and makes no guarantee on sex determination from PGT-A testing
+              </span>
+            </label>
+          </div>
+
+          {/* Legal Checkboxes */}
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Required Agreements</h2>
+            <div className="space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={checkboxes.readUnderstood}
+                  onChange={(e) => setCheckboxes(prev => ({ ...prev, readUnderstood: e.target.checked }))}
+                  className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
+                />
+                <span className="text-sm text-gray-700">
+                  I have read and understood this consent form in its entirety
+                </span>
+              </label>
+              
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={checkboxes.electronicConsent}
+                  onChange={(e) => setCheckboxes(prev => ({ ...prev, electronicConsent: e.target.checked }))}
+                  className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
+                />
+                <span className="text-sm text-gray-700">
+                  I consent to the use of electronic signatures and electronic records for this consent form
+                </span>
+              </label>
+              
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={checkboxes.agreeTerms}
+                  onChange={(e) => setCheckboxes(prev => ({ ...prev, agreeTerms: e.target.checked }))}
+                  className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
+                />
+                <span className="text-sm text-gray-700">
+                  I agree to all terms stated in this consent form and voluntarily consent to Preimplantation Genetic Testing
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* Signature Section */}
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Signature</h2>
+            
+            {/* Signature Type Selector */}
+            <div className="flex gap-4 mb-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="typed"
+                  checked={signatureType === 'typed'}
+                  onChange={() => setSignatureType('typed')}
+                  className="w-4 h-4 text-ally-teal focus:ring-ally-teal"
+                />
+                <span className="text-sm font-medium">Type Name</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="drawn"
+                  checked={signatureType === 'drawn'}
+                  onChange={() => setSignatureType('drawn')}
+                  className="w-4 h-4 text-ally-teal focus:ring-ally-teal"
+                />
+                <span className="text-sm font-medium">Draw Signature</span>
+              </label>
+            </div>
+
+            {/* Typed Signature */}
+            {signatureType === 'typed' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Type your full legal name:
+                </label>
+                <input
+                  type="text"
+                  value={typedName}
+                  onChange={(e) => setTypedName(e.target.value)}
+                  placeholder="John Doe"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal text-lg font-serif italic"
+                />
+              </div>
+            )}
+
+            {/* Drawn Signature */}
+            {signatureType === 'drawn' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Draw your signature below:
+                </label>
+                <div className="border-2 border-gray-300 rounded-md bg-white">
+                  <SignatureCanvas
+                    ref={sigCanvas}
+                    canvasProps={{
+                      className: 'w-full h-40 cursor-crosshair'
+                    }}
+                    backgroundColor="white"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={clearSignature}
+                  className="mt-2 text-sm text-gray-600 hover:text-gray-900 underline"
+                >
+                  Clear Signature
+                </button>
+                <p className="mt-2 text-xs text-gray-500">
+                  Note: You need to install react-signature-canvas package for signature drawing to work
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          {/* Submit Button */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full bg-ally-teal text-white py-4 px-6 rounded-md font-semibold text-lg hover:bg-ally-teal-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {submitting && <Loader2 className="w-5 h-5 animate-spin" />}
+              {submitting ? 'Submitting...' : 'Sign and Submit Consent'}
+            </button>
+            <p className="text-xs text-center text-gray-500 mt-4">
+              By clicking this button, you are providing your legally binding electronic signature
+            </p>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
 // PLACEHOLDER PAGES
 // ============================================================================
 function PlaceholderPage({ title }) {
@@ -5769,6 +5556,9 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          
+          {/* Public Consent Signing Route - No Auth Required */}
+          <Route path="/consent/:token" element={<ConsentSigningPage />} />
           
           {/* Admin Routes */}
           <Route path="/admin" element={<ProtectedRoute adminOnly><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
