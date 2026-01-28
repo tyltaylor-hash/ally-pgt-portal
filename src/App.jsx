@@ -2973,8 +2973,9 @@ function NewRequisitionPage() {
       return
     }
 
-    // Create consent for patient
-    await supabase.from('consents').insert({
+    // Create consent for patient with unique token
+    const patientConsentToken = crypto.randomUUID()
+    const { data: patientConsent } = await supabase.from('consents').insert({
       case_id: newCase.id,
       signer_type: 'patient',
       signer_name: `${formData.patient_first_name} ${formData.patient_last_name}`,
@@ -2984,11 +2985,30 @@ function NewRequisitionPage() {
       recipient_email: formData.patient_email,
       recipient_phone: formData.patient_phone,
       status: 'pending',
-    })
+      consent_token: patientConsentToken
+    }).select().single()
+
+    // Send consent email to patient
+    try {
+      await supabase.functions.invoke('send-consent-email', {
+        body: {
+          to: formData.patient_email,
+          firstName: formData.patient_first_name,
+          signerType: 'patient',
+          consentToken: patientConsentToken,
+          caseNumber: newCase.case_number,
+          clinicName: userData.clinic_name || ''
+        }
+      })
+    } catch (emailError) {
+      console.error('Failed to send patient consent email:', emailError)
+      // Continue even if email fails - admin can resend
+    }
 
     // Create consent for partner if provided and required
     if (isPartnerRequired && formData.partner_email) {
-      await supabase.from('consents').insert({
+      const partnerConsentToken = crypto.randomUUID()
+      const { data: partnerConsent } = await supabase.from('consents').insert({
         case_id: newCase.id,
         signer_type: 'partner',
         signer_name: `${formData.partner_first_name} ${formData.partner_last_name}`,
@@ -2997,7 +3017,25 @@ function NewRequisitionPage() {
         recipient_name: `${formData.partner_first_name} ${formData.partner_last_name}`,
         recipient_email: formData.partner_email,
         status: 'pending',
-      })
+        consent_token: partnerConsentToken
+      }).select().single()
+
+      // Send consent email to partner
+      try {
+        await supabase.functions.invoke('send-consent-email', {
+          body: {
+            to: formData.partner_email,
+            firstName: formData.partner_first_name,
+            signerType: 'partner',
+            consentToken: partnerConsentToken,
+            caseNumber: newCase.case_number,
+            clinicName: userData.clinic_name || ''
+          }
+        })
+      } catch (emailError) {
+        console.error('Failed to send partner consent email:', emailError)
+        // Continue even if email fails - admin can resend
+      }
     }
 
     navigate('/clinic/cases/' + newCase.id)
