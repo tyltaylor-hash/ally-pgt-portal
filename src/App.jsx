@@ -1155,107 +1155,340 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
   function generateRequisitionPDF(cycle) {
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
-    let y = 20
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 15
+    const contentWidth = pageWidth - (margin * 2)
+    let y = margin
     
-    // Header
-    doc.setFillColor(13, 148, 136) // ally-teal
-    doc.rect(0, 0, pageWidth, 35, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(22)
-    doc.setFont('helvetica', 'bold')
-    doc.text('ALLY GENETICS', pageWidth / 2, 15, { align: 'center' })
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'normal')
-    doc.text('Test Requisition Form', pageWidth / 2, 25, { align: 'center' })
-    
-    // Reset text color
-    doc.setTextColor(0, 0, 0)
-    y = 50
-    
-    // Case Info
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'bold')
-    doc.text(`Case Number: ${cycle.case_number || 'N/A'}`, 20, y)
-    doc.text(`Date: ${new Date(cycle.created_at).toLocaleDateString()}`, pageWidth - 60, y)
-    y += 15
-    
-    // Patient Information Section
-    doc.setFillColor(240, 240, 240)
-    doc.rect(15, y - 5, pageWidth - 30, 10, 'F')
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'bold')
-    doc.text('PATIENT INFORMATION', 20, y + 2)
-    y += 15
-    
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'normal')
-    const patientInfo = [
-      ['Name:', `${cycle.patient_first_name} ${cycle.patient_last_name}`],
-      ['Date of Birth:', cycle.patient_dob ? new Date(cycle.patient_dob).toLocaleDateString() : 'N/A'],
-      ['Email:', cycle.patient_email || 'N/A'],
-      ['Phone:', cycle.patient_phone || 'N/A']
-    ]
-    patientInfo.forEach(([label, value]) => {
-      doc.setFont('helvetica', 'bold')
-      doc.text(label, 20, y)
-      doc.setFont('helvetica', 'normal')
-      doc.text(value, 60, y)
-      y += 7
-    })
-    y += 10
-    
-    // Partner Information (if exists)
-    if (cycle.partner_first_name) {
-      doc.setFillColor(240, 240, 240)
-      doc.rect(15, y - 5, pageWidth - 30, 10, 'F')
-      doc.setFontSize(12)
-      doc.setFont('helvetica', 'bold')
-      doc.text('PARTNER INFORMATION', 20, y + 2)
-      y += 15
-      
-      doc.setFontSize(10)
-      const partnerInfo = [
-        ['Name:', `${cycle.partner_first_name} ${cycle.partner_last_name}`],
-        ['Date of Birth:', cycle.partner_dob ? new Date(cycle.partner_dob).toLocaleDateString() : 'N/A'],
-        ['Email:', cycle.partner_email || 'N/A']
-      ]
-      partnerInfo.forEach(([label, value]) => {
-        doc.setFont('helvetica', 'bold')
-        doc.text(label, 20, y)
-        doc.setFont('helvetica', 'normal')
-        doc.text(value, 60, y)
-        y += 7
-      })
-      y += 10
+    // Helper function to format date
+    const formatDate = (dateStr) => {
+      if (!dateStr) return ''
+      try {
+        return new Date(dateStr).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+      } catch {
+        return dateStr
+      }
     }
     
-    // Test Information Section
-    doc.setFillColor(240, 240, 240)
-    doc.rect(15, y - 5, pageWidth - 30, 10, 'F')
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'bold')
-    doc.text('TEST INFORMATION', 20, y + 2)
-    y += 15
+    // Helper to capitalize sex
+    const formatSex = (sex) => {
+      if (!sex) return ''
+      return sex.charAt(0).toUpperCase() + sex.slice(1)
+    }
     
-    doc.setFontSize(10)
-    const testInfo = [
-      ['Tests Ordered:', cycle.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || 'N/A'],
-      ['Reason for Testing:', cycle.reason_for_testing || 'N/A'],
-      ['Mask Sex Results:', cycle.mask_sex_results ? 'Yes' : 'No'],
-      ['Status:', cycle.status?.replace(/_/g, ' ').toUpperCase() || 'N/A']
-    ]
-    testInfo.forEach(([label, value]) => {
+    // Helper to format sample type
+    const formatSampleType = (type) => {
+      if (!type) return ''
+      const types = {
+        'd5_d6_d7_trophectoderm': 'D5/6/7 Trophectoderm',
+        'rebiopsy': 'Rebiopsy',
+        'other': 'Other'
+      }
+      return types[type] || type
+    }
+    
+    // Colors - Navy Blue theme
+    const navyBlue = [30, 58, 95] // #1e3a5f
+    const lightNavy = [232, 238, 244] // light navy background
+    const warningYellow = [254, 243, 199]
+    const warningBorder = [245, 158, 11]
+    
+    // ===== HEADER =====
+    doc.setFillColor(...navyBlue)
+    doc.rect(0, 0, pageWidth, 3, 'F') // Top border line
+    
+    y = 12
+    // Left - Company name
+    doc.setTextColor(...navyBlue)
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.text('ALLY GENETICS', margin, y)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'italic')
+    doc.text('Better Partnerships, Better Results', margin, y + 4)
+    
+    // Center - Form title
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Preimplantation Genetic Testing', pageWidth / 2, y - 2, { align: 'center' })
+    doc.setFontSize(12)
+    doc.text('Test Requisition Form', pageWidth / 2, y + 4, { align: 'center' })
+    
+    // Right - Contact info
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Ally Genetics Laboratory', pageWidth - margin, y - 4, { align: 'right' })
+    doc.setFont('helvetica', 'normal')
+    doc.text('1001 Parchment Dr SE', pageWidth - margin, y, { align: 'right' })
+    doc.text('Grand Rapids, MI 49546', pageWidth - margin, y + 3, { align: 'right' })
+    doc.text('Phone: (616) 465-2400', pageWidth - margin, y + 6, { align: 'right' })
+    doc.text('Email: lab@allygenetics.com', pageWidth - margin, y + 9, { align: 'right' })
+    
+    y = 28
+    doc.setFillColor(...navyBlue)
+    doc.rect(0, y, pageWidth, 0.5, 'F') // Header bottom border
+    
+    // ===== NOTICE BAR =====
+    y += 5
+    doc.setFillColor(...lightNavy)
+    doc.rect(margin, y, contentWidth, 8, 'F')
+    doc.setDrawColor(...navyBlue)
+    doc.rect(margin, y, contentWidth, 8, 'S')
+    doc.setTextColor(...navyBlue)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'bold')
+    doc.text('COMPLETED TEST REQUISITION FORM MUST BE RECEIVED PRIOR TO SAMPLES & BIOPSY WORKSHEET.', pageWidth / 2, y + 5, { align: 'center' })
+    
+    // ===== SECTION HELPER =====
+    const drawSection = (title, startY) => {
+      doc.setFillColor(...navyBlue)
+      doc.rect(margin, startY, contentWidth, 6, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'bold')
-      doc.text(label, 20, y)
+      doc.text(title, margin + 3, startY + 4)
+      return startY + 8
+    }
+    
+    const drawField = (label, value, x, fieldY, labelWidth = 25) => {
+      doc.setTextColor(0, 0, 0)
+      doc.setFontSize(7)
       doc.setFont('helvetica', 'normal')
-      doc.text(value, 65, y)
-      y += 7
+      doc.text(label, x, fieldY)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...navyBlue)
+      doc.text(value || '', x + labelWidth, fieldY)
+    }
+    
+    // ===== PATIENT INFORMATION =====
+    y += 12
+    y = drawSection('PATIENT INFORMATION', y)
+    
+    const colWidth = contentWidth / 2
+    const leftCol = margin + 3
+    const rightCol = margin + colWidth + 3
+    
+    // Patient column
+    drawField('First Name:', cycle.patient_first_name || '', leftCol, y, 20)
+    drawField('Last Name:', cycle.patient_last_name || '', leftCol + 55, y, 20)
+    y += 5
+    drawField('DOB:', formatDate(cycle.patient_dob), leftCol, y, 10)
+    drawField('Sex:', formatSex(cycle.patient_sex), leftCol + 40, y, 10)
+    y += 5
+    drawField('Email:', cycle.patient_email || '', leftCol, y, 12)
+    y += 5
+    drawField('Phone:', cycle.patient_phone || '', leftCol, y, 12)
+    
+    // Partner column (same row as patient)
+    let partnerY = y - 15
+    if (cycle.partner_first_name) {
+      drawField('Partner First:', cycle.partner_first_name || '', rightCol, partnerY, 25)
+      drawField('Last:', cycle.partner_last_name || '', rightCol + 60, partnerY, 12)
+      partnerY += 5
+      drawField('DOB:', formatDate(cycle.partner_dob), rightCol, partnerY, 10)
+      drawField('Sex:', formatSex(cycle.partner_sex), rightCol + 40, partnerY, 10)
+      partnerY += 5
+      drawField('Email:', cycle.partner_email || '', rightCol, partnerY, 12)
+      partnerY += 5
+      drawField('Phone:', cycle.partner_phone || '', rightCol, partnerY, 12)
+    }
+    
+    // ===== IVF CENTER INFORMATION =====
+    y += 8
+    y = drawSection('IVF CENTER INFORMATION', y)
+    
+    // Get clinic info from cycle
+    const clinicName = cycle.clinic?.name || ''
+    const clinicPhone = cycle.clinic?.phone || ''
+    const clinicAddress = cycle.clinic?.address || ''
+    const clinicCity = cycle.clinic?.city || ''
+    const clinicState = cycle.clinic?.state || ''
+    const clinicZip = cycle.clinic?.zip || ''
+    const clinicEmail = cycle.clinic?.email || ''
+    
+    drawField('IVF Center Name:', clinicName, leftCol, y, 30)
+    drawField('Phone:', clinicPhone, rightCol, y, 15)
+    y += 5
+    drawField('Address:', clinicAddress, leftCol, y, 15)
+    drawField('City:', clinicCity, leftCol + 70, y, 10)
+    drawField('State:', clinicState, rightCol, y, 12)
+    drawField('Zip:', clinicZip, rightCol + 30, y, 10)
+    y += 5
+    drawField('Email:', clinicEmail, leftCol, y, 12)
+    
+    // ===== CYCLE INFORMATION =====
+    y += 8
+    y = drawSection('CYCLE INFORMATION', y)
+    
+    // Male Factor and Donor Gametes
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Male Factor Infertility?', leftCol, y)
+    
+    // Draw checkboxes for Yes/No
+    const checkboxSize = 3
+    const yesX = leftCol + 38
+    const noX = leftCol + 52
+    doc.rect(yesX, y - 2.5, checkboxSize, checkboxSize, 'S')
+    doc.rect(noX, y - 2.5, checkboxSize, checkboxSize, 'S')
+    if (cycle.male_factor_infertility) {
+      doc.setFillColor(...navyBlue)
+      doc.rect(yesX + 0.5, y - 2, checkboxSize - 1, checkboxSize - 1, 'F')
+    } else {
+      doc.setFillColor(...navyBlue)
+      doc.rect(noX + 0.5, y - 2, checkboxSize - 1, checkboxSize - 1, 'F')
+    }
+    doc.text('Yes', yesX + 4, y)
+    doc.text('No', noX + 4, y)
+    
+    // Donor Gametes
+    doc.text('Donor Gametes Used?', rightCol, y)
+    const eggDonorX = rightCol + 38
+    const spermDonorX = rightCol + 70
+    doc.rect(eggDonorX, y - 2.5, checkboxSize, checkboxSize, 'S')
+    doc.rect(spermDonorX, y - 2.5, checkboxSize, checkboxSize, 'S')
+    if (cycle.is_egg_donor) {
+      doc.setFillColor(...navyBlue)
+      doc.rect(eggDonorX + 0.5, y - 2, checkboxSize - 1, checkboxSize - 1, 'F')
+    }
+    if (cycle.is_sperm_donor) {
+      doc.setFillColor(...navyBlue)
+      doc.rect(spermDonorX + 0.5, y - 2, checkboxSize - 1, checkboxSize - 1, 'F')
+    }
+    doc.text(`Egg Donor${cycle.egg_donor_age ? ' (' + cycle.egg_donor_age + ')' : ''}`, eggDonorX + 4, y)
+    doc.text(`Sperm Donor${cycle.sperm_donor_age ? ' (' + cycle.sperm_donor_age + ')' : ''}`, spermDonorX + 4, y)
+    
+    y += 6
+    doc.text('Sample Type:', leftCol, y)
+    const sampleTypes = ['d5_d6_d7_trophectoderm', 'rebiopsy', 'other']
+    const sampleLabels = ['D5/6/7 Trophectoderm', 'Rebiopsy', 'Other']
+    let sampleX = leftCol + 22
+    sampleTypes.forEach((type, i) => {
+      doc.rect(sampleX, y - 2.5, checkboxSize, checkboxSize, 'S')
+      if (cycle.sample_type === type) {
+        doc.setFillColor(...navyBlue)
+        doc.rect(sampleX + 0.5, y - 2, checkboxSize - 1, checkboxSize - 1, 'F')
+      }
+      doc.text(sampleLabels[i], sampleX + 4, y)
+      sampleX += 35 + (i === 0 ? 5 : 0)
     })
     
-    // Footer
-    doc.setFontSize(8)
-    doc.setTextColor(128, 128, 128)
-    doc.text('Ally Genetics | lab@allygenetics.com | (704) 323-9591', pageWidth / 2, 280, { align: 'center' })
+    // ===== TEST INFORMATION =====
+    y += 8
+    y = drawSection('TEST INFORMATION', y)
+    
+    // Test checkboxes
+    const pgtaX = leftCol
+    const pgtsrX = leftCol + 30
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.rect(pgtaX, y - 3, 4, 4, 'S')
+    doc.rect(pgtsrX, y - 3, 4, 4, 'S')
+    if (cycle.tests_ordered?.includes('pgt_a')) {
+      doc.setFillColor(...navyBlue)
+      doc.rect(pgtaX + 0.5, y - 2.5, 3, 3, 'F')
+    }
+    if (cycle.tests_ordered?.includes('pgt_sr')) {
+      doc.setFillColor(...navyBlue)
+      doc.rect(pgtsrX + 0.5, y - 2.5, 3, 3, 'F')
+    }
+    doc.setTextColor(0, 0, 0)
+    doc.text('PGT-A', pgtaX + 6, y)
+    doc.text('PGT-SR', pgtsrX + 6, y)
+    
+    y += 6
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'normal')
+    drawField('Reason for Testing:', cycle.reason_for_testing || '', leftCol, y, 30)
+    
+    // Mask Sex Results
+    y += 6
+    doc.setDrawColor(100, 100, 100)
+    doc.setLineDashPattern([1, 1], 0)
+    doc.rect(leftCol, y - 3, contentWidth - 6, 7, 'S')
+    doc.setLineDashPattern([], 0)
+    doc.rect(leftCol + 2, y - 1.5, checkboxSize, checkboxSize, 'S')
+    if (cycle.mask_sex_results) {
+      doc.setFillColor(...navyBlue)
+      doc.rect(leftCol + 2.5, y - 1, checkboxSize - 1, checkboxSize - 1, 'F')
+    }
+    doc.setFont('helvetica', 'bold')
+    doc.text('Mask Sex Results', leftCol + 7, y + 1)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100, 100, 100)
+    doc.text('(Do not report embryo sex chromosomes)', leftCol + 35, y + 1)
+    
+    // ===== WARNING NOTICE =====
+    y += 12
+    doc.setFillColor(...warningYellow)
+    doc.rect(margin, y, contentWidth, 8, 'F')
+    doc.setDrawColor(...warningBorder)
+    doc.rect(margin, y, contentWidth, 8, 'S')
+    doc.setTextColor(146, 64, 14)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'bold')
+    doc.text('⚠ TESTING WILL NOT BE COMPLETED WITHOUT A SIGNED PATIENT CONSENT FORM.', pageWidth / 2, y + 5, { align: 'center' })
+    
+    // ===== SIGNATURE SECTION =====
+    y += 14
+    doc.setDrawColor(200, 200, 200)
+    doc.line(margin, y, pageWidth - margin, y)
+    y += 5
+    
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'normal')
+    
+    // Left signature
+    doc.text('Form Completed By:', leftCol, y)
+    doc.line(leftCol + 30, y + 1, leftCol + 80, y + 1)
+    doc.setTextColor(...navyBlue)
+    doc.setFont('helvetica', 'bold')
+    doc.text(cycle.form_completed_by || '', leftCol + 32, y)
+    
+    // Date
+    doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'normal')
+    y += 6
+    doc.text('Date:', leftCol, y)
+    doc.line(leftCol + 10, y + 1, leftCol + 40, y + 1)
+    doc.setTextColor(...navyBlue)
+    doc.setFont('helvetica', 'bold')
+    doc.text(formatDate(cycle.created_at), leftCol + 12, y)
+    
+    // Right signature - Ordering Physician
+    const rightSigY = y - 6
+    doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Ordering Physician:', rightCol, rightSigY)
+    doc.line(rightCol + 32, rightSigY + 1, rightCol + 85, rightSigY + 1)
+    const providerName = cycle.ordering_provider 
+      ? `${cycle.ordering_provider.first_name} ${cycle.ordering_provider.last_name}${cycle.ordering_provider.credentials ? ', ' + cycle.ordering_provider.credentials : ''}`
+      : ''
+    doc.setTextColor(...navyBlue)
+    doc.setFont('helvetica', 'bold')
+    doc.text(providerName, rightCol + 34, rightSigY)
+    
+    doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Physician Signature:', rightCol, y)
+    doc.line(rightCol + 32, y + 1, rightCol + 85, y + 1)
+    doc.setTextColor(...navyBlue)
+    doc.setFont('helvetica', 'italic')
+    doc.text('✓ Electronically Signed', rightCol + 34, y)
+    
+    // ===== FOOTER =====
+    doc.setFillColor(...navyBlue)
+    doc.rect(0, pageHeight - 12, pageWidth, 0.5, 'F')
+    doc.setTextColor(100, 100, 100)
+    doc.setFontSize(6)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...navyBlue)
+    doc.text('Ally Genetics Laboratory', pageWidth / 2, pageHeight - 8, { align: 'center' })
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100, 100, 100)
+    doc.text('1001 Parchment Dr SE, Grand Rapids, MI 49546 | Phone: (616) 465-2400 | Email: lab@allygenetics.com | www.allygenetics.com', pageWidth / 2, pageHeight - 5, { align: 'center' })
     
     doc.save(`${cycle.case_number}_requisition.pdf`)
   }
@@ -1263,100 +1496,144 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
   function generateConsentPDF(cycle, signerType, consent) {
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
-    let y = 20
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 15
+    const contentWidth = pageWidth - (margin * 2)
+    let y = margin
     
     const signerName = signerType === 'patient' 
       ? `${cycle.patient_first_name} ${cycle.patient_last_name}`
       : `${cycle.partner_first_name} ${cycle.partner_last_name}`
     
-    // Header
-    doc.setFillColor(13, 148, 136) // ally-teal
-    doc.rect(0, 0, pageWidth, 35, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(22)
+    // Colors - Navy Blue theme
+    const navyBlue = [30, 58, 95] // #1e3a5f
+    const lightNavy = [232, 238, 244]
+    
+    // ===== HEADER =====
+    doc.setFillColor(...navyBlue)
+    doc.rect(0, 0, pageWidth, 3, 'F')
+    
+    y = 12
+    doc.setTextColor(...navyBlue)
+    doc.setFontSize(14)
     doc.setFont('helvetica', 'bold')
-    doc.text('ALLY GENETICS', pageWidth / 2, 15, { align: 'center' })
+    doc.text('ALLY GENETICS', margin, y)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'italic')
+    doc.text('Better Partnerships, Better Results', margin, y + 4)
+    
     doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Informed Consent Document', pageWidth / 2, y + 2, { align: 'center' })
+    
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Ally Genetics Laboratory', pageWidth - margin, y - 4, { align: 'right' })
     doc.setFont('helvetica', 'normal')
-    doc.text('Informed Consent Document', pageWidth / 2, 25, { align: 'center' })
+    doc.text('1001 Parchment Dr SE', pageWidth - margin, y, { align: 'right' })
+    doc.text('Grand Rapids, MI 49546', pageWidth - margin, y + 3, { align: 'right' })
+    doc.text('Phone: (616) 465-2400', pageWidth - margin, y + 6, { align: 'right' })
     
-    // Reset text color
-    doc.setTextColor(0, 0, 0)
-    y = 50
+    y = 28
+    doc.setFillColor(...navyBlue)
+    doc.rect(0, y, pageWidth, 0.5, 'F')
     
-    // Case Info
+    y += 10
+    
+    // Case Number
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
-    doc.text(`Case Number: ${cycle.case_number || 'N/A'}`, 20, y)
-    y += 20
+    doc.setTextColor(0, 0, 0)
+    doc.text(`Case Number: ${cycle.case_number || 'N/A'}`, margin, y)
+    y += 15
     
     // Consent Record Section
-    doc.setFillColor(240, 240, 240)
-    doc.rect(15, y - 5, pageWidth - 30, 10, 'F')
-    doc.setFontSize(12)
+    doc.setFillColor(...navyBlue)
+    doc.rect(margin, y, contentWidth, 6, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
-    doc.text('CONSENT RECORD', 20, y + 2)
-    y += 20
+    doc.text('CONSENT RECORD', margin + 3, y + 4)
+    y += 12
     
     doc.setFontSize(10)
+    doc.setTextColor(0, 0, 0)
     const consentInfo = [
       ['Signer Name:', signerName],
       ['Signer Role:', signerType.charAt(0).toUpperCase() + signerType.slice(1)],
-      ['Date Signed:', consent.signed_at ? new Date(consent.signed_at).toLocaleString() : 'N/A'],
-      ['Status:', consent.status?.toUpperCase() || 'N/A']
+      ['Date Signed:', consent.signed_at ? new Date(consent.signed_at).toLocaleString() : 'Pending'],
+      ['Status:', consent.status?.toUpperCase() || 'PENDING']
     ]
     consentInfo.forEach(([label, value]) => {
       doc.setFont('helvetica', 'bold')
-      doc.text(label, 20, y)
+      doc.text(label, margin + 3, y)
       doc.setFont('helvetica', 'normal')
-      doc.text(value, 60, y)
-      y += 10
+      doc.setTextColor(...navyBlue)
+      doc.text(value, margin + 40, y)
+      doc.setTextColor(0, 0, 0)
+      y += 8
     })
-    y += 15
+    y += 10
     
-    // Consent Statement
-    doc.setFillColor(240, 240, 240)
-    doc.rect(15, y - 5, pageWidth - 30, 10, 'F')
-    doc.setFontSize(12)
+    // Consent Statement Section
+    doc.setFillColor(...navyBlue)
+    doc.rect(margin, y, contentWidth, 6, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
-    doc.text('CONSENT STATEMENT', 20, y + 2)
-    y += 20
+    doc.text('CONSENT STATEMENT', margin + 3, y + 4)
+    y += 12
     
-    doc.setFontSize(10)
+    doc.setFontSize(9)
+    doc.setTextColor(0, 0, 0)
     doc.setFont('helvetica', 'normal')
     const consentText = [
       'This document confirms that the above-named individual has provided informed consent',
       'for Preimplantation Genetic Testing (PGT) services with Ally Genetics.',
       '',
       'By signing this consent, the individual acknowledges that they have:',
-      '• Received and understood information about PGT testing procedures',
-      '• Been informed of the benefits, risks, and limitations of PGT',
-      '• Had the opportunity to ask questions and receive satisfactory answers',
-      '• Voluntarily agreed to proceed with the testing'
+      '',
+      '  •  Received and understood information about PGT testing procedures',
+      '  •  Been informed of the benefits, risks, and limitations of PGT',
+      '  •  Had the opportunity to ask questions and receive satisfactory answers',
+      '  •  Voluntarily agreed to proceed with the testing'
     ]
     consentText.forEach(line => {
-      doc.text(line, 20, y)
+      doc.text(line, margin + 3, y)
       y += 6
     })
     
-    y += 20
+    y += 15
     
     // Signature confirmation box
-    doc.setDrawColor(13, 148, 136)
+    doc.setDrawColor(...navyBlue)
     doc.setLineWidth(0.5)
-    doc.rect(15, y, pageWidth - 30, 30)
+    doc.setFillColor(...lightNavy)
+    doc.rect(margin, y, contentWidth, 35, 'FD')
+    doc.setTextColor(...navyBlue)
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
-    doc.text('ELECTRONIC SIGNATURE CONFIRMATION', 20, y + 8)
+    doc.text('ELECTRONIC SIGNATURE CONFIRMATION', margin + 5, y + 10)
     doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
     doc.setFontSize(9)
-    doc.text(`Signed electronically by ${signerName}`, 20, y + 16)
-    doc.text(`on ${consent.signed_at ? new Date(consent.signed_at).toLocaleString() : 'N/A'}`, 20, y + 22)
+    if (consent.status === 'signed') {
+      doc.text(`✓ Signed electronically by ${signerName}`, margin + 5, y + 20)
+      doc.text(`   on ${consent.signed_at ? new Date(consent.signed_at).toLocaleString() : 'N/A'}`, margin + 5, y + 28)
+    } else {
+      doc.text('Awaiting signature...', margin + 5, y + 20)
+    }
     
     // Footer
-    doc.setFontSize(8)
-    doc.setTextColor(128, 128, 128)
-    doc.text('Ally Genetics | lab@allygenetics.com | (704) 323-9591', pageWidth / 2, 280, { align: 'center' })
+    doc.setFillColor(...navyBlue)
+    doc.rect(0, pageHeight - 12, pageWidth, 0.5, 'F')
+    doc.setFontSize(6)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...navyBlue)
+    doc.text('Ally Genetics Laboratory', pageWidth / 2, pageHeight - 8, { align: 'center' })
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100, 100, 100)
+    doc.text('1001 Parchment Dr SE, Grand Rapids, MI 49546 | Phone: (616) 465-2400 | Email: lab@allygenetics.com', pageWidth / 2, pageHeight - 5, { align: 'center' })
     
     doc.save(`${cycle.case_number}_${signerType}_consent.pdf`)
   }
@@ -3074,16 +3351,21 @@ function NewRequisitionPage() {
     patient_dob: '',
     patient_email: '',
     patient_phone: '',
+    patient_sex: 'female',
     is_egg_donor: false,
     egg_donor_age: '',
     no_partner: false,
     sperm_source: 'partner', // 'partner' or 'donor'
+    sperm_donor_age: '',
     partner_first_name: '',
     partner_last_name: '',
     partner_dob: '',
     partner_email: '',
     partner_phone: '',
+    partner_sex: 'male',
     is_sperm_donor: false,
+    male_factor_infertility: false,
+    sample_type: 'd5_d6_d7_trophectoderm',
     ordering_provider_id: '',
     tests_ordered: [],
     indication: '',
@@ -3153,6 +3435,18 @@ function NewRequisitionPage() {
       return
     }
 
+    if (!formData.ordering_provider_id) {
+      setError('Please select an ordering physician')
+      setLoading(false)
+      return
+    }
+
+    if (!formData.form_completed_by) {
+      setError('Please enter the name of the person completing this form')
+      setLoading(false)
+      return
+    }
+
     if (formData.is_egg_donor && !formData.egg_donor_age) {
       setError('Please enter the egg donor age')
       setLoading(false)
@@ -3216,14 +3510,24 @@ function NewRequisitionPage() {
     // Conditionally add fields only if they have values
     if (userData.id) caseData.created_by = userData.id
     if (formData.patient_phone) caseData.patient_phone = formData.patient_phone
+    if (formData.patient_sex) caseData.patient_sex = formData.patient_sex
     if (formData.partner_first_name) caseData.partner_first_name = formData.partner_first_name
     if (formData.partner_last_name) caseData.partner_last_name = formData.partner_last_name
     if (formData.partner_dob) caseData.partner_dob = formData.partner_dob
     if (formData.partner_email) caseData.partner_email = formData.partner_email
     if (formData.partner_phone) caseData.partner_phone = formData.partner_phone
+    if (formData.partner_sex) caseData.partner_sex = formData.partner_sex
     if (formData.ordering_provider_id) caseData.ordering_provider_id = formData.ordering_provider_id
     if (formData.mask_sex_results) caseData.mask_sex_results = formData.mask_sex_results
-    // Note: is_egg_donor, egg_donor_age, indication, karyotype_file_path removed - columns don't exist in database yet
+    if (formData.is_egg_donor) caseData.is_egg_donor = formData.is_egg_donor
+    if (formData.egg_donor_age) caseData.egg_donor_age = parseInt(formData.egg_donor_age)
+    if (formData.sperm_source === 'donor') caseData.is_sperm_donor = true
+    if (formData.sperm_donor_age) caseData.sperm_donor_age = parseInt(formData.sperm_donor_age)
+    if (formData.male_factor_infertility) caseData.male_factor_infertility = formData.male_factor_infertility
+    if (formData.sample_type) caseData.sample_type = formData.sample_type
+    if (formData.indication) caseData.indication = formData.indication
+    if (formData.reason_for_testing) caseData.reason_for_testing = formData.reason_for_testing
+    if (formData.form_completed_by) caseData.form_completed_by = formData.form_completed_by
 
     const { data: newCase, error: insertError } = await supabase
       .from('cases')
@@ -3430,6 +3734,67 @@ function NewRequisitionPage() {
           </div>
         </section>
 
+        {/* Cycle Information */}
+        <section>
+          <h2 className="text-lg font-semibold text-ally-navy border-b pb-2 mb-4">Cycle Information</h2>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sample Type *</label>
+                <select
+                  name="sample_type"
+                  value={formData.sample_type}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+                >
+                  <option value="d5_d6_d7_trophectoderm">D5/6/7 Trophectoderm</option>
+                  <option value="rebiopsy">Rebiopsy</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Male Factor Infertility?</label>
+                <div className="flex gap-6 mt-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="male_factor_infertility"
+                      value="false"
+                      checked={formData.male_factor_infertility === false}
+                      onChange={() => setFormData(prev => ({ ...prev, male_factor_infertility: false }))}
+                      className="border-gray-300 text-ally-teal focus:ring-ally-teal"
+                    />
+                    <span className="text-sm">No</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="male_factor_infertility"
+                      value="true"
+                      checked={formData.male_factor_infertility === true}
+                      onChange={() => setFormData(prev => ({ ...prev, male_factor_infertility: true }))}
+                      className="border-gray-300 text-ally-teal focus:ring-ally-teal"
+                    />
+                    <span className="text-sm">Yes</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Testing</label>
+              <textarea
+                name="reason_for_testing"
+                value={formData.reason_for_testing}
+                onChange={handleChange}
+                rows={2}
+                placeholder="Optional: Provide additional details about the reason for testing..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              />
+            </div>
+          </div>
+        </section>
+
         {/* Patient Information */}
         <section>
           <h2 className="text-lg font-semibold text-ally-navy border-b pb-2 mb-4">Patient Information</h2>
@@ -3487,6 +3852,44 @@ function NewRequisitionPage() {
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sex *</label>
+              <div className="flex gap-4 mt-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="patient_sex"
+                    value="female"
+                    checked={formData.patient_sex === 'female'}
+                    onChange={handleChange}
+                    className="border-gray-300 text-ally-teal focus:ring-ally-teal"
+                  />
+                  <span className="text-sm">Female</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="patient_sex"
+                    value="male"
+                    checked={formData.patient_sex === 'male'}
+                    onChange={handleChange}
+                    className="border-gray-300 text-ally-teal focus:ring-ally-teal"
+                  />
+                  <span className="text-sm">Male</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="patient_sex"
+                    value="other"
+                    checked={formData.patient_sex === 'other'}
+                    onChange={handleChange}
+                    className="border-gray-300 text-ally-teal focus:ring-ally-teal"
+                  />
+                  <span className="text-sm">Other</span>
+                </label>
+              </div>
             </div>
           </div>
           <div className="mt-4 space-y-3">
@@ -3564,6 +3967,21 @@ function NewRequisitionPage() {
                 </label>
               </div>
             </div>
+            {formData.sperm_source === 'donor' && (
+              <div className="ml-6 max-w-xs">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sperm Donor Age</label>
+                <input
+                  type="number"
+                  name="sperm_donor_age"
+                  value={formData.sperm_donor_age}
+                  onChange={handleChange}
+                  min="18"
+                  max="70"
+                  placeholder="Enter age"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+                />
+              </div>
+            )}
           </div>
 
           {/* Partner fields - conditionally required */}
@@ -3635,6 +4053,47 @@ function NewRequisitionPage() {
                 disabled={!isPartnerRequired}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal disabled:bg-gray-100"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sex</label>
+              <div className="flex gap-4 mt-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="partner_sex"
+                    value="female"
+                    checked={formData.partner_sex === 'female'}
+                    onChange={handleChange}
+                    disabled={!isPartnerRequired}
+                    className="border-gray-300 text-ally-teal focus:ring-ally-teal"
+                  />
+                  <span className="text-sm">Female</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="partner_sex"
+                    value="male"
+                    checked={formData.partner_sex === 'male'}
+                    onChange={handleChange}
+                    disabled={!isPartnerRequired}
+                    className="border-gray-300 text-ally-teal focus:ring-ally-teal"
+                  />
+                  <span className="text-sm">Male</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="partner_sex"
+                    value="other"
+                    checked={formData.partner_sex === 'other'}
+                    onChange={handleChange}
+                    disabled={!isPartnerRequired}
+                    className="border-gray-300 text-ally-teal focus:ring-ally-teal"
+                  />
+                  <span className="text-sm">Other</span>
+                </label>
+              </div>
             </div>
           </div>
           
