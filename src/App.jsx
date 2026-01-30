@@ -864,12 +864,13 @@ function ClinicDashboard() {
   }, [userData])
 
   async function fetchPatients() {
-    // Fetch all cases for this clinic with ordering provider info
+    // Fetch all cases for this clinic with ordering provider info and consents
     const { data: allCases } = await supabase
       .from('cases')
       .select(`
         *,
-        ordering_provider:providers(first_name, last_name, credentials)
+        ordering_provider:providers(first_name, last_name, credentials),
+        consents(id, signer_type, status, signed_at, consent_token)
       `)
       .eq('clinic_id', userData.clinic_id)
       .order('created_at', { ascending: false })
@@ -895,7 +896,14 @@ function ClinicDashboard() {
           cycles: []
         }
       }
-      patientMap[key].cycles.push(c)
+      // Add consent info to cycle
+      const patientConsent = c.consents?.find(con => con.signer_type === 'patient')
+      const partnerConsent = c.consents?.find(con => con.signer_type === 'partner')
+      patientMap[key].cycles.push({
+        ...c,
+        patientConsent,
+        partnerConsent
+      })
     })
 
     setPatients(Object.values(patientMap))
@@ -1112,10 +1120,101 @@ function ClinicDashboard() {
 function PatientCyclesModal({ patient, onClose, supabase }) {
   const [downloading, setDownloading] = useState(null)
 
-  async function handleDownload(caseId, docType) {
-    setDownloading(`${caseId}-${docType}`)
-    // Download logic here
-    setTimeout(() => setDownloading(null), 1000)
+  async function handleDownload(cycle, docType) {
+    setDownloading(`${cycle.id}-${docType}`)
+    
+    try {
+      if (docType === 'requisition') {
+        // Generate requisition PDF
+        const content = generateRequisitionContent(cycle)
+        downloadTextFile(content, `${cycle.case_number}_requisition.txt`)
+      } else if (docType === 'patient-consent') {
+        const consent = cycle.patientConsent
+        if (consent?.signed_at) {
+          const content = generateConsentContent(cycle, 'patient', consent)
+          downloadTextFile(content, `${cycle.case_number}_patient_consent.txt`)
+        } else {
+          alert('Patient consent has not been signed yet')
+        }
+      } else if (docType === 'partner-consent') {
+        const consent = cycle.partnerConsent
+        if (consent?.signed_at) {
+          const content = generateConsentContent(cycle, 'partner', consent)
+          downloadTextFile(content, `${cycle.case_number}_partner_consent.txt`)
+        } else {
+          alert('Partner consent has not been signed yet')
+        }
+      } else if (docType === 'report' && cycle.report_file_url) {
+        window.open(cycle.report_file_url, '_blank')
+      }
+    } catch (err) {
+      console.error('Download error:', err)
+      alert('Failed to download file')
+    }
+    
+    setDownloading(null)
+  }
+
+  function generateRequisitionContent(cycle) {
+    return `ALLY GENETICS - TEST REQUISITION
+================================
+Case Number: ${cycle.case_number || 'N/A'}
+Date: ${new Date(cycle.created_at).toLocaleDateString()}
+
+PATIENT INFORMATION
+-------------------
+Name: ${cycle.patient_first_name} ${cycle.patient_last_name}
+DOB: ${cycle.patient_dob ? new Date(cycle.patient_dob).toLocaleDateString() : 'N/A'}
+Email: ${cycle.patient_email || 'N/A'}
+Phone: ${cycle.patient_phone || 'N/A'}
+
+${cycle.partner_first_name ? `PARTNER INFORMATION
+-------------------
+Name: ${cycle.partner_first_name} ${cycle.partner_last_name}
+DOB: ${cycle.partner_dob ? new Date(cycle.partner_dob).toLocaleDateString() : 'N/A'}
+Email: ${cycle.partner_email || 'N/A'}
+` : ''}
+TEST INFORMATION
+----------------
+Tests Ordered: ${cycle.tests_ordered?.join(', ') || 'N/A'}
+Reason for Testing: ${cycle.reason_for_testing || 'N/A'}
+Mask Sex Results: ${cycle.mask_sex_results ? 'Yes' : 'No'}
+
+Status: ${cycle.status || 'N/A'}
+`
+  }
+
+  function generateConsentContent(cycle, signerType, consent) {
+    const signerName = signerType === 'patient' 
+      ? `${cycle.patient_first_name} ${cycle.patient_last_name}`
+      : `${cycle.partner_first_name} ${cycle.partner_last_name}`
+    
+    return `ALLY GENETICS - INFORMED CONSENT
+=================================
+Case Number: ${cycle.case_number || 'N/A'}
+
+CONSENT RECORD
+--------------
+Signer: ${signerName} (${signerType})
+Signed At: ${consent.signed_at ? new Date(consent.signed_at).toLocaleString() : 'N/A'}
+Status: ${consent.status}
+
+This document confirms that the above individual has provided 
+informed consent for Preimplantation Genetic Testing (PGT) 
+with Ally Genetics.
+`
+  }
+
+  function downloadTextFile(content, filename) {
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -1145,7 +1244,7 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
                 <div>
                   <h3 className="text-base font-semibold text-ally-navy flex items-center gap-2">
                     <Clock className="w-4 h-4" />
-                    Cycle {patient.cycles.length - idx} - {cycle.test_type || 'PGT'}
+                    Cycle {patient.cycles.length - idx} - {cycle.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || 'PGT'}
                   </h3>
                   <p className="text-xs text-gray-600 mt-1">
                     Started: {new Date(cycle.created_at).toLocaleDateString('en-US')}
@@ -1168,7 +1267,7 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
                   </div>
                   <div className="space-y-2">
                     <button 
-                      onClick={() => handleDownload(cycle.id, 'requisition')}
+                      onClick={() => handleDownload(cycle, 'requisition')}
                       className="w-full flex items-center justify-between p-2 bg-gray-50 hover:bg-ally-teal/10 border border-gray-200 hover:border-ally-teal rounded-md transition-all text-left group"
                       disabled={downloading === `${cycle.id}-requisition`}
                     >
@@ -1194,17 +1293,26 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
                     Consents
                   </div>
                   <div className="space-y-1.5">
+                    {/* Patient Consent */}
                     <button 
-                      onClick={() => handleDownload(cycle.id, 'patient-consent')}
+                      onClick={() => handleDownload(cycle, 'patient-consent')}
                       className="w-full flex items-center justify-between p-2 bg-gray-50 hover:bg-ally-teal/10 border border-gray-200 hover:border-ally-teal rounded-md transition-all text-left"
                       disabled={downloading === `${cycle.id}-patient-consent`}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-medium text-gray-900 truncate">
                           Patient 
-                          <span className="ml-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-medium rounded">Signed</span>
+                          {cycle.patientConsent?.signed_at ? (
+                            <span className="ml-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-medium rounded">Signed</span>
+                          ) : (
+                            <span className="ml-1 px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-[9px] font-medium rounded">Pending</span>
+                          )}
                         </div>
-                        <div className="text-[10px] text-gray-500">01/16/24</div>
+                        <div className="text-[10px] text-gray-500">
+                          {cycle.patientConsent?.signed_at 
+                            ? new Date(cycle.patientConsent.signed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+                            : 'Awaiting signature'}
+                        </div>
                       </div>
                       {downloading === `${cycle.id}-patient-consent` ? (
                         <Loader2 className="w-3.5 h-3.5 text-ally-teal animate-spin flex-shrink-0 ml-2" />
@@ -1212,24 +1320,36 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
                         <Download className="w-3.5 h-3.5 text-ally-teal flex-shrink-0 ml-2" />
                       )}
                     </button>
-                    <button 
-                      onClick={() => handleDownload(cycle.id, 'partner-consent')}
-                      className="w-full flex items-center justify-between p-2 bg-gray-50 hover:bg-ally-teal/10 border border-gray-200 hover:border-ally-teal rounded-md transition-all text-left"
-                      disabled={downloading === `${cycle.id}-partner-consent`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium text-gray-900 truncate">
-                          Partner 
-                          <span className="ml-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-medium rounded">Signed</span>
+                    
+                    {/* Partner Consent - only show if partner exists */}
+                    {cycle.partner_email && (
+                      <button 
+                        onClick={() => handleDownload(cycle, 'partner-consent')}
+                        className="w-full flex items-center justify-between p-2 bg-gray-50 hover:bg-ally-teal/10 border border-gray-200 hover:border-ally-teal rounded-md transition-all text-left"
+                        disabled={downloading === `${cycle.id}-partner-consent`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-gray-900 truncate">
+                            Partner 
+                            {cycle.partnerConsent?.signed_at ? (
+                              <span className="ml-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-medium rounded">Signed</span>
+                            ) : (
+                              <span className="ml-1 px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-[9px] font-medium rounded">Pending</span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-gray-500">
+                            {cycle.partnerConsent?.signed_at 
+                              ? new Date(cycle.partnerConsent.signed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+                              : 'Awaiting signature'}
+                          </div>
                         </div>
-                        <div className="text-[10px] text-gray-500">01/16/24</div>
-                      </div>
-                      {downloading === `${cycle.id}-partner-consent` ? (
-                        <Loader2 className="w-3.5 h-3.5 text-ally-teal animate-spin flex-shrink-0 ml-2" />
-                      ) : (
-                        <Download className="w-3.5 h-3.5 text-ally-teal flex-shrink-0 ml-2" />
-                      )}
-                    </button>
+                        {downloading === `${cycle.id}-partner-consent` ? (
+                          <Loader2 className="w-3.5 h-3.5 text-ally-teal animate-spin flex-shrink-0 ml-2" />
+                        ) : (
+                          <Download className="w-3.5 h-3.5 text-ally-teal flex-shrink-0 ml-2" />
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1239,16 +1359,16 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
                     <FileText className="w-3.5 h-3.5 text-ally-teal" />
                     Reports
                   </div>
-                  {cycle.report_file ? (
+                  {cycle.report_file_url ? (
                     <button 
-                      onClick={() => handleDownload(cycle.id, 'report')}
+                      onClick={() => handleDownload(cycle, 'report')}
                       className="w-full flex items-center justify-between p-2 bg-gray-50 hover:bg-ally-teal/10 border border-gray-200 hover:border-ally-teal rounded-md transition-all text-left"
                       disabled={downloading === `${cycle.id}-report`}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-medium text-gray-900 truncate">PGT Report</div>
                         <div className="text-[10px] text-gray-500">
-                          {cycle.report_date ? new Date(cycle.report_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : 'Available'}
+                          {cycle.report_uploaded_at ? new Date(cycle.report_uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : 'Available'}
                         </div>
                       </div>
                       {downloading === `${cycle.id}-report` ? (
