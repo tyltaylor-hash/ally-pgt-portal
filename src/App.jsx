@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate, useParams } from 'react-router-dom'
+import { jsPDF } from 'jspdf'
 import { 
   LayoutDashboard, FileText, Building2, Package, Users, LogOut, Plus, 
   Clock, CheckCircle, AlertCircle, Search, ChevronRight, Loader2, Eye, X, Mail, Key,
@@ -1125,22 +1126,18 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     
     try {
       if (docType === 'requisition') {
-        // Generate requisition PDF
-        const content = generateRequisitionContent(cycle)
-        downloadTextFile(content, `${cycle.case_number}_requisition.txt`)
+        generateRequisitionPDF(cycle)
       } else if (docType === 'patient-consent') {
         const consent = cycle.patientConsent
         if (consent?.signed_at) {
-          const content = generateConsentContent(cycle, 'patient', consent)
-          downloadTextFile(content, `${cycle.case_number}_patient_consent.txt`)
+          generateConsentPDF(cycle, 'patient', consent)
         } else {
           alert('Patient consent has not been signed yet')
         }
       } else if (docType === 'partner-consent') {
         const consent = cycle.partnerConsent
         if (consent?.signed_at) {
-          const content = generateConsentContent(cycle, 'partner', consent)
-          downloadTextFile(content, `${cycle.case_number}_partner_consent.txt`)
+          generateConsentPDF(cycle, 'partner', consent)
         } else {
           alert('Partner consent has not been signed yet')
         }
@@ -1155,66 +1152,213 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     setDownloading(null)
   }
 
-  function generateRequisitionContent(cycle) {
-    return `ALLY GENETICS - TEST REQUISITION
-================================
-Case Number: ${cycle.case_number || 'N/A'}
-Date: ${new Date(cycle.created_at).toLocaleDateString()}
-
-PATIENT INFORMATION
--------------------
-Name: ${cycle.patient_first_name} ${cycle.patient_last_name}
-DOB: ${cycle.patient_dob ? new Date(cycle.patient_dob).toLocaleDateString() : 'N/A'}
-Email: ${cycle.patient_email || 'N/A'}
-Phone: ${cycle.patient_phone || 'N/A'}
-
-${cycle.partner_first_name ? `PARTNER INFORMATION
--------------------
-Name: ${cycle.partner_first_name} ${cycle.partner_last_name}
-DOB: ${cycle.partner_dob ? new Date(cycle.partner_dob).toLocaleDateString() : 'N/A'}
-Email: ${cycle.partner_email || 'N/A'}
-` : ''}
-TEST INFORMATION
-----------------
-Tests Ordered: ${cycle.tests_ordered?.join(', ') || 'N/A'}
-Reason for Testing: ${cycle.reason_for_testing || 'N/A'}
-Mask Sex Results: ${cycle.mask_sex_results ? 'Yes' : 'No'}
-
-Status: ${cycle.status || 'N/A'}
-`
+  function generateRequisitionPDF(cycle) {
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    let y = 20
+    
+    // Header
+    doc.setFillColor(13, 148, 136) // ally-teal
+    doc.rect(0, 0, pageWidth, 35, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(22)
+    doc.setFont('helvetica', 'bold')
+    doc.text('ALLY GENETICS', pageWidth / 2, 15, { align: 'center' })
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Test Requisition Form', pageWidth / 2, 25, { align: 'center' })
+    
+    // Reset text color
+    doc.setTextColor(0, 0, 0)
+    y = 50
+    
+    // Case Info
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`Case Number: ${cycle.case_number || 'N/A'}`, 20, y)
+    doc.text(`Date: ${new Date(cycle.created_at).toLocaleDateString()}`, pageWidth - 60, y)
+    y += 15
+    
+    // Patient Information Section
+    doc.setFillColor(240, 240, 240)
+    doc.rect(15, y - 5, pageWidth - 30, 10, 'F')
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text('PATIENT INFORMATION', 20, y + 2)
+    y += 15
+    
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    const patientInfo = [
+      ['Name:', `${cycle.patient_first_name} ${cycle.patient_last_name}`],
+      ['Date of Birth:', cycle.patient_dob ? new Date(cycle.patient_dob).toLocaleDateString() : 'N/A'],
+      ['Email:', cycle.patient_email || 'N/A'],
+      ['Phone:', cycle.patient_phone || 'N/A']
+    ]
+    patientInfo.forEach(([label, value]) => {
+      doc.setFont('helvetica', 'bold')
+      doc.text(label, 20, y)
+      doc.setFont('helvetica', 'normal')
+      doc.text(value, 60, y)
+      y += 7
+    })
+    y += 10
+    
+    // Partner Information (if exists)
+    if (cycle.partner_first_name) {
+      doc.setFillColor(240, 240, 240)
+      doc.rect(15, y - 5, pageWidth - 30, 10, 'F')
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      doc.text('PARTNER INFORMATION', 20, y + 2)
+      y += 15
+      
+      doc.setFontSize(10)
+      const partnerInfo = [
+        ['Name:', `${cycle.partner_first_name} ${cycle.partner_last_name}`],
+        ['Date of Birth:', cycle.partner_dob ? new Date(cycle.partner_dob).toLocaleDateString() : 'N/A'],
+        ['Email:', cycle.partner_email || 'N/A']
+      ]
+      partnerInfo.forEach(([label, value]) => {
+        doc.setFont('helvetica', 'bold')
+        doc.text(label, 20, y)
+        doc.setFont('helvetica', 'normal')
+        doc.text(value, 60, y)
+        y += 7
+      })
+      y += 10
+    }
+    
+    // Test Information Section
+    doc.setFillColor(240, 240, 240)
+    doc.rect(15, y - 5, pageWidth - 30, 10, 'F')
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text('TEST INFORMATION', 20, y + 2)
+    y += 15
+    
+    doc.setFontSize(10)
+    const testInfo = [
+      ['Tests Ordered:', cycle.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || 'N/A'],
+      ['Reason for Testing:', cycle.reason_for_testing || 'N/A'],
+      ['Mask Sex Results:', cycle.mask_sex_results ? 'Yes' : 'No'],
+      ['Status:', cycle.status?.replace(/_/g, ' ').toUpperCase() || 'N/A']
+    ]
+    testInfo.forEach(([label, value]) => {
+      doc.setFont('helvetica', 'bold')
+      doc.text(label, 20, y)
+      doc.setFont('helvetica', 'normal')
+      doc.text(value, 65, y)
+      y += 7
+    })
+    
+    // Footer
+    doc.setFontSize(8)
+    doc.setTextColor(128, 128, 128)
+    doc.text('Ally Genetics | lab@allygenetics.com | (704) 323-9591', pageWidth / 2, 280, { align: 'center' })
+    
+    doc.save(`${cycle.case_number}_requisition.pdf`)
   }
 
-  function generateConsentContent(cycle, signerType, consent) {
+  function generateConsentPDF(cycle, signerType, consent) {
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    let y = 20
+    
     const signerName = signerType === 'patient' 
       ? `${cycle.patient_first_name} ${cycle.patient_last_name}`
       : `${cycle.partner_first_name} ${cycle.partner_last_name}`
     
-    return `ALLY GENETICS - INFORMED CONSENT
-=================================
-Case Number: ${cycle.case_number || 'N/A'}
-
-CONSENT RECORD
---------------
-Signer: ${signerName} (${signerType})
-Signed At: ${consent.signed_at ? new Date(consent.signed_at).toLocaleString() : 'N/A'}
-Status: ${consent.status}
-
-This document confirms that the above individual has provided 
-informed consent for Preimplantation Genetic Testing (PGT) 
-with Ally Genetics.
-`
-  }
-
-  function downloadTextFile(content, filename) {
-    const blob = new Blob([content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    // Header
+    doc.setFillColor(13, 148, 136) // ally-teal
+    doc.rect(0, 0, pageWidth, 35, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(22)
+    doc.setFont('helvetica', 'bold')
+    doc.text('ALLY GENETICS', pageWidth / 2, 15, { align: 'center' })
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Informed Consent Document', pageWidth / 2, 25, { align: 'center' })
+    
+    // Reset text color
+    doc.setTextColor(0, 0, 0)
+    y = 50
+    
+    // Case Info
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`Case Number: ${cycle.case_number || 'N/A'}`, 20, y)
+    y += 20
+    
+    // Consent Record Section
+    doc.setFillColor(240, 240, 240)
+    doc.rect(15, y - 5, pageWidth - 30, 10, 'F')
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text('CONSENT RECORD', 20, y + 2)
+    y += 20
+    
+    doc.setFontSize(10)
+    const consentInfo = [
+      ['Signer Name:', signerName],
+      ['Signer Role:', signerType.charAt(0).toUpperCase() + signerType.slice(1)],
+      ['Date Signed:', consent.signed_at ? new Date(consent.signed_at).toLocaleString() : 'N/A'],
+      ['Status:', consent.status?.toUpperCase() || 'N/A']
+    ]
+    consentInfo.forEach(([label, value]) => {
+      doc.setFont('helvetica', 'bold')
+      doc.text(label, 20, y)
+      doc.setFont('helvetica', 'normal')
+      doc.text(value, 60, y)
+      y += 10
+    })
+    y += 15
+    
+    // Consent Statement
+    doc.setFillColor(240, 240, 240)
+    doc.rect(15, y - 5, pageWidth - 30, 10, 'F')
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text('CONSENT STATEMENT', 20, y + 2)
+    y += 20
+    
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    const consentText = [
+      'This document confirms that the above-named individual has provided informed consent',
+      'for Preimplantation Genetic Testing (PGT) services with Ally Genetics.',
+      '',
+      'By signing this consent, the individual acknowledges that they have:',
+      '• Received and understood information about PGT testing procedures',
+      '• Been informed of the benefits, risks, and limitations of PGT',
+      '• Had the opportunity to ask questions and receive satisfactory answers',
+      '• Voluntarily agreed to proceed with the testing'
+    ]
+    consentText.forEach(line => {
+      doc.text(line, 20, y)
+      y += 6
+    })
+    
+    y += 20
+    
+    // Signature confirmation box
+    doc.setDrawColor(13, 148, 136)
+    doc.setLineWidth(0.5)
+    doc.rect(15, y, pageWidth - 30, 30)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('ELECTRONIC SIGNATURE CONFIRMATION', 20, y + 8)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text(`Signed electronically by ${signerName}`, 20, y + 16)
+    doc.text(`on ${consent.signed_at ? new Date(consent.signed_at).toLocaleString() : 'N/A'}`, 20, y + 22)
+    
+    // Footer
+    doc.setFontSize(8)
+    doc.setTextColor(128, 128, 128)
+    doc.text('Ally Genetics | lab@allygenetics.com | (704) 323-9591', pageWidth / 2, 280, { align: 'center' })
+    
+    doc.save(`${cycle.case_number}_${signerType}_consent.pdf`)
   }
 
   return (
