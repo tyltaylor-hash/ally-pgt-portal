@@ -5612,7 +5612,7 @@ export default function App() {
           <Route path="/clinic/cases" element={<ProtectedRoute><ClinicLayout><ClinicCasesPage /></ClinicLayout></ProtectedRoute>} />
           <Route path="/clinic/cases/new" element={<ProtectedRoute><ClinicLayout><NewRequisitionPage /></ClinicLayout></ProtectedRoute>} />
           <Route path="/clinic/cases/:id" element={<ProtectedRoute><ClinicLayout><CaseDetailsPage isAdmin={false} /></ClinicLayout></ProtectedRoute>} />
-          <Route path="/clinic/worksheet" element={<ProtectedRoute><ClinicLayout><BiopsyWorksheetPage /></ClinicLayout></ProtectedRoute>} />
+          <Route path="/clinic/worksheet" element={<ProtectedRoute><ClinicLayout><PlaceholderPage title="Biopsy Worksheet" /></ClinicLayout></ProtectedRoute>} />
           <Route path="/clinic/orders" element={<ProtectedRoute><ClinicLayout><OrderSuppliesPage /></ClinicLayout></ProtectedRoute>} />
           <Route path="/clinic/contact" element={<ProtectedRoute><ClinicLayout><ContactUsPage /></ClinicLayout></ProtectedRoute>} />
           
