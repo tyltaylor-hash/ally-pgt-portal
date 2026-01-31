@@ -6,7 +6,7 @@ import {
   LayoutDashboard, FileText, Building2, Package, Users, LogOut, Plus, 
   Clock, CheckCircle, AlertCircle, Search, ChevronRight, Loader2, Eye, X, Mail, Key,
   BarChart3, Phone, MapPin, Calendar, Filter, Download, User, Settings, Upload, FileUp,
-  ClipboardList, Save, Trash2, Printer, Check, Unlock, Globe
+  ClipboardList, Save, Trash2, Printer, Check, Unlock, Globe, RefreshCw
 } from 'lucide-react'
 // NOTE: Install with: npm install react-signature-canvas
 import SignatureCanvas from 'react-signature-canvas'
@@ -2240,9 +2240,23 @@ function OrderSuppliesModal({ onClose }) {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
 
+  // Build clinic address from fields
+  const getClinicAddress = () => {
+    const clinic = userData.clinic
+    if (!clinic) return 'No address on file'
+    return [
+      clinic.name,
+      clinic.address_line1,
+      clinic.address_line2,
+      `${clinic.city || ''}, ${clinic.state || ''} ${clinic.zip_code || ''}`.trim()
+    ].filter(Boolean).join('\n')
+  }
+
   async function handleSubmitOrder(e) {
     e.preventDefault()
     setSubmitting(true)
+
+    const clinicAddress = getClinicAddress()
 
     // Save order to database
     const { data: newOrder } = await supabase.from('kit_orders').insert({
@@ -2257,7 +2271,7 @@ function OrderSuppliesModal({ onClose }) {
         fedex_labels: orderForm.fedex_labels,
         ice_packs: orderForm.ice_packs,
       },
-      shipping_address: orderForm.shipping_address || userData.clinic?.address || '',
+      shipping_address: orderForm.shipping_address || clinicAddress,
       notes: orderForm.notes,
     }).select().single()
 
@@ -2277,7 +2291,7 @@ function OrderSuppliesModal({ onClose }) {
             fedex_labels: orderForm.fedex_labels,
             ice_packs: orderForm.ice_packs,
           },
-          shipping_address: orderForm.shipping_address || userData.clinic?.address || 'Use clinic default address',
+          shipping_address: orderForm.shipping_address || clinicAddress,
           notes: orderForm.notes || 'None',
         }
       })
@@ -4779,9 +4793,23 @@ function OrderSuppliesPage() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
 
+  // Build clinic address from fields
+  const getClinicAddress = () => {
+    const clinic = userData.clinic
+    if (!clinic) return 'No address on file'
+    return [
+      clinic.name,
+      clinic.address_line1,
+      clinic.address_line2,
+      `${clinic.city || ''}, ${clinic.state || ''} ${clinic.zip_code || ''}`.trim()
+    ].filter(Boolean).join('\n')
+  }
+
   async function handleSubmitOrder(e) {
     e.preventDefault()
     setSubmitting(true)
+
+    const clinicAddress = getClinicAddress()
 
     // Save order to database
     const { data: newOrder } = await supabase.from('kit_orders').insert({
@@ -4796,7 +4824,7 @@ function OrderSuppliesPage() {
         fedex_labels: orderForm.fedex_labels,
         ice_packs: orderForm.ice_packs,
       },
-      shipping_address: orderForm.shipping_address || userData.clinic?.address || '',
+      shipping_address: orderForm.shipping_address || clinicAddress,
       notes: orderForm.notes,
     }).select().single()
 
@@ -4816,7 +4844,7 @@ function OrderSuppliesPage() {
             fedex_labels: orderForm.fedex_labels,
             ice_packs: orderForm.ice_packs,
           },
-          shipping_address: orderForm.shipping_address || userData.clinic?.address || 'Use clinic default address',
+          shipping_address: orderForm.shipping_address || clinicAddress,
           notes: orderForm.notes || 'None',
         }
       })
@@ -5500,6 +5528,7 @@ function UsersPage() {
   const [clinics, setClinics] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [filterClinic, setFilterClinic] = useState('')
 
@@ -5510,7 +5539,7 @@ function UsersPage() {
   async function fetchData() {
     const [usersResult, clinicsResult] = await Promise.all([
       supabase.from('users').select('*, clinic:clinics(id, name)').order('last_name'),
-      supabase.from('clinics').select('id, name').eq('is_active', true).order('name')
+      supabase.from('clinics').select('id, name, city, state').order('name')
     ])
     setUsers(usersResult.data || [])
     setClinics(clinicsResult.data || [])
@@ -5544,13 +5573,22 @@ function UsersPage() {
           <h1 className="text-2xl font-bold text-gray-900">Users</h1>
           <p className="text-gray-500">Manage portal users and their access</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-ally-teal text-white px-4 py-2 rounded-md hover:bg-ally-teal-dark"
-        >
-          <Plus className="w-4 h-4" />
-          Add User
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowBulkImportModal(true)}
+            className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-50"
+          >
+            <Upload className="w-4 h-4" />
+            Import CSV
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 bg-ally-teal text-white px-4 py-2 rounded-md hover:bg-ally-teal-dark"
+          >
+            <Plus className="w-4 h-4" />
+            Add User
+          </button>
+        </div>
       </div>
 
       {/* Filter */}
@@ -5564,7 +5602,9 @@ function UsersPage() {
           <option value="">All clinics</option>
           <option value="ally">Ally Staff (no clinic)</option>
           {clinics.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
+            <option key={c.id} value={c.id}>
+              {c.name}{c.city ? ` (${c.city}, ${c.state || ''})` : ''}
+            </option>
           ))}
         </select>
       </div>
@@ -5647,6 +5687,15 @@ function UsersPage() {
         />
       )}
 
+      {/* Bulk Import Modal */}
+      {showBulkImportModal && (
+        <BulkImportUsersModal
+          clinics={clinics}
+          onClose={() => setShowBulkImportModal(false)}
+          onSave={() => { fetchData(); setShowBulkImportModal(false); }}
+        />
+      )}
+
       {/* Edit User Modal */}
       {editingUser && (
         <EditUserModal
@@ -5656,6 +5705,364 @@ function UsersPage() {
           onSave={() => { fetchData(); setEditingUser(null); }}
         />
       )}
+    </div>
+  )
+}
+
+// ============================================================================
+// BULK IMPORT USERS MODAL
+// ============================================================================
+function BulkImportUsersModal({ clinics, onClose, onSave }) {
+  const { supabase } = useAuth()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [csvData, setCsvData] = useState([])
+  const [parseError, setParseError] = useState(null)
+  const [results, setResults] = useState(null)
+  const [selectedClinic, setSelectedClinic] = useState('')
+  const fileInputRef = useRef(null)
+
+  function handleFileSelect(e) {
+    const file = e.target.files[0]
+    if (!file) return
+
+    setParseError(null)
+    setError(null)
+    setCsvData([])
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const text = event.target.result
+        const lines = text.split('\n').filter(line => line.trim())
+        
+        if (lines.length < 2) {
+          setParseError('CSV must have a header row and at least one data row')
+          return
+        }
+
+        // Parse header
+        const header = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''))
+        
+        // Check required columns
+        const requiredCols = ['email', 'first_name', 'last_name']
+        const missingCols = requiredCols.filter(col => !header.includes(col))
+        if (missingCols.length > 0) {
+          setParseError(`Missing required columns: ${missingCols.join(', ')}`)
+          return
+        }
+
+        // Parse data rows
+        const data = []
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',').map(v => v.trim().replace(/['"]/g, ''))
+          if (values.length !== header.length) continue
+          
+          const row = {}
+          header.forEach((col, idx) => {
+            row[col] = values[idx]
+          })
+          
+          // Validate email
+          if (row.email && row.email.includes('@')) {
+            data.push(row)
+          }
+        }
+
+        if (data.length === 0) {
+          setParseError('No valid data rows found')
+          return
+        }
+
+        setCsvData(data)
+      } catch (err) {
+        setParseError('Failed to parse CSV file: ' + err.message)
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  async function handleImport() {
+    if (!selectedClinic) {
+      setError('Please select a clinic for these users')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    
+    const importResults = {
+      success: [],
+      failed: []
+    }
+
+    for (const row of csvData) {
+      try {
+        // Generate random password
+        const password = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase() + '!1'
+        
+        // Create auth user
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email: row.email,
+          password: password,
+          email_confirm: true
+        })
+
+        if (authError) throw authError
+
+        // Create user record
+        const { error: userError } = await supabase.from('users').insert({
+          auth_id: authData.user.id,
+          email: row.email,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          clinic_id: selectedClinic,
+          role: row.role || 'clinic_user',
+          is_active: true
+        })
+
+        if (userError) throw userError
+
+        importResults.success.push({
+          email: row.email,
+          name: `${row.first_name} ${row.last_name}`,
+          password: password
+        })
+      } catch (err) {
+        importResults.failed.push({
+          email: row.email,
+          error: err.message
+        })
+      }
+    }
+
+    setLoading(false)
+    setResults(importResults)
+  }
+
+  function downloadTemplate() {
+    const template = 'email,first_name,last_name,role\njohn.doe@example.com,John,Doe,clinic_user\njane.smith@example.com,Jane,Smith,clinic_admin'
+    const blob = new Blob([template], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'user_import_template.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function downloadResults() {
+    if (!results) return
+    let csv = 'email,name,password,status\n'
+    results.success.forEach(u => {
+      csv += `${u.email},${u.name},${u.password},success\n`
+    })
+    results.failed.forEach(u => {
+      csv += `${u.email},,,"failed: ${u.error}"\n`
+    })
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'import_results.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // Show results screen
+  if (results) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onMouseDown={onClose}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onMouseDown={e => e.stopPropagation()}>
+          <div className="px-6 py-4 border-b">
+            <h2 className="text-lg font-semibold text-ally-navy">Import Results</h2>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="flex gap-4">
+              <div className="flex-1 bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-green-600">{results.success.length}</div>
+                <div className="text-sm text-green-700">Imported</div>
+              </div>
+              <div className="flex-1 bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-red-600">{results.failed.length}</div>
+                <div className="text-sm text-red-700">Failed</div>
+              </div>
+            </div>
+
+            {results.success.length > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-sm text-yellow-800 font-medium mb-2">⚠️ Important: Download the results to get the generated passwords!</p>
+                <p className="text-xs text-yellow-700">Users will need these passwords to log in for the first time.</p>
+              </div>
+            )}
+
+            {results.failed.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm font-medium text-red-800 mb-2">Failed imports:</p>
+                <ul className="text-xs text-red-700 space-y-1">
+                  {results.failed.map((f, i) => (
+                    <li key={i}>{f.email}: {f.error}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-4">
+              <button
+                onClick={downloadResults}
+                className="flex-1 flex items-center justify-center gap-2 bg-ally-teal text-white px-4 py-2 rounded-md hover:bg-ally-teal-dark"
+              >
+                <Download className="w-4 h-4" />
+                Download Results
+              </button>
+              <button
+                onClick={() => { onSave(); }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onMouseDown={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onMouseDown={e => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-ally-navy">Bulk Import Users</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div className="p-6 space-y-6">
+          {/* Instructions */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-800 font-medium mb-2">CSV Format Requirements:</p>
+            <ul className="text-xs text-blue-700 space-y-1">
+              <li>• Required columns: <code className="bg-blue-100 px-1">email</code>, <code className="bg-blue-100 px-1">first_name</code>, <code className="bg-blue-100 px-1">last_name</code></li>
+              <li>• Optional column: <code className="bg-blue-100 px-1">role</code> (clinic_user or clinic_admin)</li>
+              <li>• First row must be the header</li>
+            </ul>
+            <button
+              onClick={downloadTemplate}
+              className="mt-3 text-sm text-blue-600 hover:text-blue-800 underline"
+            >
+              Download template CSV
+            </button>
+          </div>
+
+          {/* Clinic Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Assign all users to clinic <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={selectedClinic}
+              onChange={(e) => setSelectedClinic(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            >
+              <option value="">Select clinic...</option>
+              {clinics.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name}{c.city ? ` (${c.city}, ${c.state || ''})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* File Upload */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Upload CSV File
+            </label>
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-ally-teal transition-colors"
+            >
+              <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-sm text-gray-600">Click to select CSV file</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </div>
+          </div>
+
+          {/* Parse Error */}
+          {parseError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+              {parseError}
+            </div>
+          )}
+
+          {/* Preview */}
+          {csvData.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">
+                Preview ({csvData.length} users to import)
+              </p>
+              <div className="border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Email</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Name</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Role</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {csvData.slice(0, 10).map((row, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 text-gray-900">{row.email}</td>
+                        <td className="px-3 py-2 text-gray-600">{row.first_name} {row.last_name}</td>
+                        <td className="px-3 py-2 text-gray-600">{row.role || 'clinic_user'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {csvData.length > 10 && (
+                  <div className="px-3 py-2 bg-gray-50 text-xs text-gray-500 text-center">
+                    ...and {csvData.length - 10} more
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleImport}
+              disabled={loading || csvData.length === 0 || !selectedClinic}
+              className="flex-1 flex items-center justify-center gap-2 bg-ally-teal text-white px-4 py-2 rounded-md hover:bg-ally-teal-dark disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              Import {csvData.length} Users
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -6881,6 +7288,204 @@ function ConsentSigningPage() {
 }
 
 // ============================================================================
+// ADMIN KIT ORDERS PAGE
+// ============================================================================
+function KitOrdersPage() {
+  const { supabase } = useAuth()
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('all') // all, pending, shipped, delivered
+
+  useEffect(() => {
+    fetchOrders()
+  }, [])
+
+  async function fetchOrders() {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('kit_orders')
+      .select('*, clinic:clinics(name), ordered_by:users(first_name, last_name, email)')
+      .order('created_at', { ascending: false })
+    
+    if (!error && data) {
+      setOrders(data)
+    }
+    setLoading(false)
+  }
+
+  async function updateOrderStatus(orderId, newStatus) {
+    await supabase
+      .from('kit_orders')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+    
+    fetchOrders()
+  }
+
+  const filteredOrders = filter === 'all' 
+    ? orders 
+    : orders.filter(o => o.status === filter)
+
+  const statusColors = {
+    pending: 'bg-yellow-100 text-yellow-800',
+    processing: 'bg-blue-100 text-blue-800',
+    shipped: 'bg-purple-100 text-purple-800',
+    delivered: 'bg-green-100 text-green-800',
+    cancelled: 'bg-red-100 text-red-800'
+  }
+
+  const statusCounts = {
+    all: orders.length,
+    pending: orders.filter(o => o.status === 'pending').length,
+    processing: orders.filter(o => o.status === 'processing').length,
+    shipped: orders.filter(o => o.status === 'shipped').length,
+    delivered: orders.filter(o => o.status === 'delivered').length
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-ally-teal" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Kit Orders</h1>
+          <p className="text-gray-600 mt-1">Manage supply orders from clinics</p>
+        </div>
+        <button
+          onClick={fetchOrders}
+          className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Refresh
+        </button>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex gap-2 border-b">
+        {['all', 'pending', 'processing', 'shipped', 'delivered'].map(status => (
+          <button
+            key={status}
+            onClick={() => setFilter(status)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              filter === status 
+                ? 'border-ally-teal text-ally-teal' 
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100">
+              {statusCounts[status]}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Orders List */}
+      {filteredOrders.length === 0 ? (
+        <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
+          <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500">No orders found</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredOrders.map(order => (
+            <div key={order.id} className="bg-white rounded-lg shadow-sm border overflow-hidden">
+              <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="font-semibold text-gray-900">
+                      Order #{order.id?.slice(0, 8).toUpperCase()}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {new Date(order.created_at).toLocaleDateString('en-US', {
+                        month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[order.status] || 'bg-gray-100 text-gray-800'}`}>
+                    {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={order.status}
+                    onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                    className="text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ally-teal"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="processing">Processing</option>
+                    <option value="shipped">Shipped</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="p-6 grid grid-cols-3 gap-6">
+                {/* Clinic Info */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500 mb-2">Clinic</h4>
+                  <p className="font-medium text-gray-900">{order.clinic?.name || 'Unknown Clinic'}</p>
+                  <p className="text-sm text-gray-600">
+                    Ordered by: {order.ordered_by?.first_name} {order.ordered_by?.last_name}
+                  </p>
+                  <p className="text-sm text-gray-600">{order.ordered_by?.email}</p>
+                </div>
+
+                {/* Items Ordered */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500 mb-2">Items Ordered</h4>
+                  <div className="text-sm space-y-1">
+                    {order.items?.complete_kits > 0 && (
+                      <p className="text-gray-900">Complete Kits: <span className="font-medium">{order.items.complete_kits}</span></p>
+                    )}
+                    {order.items?.biopsy_collection_kits > 0 && (
+                      <p className="text-gray-900">Biopsy Collection Kits: <span className="font-medium">{order.items.biopsy_collection_kits}</span></p>
+                    )}
+                    {order.items?.shipping_containers > 0 && (
+                      <p className="text-gray-900">Shipping Containers: <span className="font-medium">{order.items.shipping_containers}</span></p>
+                    )}
+                    {order.items?.collection_tubes > 0 && (
+                      <p className="text-gray-900">Collection Tubes: <span className="font-medium">{order.items.collection_tubes}</span></p>
+                    )}
+                    {order.items?.fedex_labels > 0 && (
+                      <p className="text-gray-900">FedEx Labels: <span className="font-medium">{order.items.fedex_labels}</span></p>
+                    )}
+                    {order.items?.ice_packs > 0 && (
+                      <p className="text-gray-900">Ice Packs: <span className="font-medium">{order.items.ice_packs}</span></p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Shipping Address */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500 mb-2">Ship To</h4>
+                  <p className="text-sm text-gray-900 whitespace-pre-line">
+                    {order.shipping_address || 'No address provided - use clinic default'}
+                  </p>
+                  {order.notes && (
+                    <div className="mt-3">
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Notes</h4>
+                      <p className="text-sm text-gray-600">{order.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
 // PLACEHOLDER PAGES
 // ============================================================================
 function PlaceholderPage({ title }) {
@@ -6911,7 +7516,7 @@ export default function App() {
           <Route path="/admin/cases/:id" element={<ProtectedRoute adminOnly><AdminLayout><CaseDetailsPage isAdmin={true} /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/clinics" element={<ProtectedRoute adminOnly><AdminLayout><ClinicsPage /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminLayout><UsersPage /></AdminLayout></ProtectedRoute>} />
-          <Route path="/admin/orders" element={<ProtectedRoute adminOnly><AdminLayout><PlaceholderPage title="Kit Orders" /></AdminLayout></ProtectedRoute>} />
+          <Route path="/admin/orders" element={<ProtectedRoute adminOnly><AdminLayout><KitOrdersPage /></AdminLayout></ProtectedRoute>} />
           
           {/* Clinic Routes */}
           <Route path="/clinic" element={<ProtectedRoute><ClinicLayout><ClinicDashboard /></ClinicLayout></ProtectedRoute>} />
