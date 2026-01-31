@@ -1588,6 +1588,9 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     
     const signerEmail = signerType === 'patient' ? cycle.patient_email : cycle.partner_email
     
+    // Get consent content - use stored version if available, otherwise current
+    const content = consent.consent_content || getConsentContent()
+    
     // Colors
     const navyBlue = [30, 58, 95] // #1e3a5f
     const teal = [13, 148, 136] // #0d9488
@@ -1692,22 +1695,22 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     
     // Introduction
     y = addSectionTitle('Introduction', y)
-    y = addParagraph('Preimplantation Genetic Testing for Aneuploidy (PGT-A) is a test performed on a small sample of cells from an in vitro fertilization (IVF) embryo to screen for numerical chromosomal abnormalities prior to transfer. The purpose of PGT-A is to help IVF physicians and patients decide which embryos to transfer. This consent form reviews the benefits and limitations PGT-A. Prior to initiating testing, Ally Genetics must receive a signed copy of this form. If at any time you have questions about this consent form, please email lab@allygenetics.com to schedule a consultation.', y)
+    y = addParagraph(content.sections.introduction, y)
     y += 4
     
     // Genetic Counseling
     y = addSectionTitle('Genetic Counseling', y)
-    y = addParagraph('Ally Genetics recommends that you consult with a genetic counselor before consenting to this test and a genetic counselor or your healthcare provider about your results. For a list of independent medical genetic counselors who may be available in your area, visit the National Society of Genetic Counselors website at www.nsgc.org. Additionally, an appointment with an Ally Genetics affiliated genetic counselor can be scheduled through our website allygenetics.com. Please note that a minimum lead time of 10 business days prior to your biopsy date is required.', y)
+    y = addParagraph(content.sections.geneticCounseling, y)
     y += 4
     
     // Chromosomal Abnormalities
     y = addSectionTitle('Chromosomal Abnormalities', y)
-    y = addParagraph('There are a total of 46 chromosomes (23 pairs) in each human cell. Half of these chromosomes are inherited from the egg and the other half from the sperm. For normal growth and development, a person must inherit the correct number of chromosomes from each reproductive parent: one each of the 22 autosomes (numbered 1–22) and a sex chromosome (X or Y). Aneuploidy refers to a type of chromosome abnormality where there are more or fewer than the normal 46 chromosomes present. The extra or missing chromosome(s) can come from the egg or the sperm, however, most come from the egg and the chance of aneuploid embryos increases with maternal age. Most aneuploid embryos do not implant and fail to achieve pregnancy; however, those that do may result in miscarriage. In the general population, 20% of all clinical pregnancies miscarry and about half are chromosomally abnormal. Additionally, some pregnancies with chromosomal abnormalities will result in the birth of a child with multiple serious health complications. A common example is Down syndrome, in which there is an extra copy of chromosome 21 (trisomy 21).', y)
+    y = addParagraph(content.sections.chromosomalAbnormalities, y)
     y += 4
     
     // Benefits of PGT-A
     y = addSectionTitle('Benefits of PGT-A', y)
-    y = addParagraph('Chromosomally abnormal embryos may not differ in overall microscopic appearance from chromosomally normal embryos, thus making it difficult to identify which embryo(s) have the best chance of resulting in successful implantation and pregnancy. Chromosomal abnormalities are one of the most common reasons for implantation failure and miscarriages that occur within the first 12 weeks of pregnancy. PGT-A can help identify which of your embryos are most likely to be chromosomally normal (euploid). By implanting a euploid embryo, the possibility of a successful implantation rises, the risk of a miscarriage decreases, and the chances of delivering a healthy chromosomally normal baby increase.', y)
+    y = addParagraph(content.sections.benefits, y)
     
     addFooter()
     
@@ -1717,31 +1720,31 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     
     // Embryo Biopsy Related Risks
     y = addSectionTitle('Embryo Biopsy Related Risks', y)
-    y = addParagraph('Although in vitro fertilization (IVF) has been used successfully in millions of pregnancies worldwide with no documented increase in risk for congenital malformations or developmental disorders, the PGT-A process requires an embryo biopsy, and this biopsy process is not without risk. Biopsies are typically performed 5-7 days following fertilization. Such biopsies involve the removal of approximately 5-10 cells from the outer cell layer of the embryo, leaving the inner cell mass, which will become the developing baby, intact. Please note that although the biopsy samples will be sent to Ally Genetics for testing, your embryos will remain at your fertility specialist\'s facility. Your IVF physician has recommended PGT-A because they believe that the benefits of PGT-A are likely to outweigh the risks, which include the following:', y)
+    y = addParagraph(content.sections.embryoBiopsyRisks, y)
     y += 2
     doc.setFontSize(8)
-    y = addParagraph('• An embryo may be damaged during the biopsy.', y)
-    y = addParagraph('• It may not be possible to obtain cells from the embryo for testing or the cells obtained may not be of sufficient quality to yield results.', y)
-    y = addParagraph('• Although data has shown that embryo biopsy has no adverse impact on growth or medical outcomes, the technique is still relatively new and the potential for unknown consequences to a live born baby cannot be excluded.', y)
+    content.sections.embryoBiopsyRisksList.forEach(risk => {
+      y = addParagraph('• ' + risk, y)
+    })
     y += 4
     
     // Fertility Center Related Risks
     y = addSectionTitle('Fertility Center Related Risks', y)
     y = addParagraph('There are also risks associated with the clinical process of IVF including:', y)
     y += 2
-    y = addParagraph('• It is possible that no embryos (normal or abnormal) will be available for transfer following the biopsy procedure.', y)
-    y = addParagraph('• PGT-A results can be incorrectly interpreted and/or applied and the wrong embryo may be transferred to the uterus.', y)
-    y = addParagraph('• Transfer of a chromosomally normal embryo does not guarantee a successful implantation nor a healthy pregnancy.', y)
+    content.sections.fertilityCenterRisks.forEach(risk => {
+      y = addParagraph('• ' + risk, y)
+    })
     y += 4
     
     // Technical and Analytic Risks
     y = addSectionTitle('Technical and Analytic Risks', y)
-    y = addParagraph('Ally Genetics employs unique coding of collection tubes, molecular labeling of amplified DNA, and stringent sample tracking and control procedures to minimize the risk of technical errors; however, errors may still occur that result in no diagnosis or a misdiagnosis.', y)
+    y = addParagraph(content.sections.technicalRisks, y)
     y += 4
     
     // No Diagnosis
     y = addSectionTitle('No Diagnosis', y)
-    y = addParagraph('Ally Genetics is not responsible for any sample until it arrives at the Ally Genetics laboratory. Problems with the commercial shipment of samples to our laboratory could arise due to weather, air travel issues, or other circumstances beyond the control of Ally Genetics. Such problems could prevent results from being reported in time for embryo transfer, or if the integrity of the samples is compromised, results may be completely unobtainable. On rare occasions, genetic testing cannot be performed due to improper biopsy techniques, loss of biopsied cells, or poor DNA quality within the biopsied cells themselves. Laboratory errors, both technical and human, while also rare, can result in irrecoverable test failure. Embryo biopsies that fail to amplify cannot be retested. In such cases, a 2nd biopsy (rebiopsy), with its own risks and fees, is the only way to make an additional attempt at obtaining results. At their discretion, if an Ally Genetics error results in test failure, there will be no charge for PGT-A of the failed samples and their corresponding rebiopsies; however, no further compensation will be provided.', y)
+    y = addParagraph(content.sections.noDiagnosis, y)
     
     addFooter()
     
@@ -1751,17 +1754,17 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     
     // Misdiagnosis
     y = addSectionTitle('Misdiagnosis', y)
-    y = addParagraph('No genetic testing is 100% accurate and PGT-A is no different. Because only a small number of cells are biopsied from the outer layer of the embryo, the sample may not be representative of the entire embryo\'s chromosomal makeup. A false negative result will indicate an embryo has a normal number of chromosomes when there is actually a chromosomal abnormality. A false positive result will indicate an embryo has an abnormal chromosome copy number when it is actually normal, potentially leading to the discard of viable embryos. Additionally, sex chromosome discrepancies are possible (incorrect gender prediction). One recognized source of misdiagnosis is embryo mosaicism; a phenomenon in which the cells biopsied and analyzed are not genetically representative of the remainder of the embryo. Mosaicism may or may not be detected by PGT-A. Other reasons for misdiagnosis include but are not limited to sample mix-up, technical difficulties, abnormalities beyond the scope or detection limit of the technology employed, human error, and sample contamination. The use of non-validated sample collection and handling procedures and spontaneous conception in which pregnancy arises due to sexual intercourse rather than the transferred PGT-A tested embryo, can lead to misdiagnosis. Accordingly, abstinence from intercourse is recommended for two weeks before and after embryo transfer.', y)
+    y = addParagraph(content.sections.misdiagnosis, y)
     y += 4
     
     // Technical Limits of Detection
     y = addSectionTitle('Technical Limits of Detection', y)
-    y = addParagraph('Ally Genetics uses a technique known as Next Generation Sequencing (NGS) to evaluate the amount of chromosomal material present across the entire genome and identifies regions of missing or extra information. NGS can detect whole chromosome aneuploidies (entire extra or missing chromosomes) as well as some types of segmental aneuploidies (missing or extra segments of chromosomes). This test cannot detect chromosomal abnormalities without an imbalance in genetic material. Ally Genetics PGT-A does not detect the following abnormalities which include but are not limited to:', y)
+    y = addParagraph(content.sections.technicalLimits + ' Ally Genetics PGT-A does not detect the following abnormalities which include but are not limited to:', y)
     y += 2
-    y = addParagraph('• Single gene disorders – PGT-A for aneuploidy does not analyze specific genes and cannot detect conditions caused by single gene mutations, such as Cystic Fibrosis, Spinal Muscular Atrophy, Sickle Cell Anemia etc.', y)
-    y = addParagraph('• Multifactorial conditions – Conditions that are caused by a combination of genetic and environmental factors, such as diabetes, schizophrenia, developmental delay, intellectual disability, and autism spectrum disorders are not detected.', y)
-    y = addParagraph('• Polyploidy/Haploidy – Polyploidy is a state in which there is an entire additional set(s) of chromosomes. Haploidy is a state in which there is only a single complete set of chromosomes. This test cannot detect homogenous polyploidy/haploidy.', y)
-    y = addParagraph('• Balanced chromosomal rearrangements – Balanced chromosomal rearrangements, such as balanced translocations and inversions cannot be identified by this test.', y)
+    // First 4 items on page 3
+    for (let i = 0; i < 4 && i < content.sections.technicalLimitsList.length; i++) {
+      y = addParagraph('• ' + content.sections.technicalLimitsList[i], y)
+    }
     
     addFooter()
     
@@ -1769,27 +1772,29 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     newPage()
     y = 25
     
-    y = addParagraph('• Uniparental disomy (UPD) – UPD is the presence of two copies of a chromosome from one parent and none from the other. UPD for certain chromosomes is associated with genetic syndromes that might include cognitive or physical disabilities. Genome-wide UPD of paternal origin can result in a molar pregnancy. UPD cannot be detected by this test.', y)
-    y = addParagraph('• Small segmental changes – PGT-A technology is designed to test for aneuploidy (whole chromosomes that are extra or missing). It can also detect segmental aneuploidy, including deletions, duplications, and unbalanced rearrangements, depending on the size of the chromosome segment involved. Extra or missing chromosome segments, smaller than 20Mb, may not be detected.', y)
+    // Remaining technical limits items
+    for (let i = 4; i < content.sections.technicalLimitsList.length; i++) {
+      y = addParagraph('• ' + content.sections.technicalLimitsList[i], y)
+    }
     y += 4
     
     // Follow-Up Recommendation
     y = addSectionTitle('Follow-Up Recommendation for Prenatal Diagnosis', y)
-    y = addParagraph('PGT-A cannot guarantee the birth of a chromosomally normal child. Due to inherent limitations and the chance of misdiagnosis, PGT-A should not be viewed as a replacement for prenatal testing and prenatal testing for ongoing pregnancies is recommended. Prenatal testing options can include noninvasive pregnancy screening (NIPS/NIPT) and diagnostic testing by chorionic villus sampling (CVS) or amniocentesis. Your prenatal provider and/or a prenatal genetic counselor can discuss which type of prenatal testing may be most appropriate for you.', y)
+    y = addParagraph(content.sections.followUpRecommendation, y)
     y += 4
     
     // Test Results and Interpretation
     y = addSectionTitle('Test Results and Interpretation', y)
-    y = addParagraph('Normal (Euploid): No whole chromosome or segmental abnormalities larger than 20Mb were detected.', y)
+    y = addParagraph(content.sections.testResults.normal, y)
     y += 2
-    y = addParagraph('Abnormal (Aneuploid): One or more whole chromosome or segmental chromosome abnormality was detected.', y)
-    y = addParagraph('• Trisomy: The presence of three copies of a chromosome rather than the normal two. A trisomic sample indicates the corresponding embryo is at a very high risk of being chromosomally abnormal.', y)
-    y = addParagraph('• Monosomy: The presence of one copy of a chromosome rather than the normal two. A monosomic sample indicates the corresponding embryo is at a very high risk of being chromosomally abnormal.', y)
-    y = addParagraph('• Complex Abnormal: The presence of five or more aneuploidy events. A complex abnormal sample indicates the corresponding embryo is at a very high risk of being chromosomally abnormal.', y)
+    y = addParagraph(content.sections.testResults.abnormal, y)
+    y = addParagraph('• ' + content.sections.testResults.trisomy, y)
+    y = addParagraph('• ' + content.sections.testResults.monosomy, y)
+    y = addParagraph('• ' + content.sections.testResults.complexAbnormal, y)
     y += 2
-    y = addParagraph('No Diagnosis: The chromosomal health of embryos whose samples yield a "No Diagnosis" designation should be considered unknown.', y)
-    y = addParagraph('• Insufficient Template DNA: No diagnosis due to insufficient template DNA indicates the failure of a sample\'s DNA to amplify enough to warrant further testing.', y)
-    y = addParagraph('• Inconclusive Results: Ally Genetics PGT-A uses a statistical model to call the number of chromosomes for each embryo sample. In some cases, due to degraded DNA or other sample aberrations, data will not conform to the statistical model.', y)
+    y = addParagraph(content.sections.testResults.noDiagnosis, y)
+    y = addParagraph('• ' + content.sections.testResults.insufficientDNA, y)
+    y = addParagraph('• ' + content.sections.testResults.inconclusive, y)
     
     addFooter()
     
@@ -1799,16 +1804,7 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     
     // Mosaic Results
     y = addSectionTitle('Mosaic Results', y)
-    y = addParagraph('At this time, Ally Genetics reports samples as mosaic when more than 40% and less than 70% of a sample biopsy\'s amplified DNA appears aneuploid (abnormal), based on our own internal validation studies and the research available at the time this document was written.', y)
-    y += 2
-    y = addParagraph('Mosaic embryos contain two or more populations of cells with differing chromosome content (e.g. some cells are euploid (normal) and others aneuploid (abnormal)). Mosaicism is a relatively common phenomenon in human preimplantation embryos. Even if not detected, PGT-A cannot rule out mosaicism as only a few cells are biopsied and analyzed from each embryo. There is a high correlation between the biopsied sample and the whole embryo; however, the exact correlation has yet to be determined and your sample may not reflect the true chromosomal composition of the embryo as a whole.', y)
-    y += 2
-    y = addParagraph('The outcome of transferring an embryo with a mosaic PGT-A result cannot be predicted. A mosaic embryo may not implant, may result in a spontaneous miscarriage, may develop abnormally, or may result in the birth of a child with mild to severe birth defects and/or intellectual disabilities.', y)
-    y += 2
-    y = addParagraph('• Lower implantation rates and higher miscarriage rates follow mosaic embryo transfers compared to euploid embryo transfers; however, this may be due in part to biases in the patient populations studied.', y)
-    y = addParagraph('• A small number of apparently healthy live births have resulted from the transfer of embryos with mosaic PGT-A results.', y)
-    y += 2
-    y = addParagraph('Due to the uncertainty surrounding PGT-A mosaic embryos, Ally Genetics does not recommend their transfer; however, the determination of which embryo(s) to transfer and/or discard should always be made with the guidance of your physician and/or a licensed genetic counselor.', y)
+    y = addParagraph(content.sections.mosaicResults, y)
     
     addFooter()
     
@@ -1818,24 +1814,22 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     
     // Alternatives to PGT-A
     y = addSectionTitle('Alternatives to PGT-A', y)
-    y = addParagraph('The risks, benefits, and alternatives to PGT-A should be discussed thoroughly with your physician, genetic counselor, or the authorized person ordering this test. PGT-A is an optional test that is offered to improve the likelihood of having a successful pregnancy and a healthy child. You are not obligated to undergo PGT-A, even if your fertility specialist recommends it. If you do not wish to undergo PGT-A but wish to know the chromosomal status of your pregnancy, prenatal screening, prenatal diagnosis, and ultrasound examination are also available as alternative ways to evaluate chromosomal abnormalities and/or birth defects.', y)
+    y = addParagraph(content.sections.alternatives, y)
     y += 4
     
     // Costs
     y = addSectionTitle('Costs', y)
-    y = addParagraph('Fees for PGT-A are in addition to any other costs associated with your IVF treatment. Ally Genetics does not accept insurance for the coverage of these fees. All fees paid to Ally Genetics are due when samples arrive at our laboratory. Fees must be paid to Ally Genetics directly or paid to your IVF center, depending on the payment procedure chosen by your IVF provider. Samples with all required documents and information are processed in the order received. Once testing has begun, Ally Genetics cannot stop sample processing and the full cost of testing will be incurred. For the vast majority of samples received, results will be reported to your IVF clinic within 14 days. Billing questions are best answered by the Ally Genetics support team via lab@allygenetics.com.', y)
+    y = addParagraph(content.sections.costs, y)
     y += 4
     
     // Confidentiality and HIPAA
     y = addSectionTitle('Confidentiality and HIPAA', y)
-    y = addParagraph('Ally Genetics keeps test results confidential and is in compliance with all Health Insurance Portability and Accountability Act (HIPAA) regulations. Ally Genetics will release your test results only to the referring physician, genetic counselor, reference laboratory, patient, or patient\'s representative in order to protect patient confidentiality. All other releases of results must be directed by you (or a person legally authorized to act on your behalf) in writing, or as otherwise required by federal and Michigan state laws. The Department of Health of your state and the Food and Drug Administration (FDA) may also inspect the records.', y)
+    y = addParagraph(content.sections.confidentiality, y)
     y += 4
     
     // Retention of Samples
     y = addSectionTitle('Retention of Samples', y)
-    y = addParagraph('Ally Genetics is committed to improving the field of preimplantation genetics and may contact your IVF center for information regarding the outcome of your IVF cycle. Additionally, results of this testing may be presented in aggregate at scientific/medical meetings or published in scientific journals or other publications; however, your identity will not be disclosed.', y)
-    y += 2
-    y = addParagraph('PGT-A samples and/or DNA may be discarded after a time period of 60 days following results reporting or the discontinuation of testing for any reason. Ally Genetics is not obligated to store DNA samples obtained from embryo biopsies; however, we will attempt to honor reasonable written requests from your physician in cases of medical necessity.', y)
+    y = addParagraph(content.sections.retentionOfSamples, y)
     
     addFooter()
     
@@ -1843,33 +1837,18 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     newPage()
     y = 25
     
-    y = addParagraph('Ally Genetics may keep leftover de-identified sample DNA for ongoing research. If your samples are to be used for research, they will be de-identified, and resulting data will not contain any of your protected health information. All identifiers associated with such samples and/or sample data will be removed prior to publication or release to any outside collaborator of Ally Genetics. The goal of this research is to increase the knowledge related to infertility and to help couples have healthy babies. Your sample material will never be used to make new embryos or future babies. You will not be entitled to receive any payment, benefits, or rights to any resulting products or discoveries based on this research. If you do not want your de-identified samples used, you may email a request for sample destruction to lab@allygenetics.com within 60 days after test results have been issued. Declining to allow your samples to be used for research will in no way affect the quality of care provided to you by Ally Genetics.', y)
-    y += 6
-    
     // By signing below attestations
     y = addSectionTitle('By signing below, I attest to the following:', y)
-    y = addParagraph('I have read the complete consent form and have decided to proceed with preimplantation genetic testing for aneuploidy (PGT-A). I request that Ally Genetics perform PGT-A on all embryo biopsy samples sent by our IVF team during our IVF cycle. This consent applies to this and all future IVF cycles in which I request PGT-A testing with Ally Genetics.', y)
-    y += 2
-    y = addParagraph('I acknowledge the indications, procedures, risks, limitations, and complications of the proposed test, as well as the financial cost of said test(s).', y)
-    y += 2
-    y = addParagraph('I understand that PGT-A can determine the number of chromosomes present in an embryo, but that PGT-A is not 100% accurate, cannot detect all chromosomal abnormalities, and does not guarantee a healthy baby nor a particular gender.', y)
-    y += 2
-    y = addParagraph('I understand that my/our pregnancy must be followed by an IVF physician, obstetrician, and/or other appropriately trained healthcare professional and that PGT-A is not a substitute for prenatal diagnosis (CVS or amniocentesis). Additionally, prenatal screening may be recommended regardless of the use of PGT-A.', y)
-    y += 2
-    y = addParagraph('I understand and accept Ally Genetic\'s research and sample retention policies as well as how to request sample destruction after testing.', y)
-    y += 2
-    y = addParagraph('I understand it is my responsibility to schedule genetic counseling. I have been given the opportunity to talk with an Ally Genetics affiliated genetic counselor by phone and to ask questions about PGT-A and the information contained in this consent form.', y)
+    content.sections.attestations.forEach((attestation, index) => {
+      y = addParagraph(attestation, y)
+      if (index < content.sections.attestations.length - 1) y += 2
+    })
     
     addFooter()
     
     // ==================== PAGE 8 ====================
     newPage()
     y = 25
-    
-    y = addParagraph('I acknowledge that Ally Genetics, its employees, directors, and authorized agents may not be held liable in any manner whatsoever for any birth defects, chromosomal abnormalities, false positive findings, false negative findings, gender misidentifications, shipping or transport errors, nor for any damage in contract or tort arising out of the PGT-A.', y)
-    y += 2
-    y = addParagraph('I acknowledge that any legal controversy, dispute, or disagreement arising out of the services provided by Ally Genetics or any subsidiary thereof shall be settled by binding arbitration by the American Arbitration Association, under the applicable Arbitration Rules then in effect. Information may be obtained, and claims may be filed in the state of Michigan office of the American Arbitration Association. All disputes shall be decided under the laws of the state of Michigan.', y)
-    y += 6
     
     // Warning Box 1: PGT-A Accuracy
     doc.setFillColor(...warningYellow)
@@ -1879,11 +1858,11 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.setFontSize(7)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(146, 64, 14)
-    doc.text('⚠ IMPORTANT: Please Read and Acknowledge', margin + 3, y + 5)
+    doc.text('⚠ ' + content.warningBoxes.pgtAccuracy.title, margin + 3, y + 5)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(120, 53, 15)
     doc.setFontSize(6.5)
-    const warning1Text = doc.splitTextToSize('I understand that PGT-A is not 100% accurate. The biopsied cells may not be representative of the entire embryo, which means a chromosomally normal embryo could be misclassified as abnormal, potentially leading to the discard of a viable embryo.', contentWidth - 6)
+    const warning1Text = doc.splitTextToSize(content.warningBoxes.pgtAccuracy.text, contentWidth - 6)
     doc.text(warning1Text, margin + 3, y + 10)
     // Checkbox
     doc.setFillColor(...teal)
@@ -1894,7 +1873,7 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.setTextColor(31, 41, 55)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(6)
-    doc.text('I acknowledge and understand that PGT-A is not 100% accurate and that viable embryos could potentially be misclassified and discarded', margin + 8, y + 19.5)
+    doc.text(content.warningBoxes.pgtAccuracy.checkbox.substring(0, 120), margin + 8, y + 19.5)
     y += 28
     
     // Warning Box 2: Sex Selection
@@ -1903,11 +1882,11 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.setFontSize(7)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(146, 64, 14)
-    doc.text('⚠ IMPORTANT: Please Read and Acknowledge', margin + 3, y + 5)
+    doc.text('⚠ ' + content.warningBoxes.noSexSelection.title, margin + 3, y + 5)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(120, 53, 15)
     doc.setFontSize(6.5)
-    const warning2Text = doc.splitTextToSize('Ally Genetics does not perform PGT for sex selection or family balancing purposes. While PGT-A testing may identify sex chromosomes, sex chromosome discrepancies are possible (incorrect gender prediction). Ally Genetics makes no guarantee regarding the determination of sex from the sample.', contentWidth - 6)
+    const warning2Text = doc.splitTextToSize(content.warningBoxes.noSexSelection.text, contentWidth - 6)
     doc.text(warning2Text, margin + 3, y + 10)
     doc.setFillColor(...teal)
     doc.rect(margin + 3, y + 17, 3, 3, 'F')
@@ -1917,7 +1896,7 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.setTextColor(31, 41, 55)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(6)
-    doc.text('I acknowledge that Ally Genetics does not perform sex selection and makes no guarantee on sex determination', margin + 8, y + 19.5)
+    doc.text(content.warningBoxes.noSexSelection.checkbox.substring(0, 110), margin + 8, y + 19.5)
     y += 28
     
     // Warning Box 3: Liability Waiver
@@ -1926,11 +1905,11 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.setFontSize(7)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(146, 64, 14)
-    doc.text('⚠ IMPORTANT: Please Read and Acknowledge', margin + 3, y + 5)
+    doc.text('⚠ ' + content.warningBoxes.liabilityWaiver.title, margin + 3, y + 5)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(120, 53, 15)
     doc.setFontSize(6.5)
-    const warning3Text = doc.splitTextToSize('By signing this consent, I agree not to hold Ally Genetics, its employees, directors, and authorized agents legally responsible for any misdiagnosis, including but not limited to false positive findings, false negative findings, gender misidentifications, or any other errors arising from the inherent limitations of PGT-A testing.', contentWidth - 6)
+    const warning3Text = doc.splitTextToSize(content.warningBoxes.liabilityWaiver.text, contentWidth - 6)
     doc.text(warning3Text, margin + 3, y + 10)
     doc.setFillColor(...teal)
     doc.rect(margin + 3, y + 19, 3, 3, 'F')
@@ -1940,7 +1919,7 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.setTextColor(31, 41, 55)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(6)
-    doc.text('I agree not to hold Ally Genetics legally responsible for any misdiagnosis or testing errors', margin + 8, y + 21.5)
+    doc.text(content.warningBoxes.liabilityWaiver.checkbox.substring(0, 95), margin + 8, y + 21.5)
     y += 30
     
     // Required Agreements box
@@ -1952,13 +1931,7 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.setTextColor(...navyBlue)
     doc.text('Required Agreements', margin + 3, y + 5)
     y += 8
-    const agreements = [
-      'I have read and understood this consent form in its entirety',
-      'I consent to the use of electronic signatures and electronic records for this consent form',
-      'I agree to all terms stated in this consent form and voluntarily consent to Preimplantation Genetic Testing',
-      'I understand that Ally Genetics does not accept insurance and that payment in full must be received prior to the release of results'
-    ]
-    agreements.forEach((text, i) => {
+    content.requiredAgreements.forEach((text, i) => {
       doc.setFillColor(...teal)
       doc.rect(margin + 3, y + (i * 5), 2.5, 2.5, 'F')
       doc.setTextColor(255, 255, 255)
@@ -1979,17 +1952,11 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...navyBlue)
     doc.text('My signature below indicates that:', margin + 3, y + 5)
-    const attestations = [
-      '1. I have read, or have had read to me and understand this patient consent form.',
-      '2. The decision to consent to, or refuse, the above testing is entirely mine.',
-      '3. I have had the opportunity to discuss the pros and cons of proceeding with my healthcare provider.',
-      '4. I have all the information I desire and require to make an informed decision.'
-    ]
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(0, 0, 0)
     doc.setFontSize(6.5)
-    attestations.forEach((text, i) => {
-      doc.text(text, margin + 3, y + 10 + (i * 5))
+    content.signatureAttestations.forEach((text, i) => {
+      doc.text(`${i + 1}. ${text}`, margin + 3, y + 10 + (i * 5))
     })
     
     addFooter()
@@ -6256,6 +6223,123 @@ function ProfileModal({ onClose }) {
 }
 
 // ============================================================================
+// CONSENT CONTENT - Version controlled consent text
+// ============================================================================
+function getConsentContent() {
+  return {
+    version: '2.0', // Increment this when consent text changes
+    updatedAt: '2026-01-31',
+    
+    sections: {
+      introduction: 'Preimplantation Genetic Testing for Aneuploidy (PGT-A) is a test performed on a small sample of cells from an in vitro fertilization (IVF) embryo to screen for numerical chromosomal abnormalities prior to transfer. The purpose of PGT-A is to help IVF physicians and patients decide which embryos to transfer. This consent form reviews the benefits and limitations PGT-A. Prior to initiating testing, Ally Genetics must receive a signed copy of this form. If at any time you have questions about this consent form, please email lab@allygenetics.com to schedule a consultation.',
+      
+      geneticCounseling: 'Ally Genetics recommends that you consult with a genetic counselor before consenting to this test and a genetic counselor or your healthcare provider about your results. For a list of independent medical genetic counselors who may be available in your area, visit the National Society of Genetic Counselors website at www.nsgc.org. Additionally, an appointment with an Ally Genetics affiliated genetic counselor can be scheduled through our website allygenetics.com. Please note that a minimum lead time of 10 business days prior to your biopsy date is required.',
+      
+      chromosomalAbnormalities: 'There are a total of 46 chromosomes (23 pairs) in each human cell. Half of these chromosomes are inherited from the egg and the other half from the sperm. For normal growth and development, a person must inherit the correct number of chromosomes from each reproductive parent: one each of the 22 autosomes (numbered 1–22) and a sex chromosome (X or Y). Aneuploidy refers to a type of chromosome abnormality where there are more or fewer than the normal 46 chromosomes present. The extra or missing chromosome(s) can come from the egg or the sperm, however, most come from the egg and the chance of aneuploid embryos increases with maternal age. Most aneuploid embryos do not implant and fail to achieve pregnancy; however, those that do may result in miscarriage. In the general population, 20% of all clinical pregnancies miscarry and about half are chromosomally abnormal. Additionally, some pregnancies with chromosomal abnormalities will result in the birth of a child with multiple serious health complications. A common example is Down syndrome, in which there is an extra copy of chromosome 21 (trisomy 21).',
+      
+      benefits: 'Chromosomally abnormal embryos may not differ in overall microscopic appearance from chromosomally normal embryos, thus making it difficult to identify which embryo(s) have the best chance of resulting in successful implantation and pregnancy. Chromosomal abnormalities are one of the most common reasons for implantation failure and miscarriages that occur within the first 12 weeks of pregnancy. PGT-A can help identify which of your embryos are most likely to be chromosomally normal (euploid). By implanting a euploid embryo, the possibility of a successful implantation rises, the risk of a miscarriage decreases, and the chances of delivering a healthy chromosomally normal baby increase.',
+      
+      embryoBiopsyRisks: 'Although in vitro fertilization (IVF) has been used successfully in millions of pregnancies worldwide with no documented increase in risk for congenital malformations or developmental disorders, the PGT-A process requires an embryo biopsy, and this biopsy process is not without risk. Biopsies are typically performed 5-7 days following fertilization. Such biopsies involve the removal of approximately 5-10 cells from the outer cell layer of the embryo, leaving the inner cell mass, which will become the developing baby, intact. Please note that although the biopsy samples will be sent to Ally Genetics for testing, your embryos will remain at your fertility specialist\'s facility. Your IVF physician has recommended PGT-A because they believe that the benefits of PGT-A are likely to outweigh the risks.',
+      
+      embryoBiopsyRisksList: [
+        'An embryo may be damaged during the biopsy.',
+        'It may not be possible to obtain cells from the embryo for testing or the cells obtained may not be of sufficient quality to yield results.',
+        'Although data has shown that embryo biopsy has no adverse impact on growth or medical outcomes, the technique is still relatively new and the potential for unknown consequences to a live born baby cannot be excluded.'
+      ],
+      
+      fertilityCenterRisks: [
+        'It is possible that no embryos (normal or abnormal) will be available for transfer following the biopsy procedure.',
+        'PGT-A results can be incorrectly interpreted and/or applied and the wrong embryo may be transferred to the uterus.',
+        'Transfer of a chromosomally normal embryo does not guarantee a successful implantation nor a healthy pregnancy.'
+      ],
+      
+      technicalRisks: 'Ally Genetics employs unique coding of collection tubes, molecular labeling of amplified DNA, and stringent sample tracking and control procedures to minimize the risk of technical errors; however, errors may still occur that result in no diagnosis or a misdiagnosis.',
+      
+      noDiagnosis: 'Ally Genetics is not responsible for any sample until it arrives at the Ally Genetics laboratory. Problems with the commercial shipment of samples to our laboratory could arise due to weather, air travel issues, or other circumstances beyond the control of Ally Genetics. Such problems could prevent results from being reported in time for embryo transfer, or if the integrity of the samples is compromised, results may be completely unobtainable. On rare occasions, genetic testing cannot be performed due to improper biopsy techniques, loss of biopsied cells, or poor DNA quality within the biopsied cells themselves. Laboratory errors, both technical and human, while also rare, can result in irrecoverable test failure. Embryo biopsies that fail to amplify cannot be retested. In such cases, a 2nd biopsy (rebiopsy), with its own risks and fees, is the only way to make an additional attempt at obtaining results. At their discretion, if an Ally Genetics error results in test failure, there will be no charge for PGT-A of the failed samples and their corresponding rebiopsies; however, no further compensation will be provided.',
+      
+      misdiagnosis: 'No genetic testing is 100% accurate and PGT-A is no different. Because only a small number of cells are biopsied from the outer layer of the embryo, the sample may not be representative of the entire embryo\'s chromosomal makeup. A false negative result will indicate an embryo has a normal number of chromosomes when there is actually a chromosomal abnormality. A false positive result will indicate an embryo has an abnormal chromosome copy number when it is actually normal, potentially leading to the discard of viable embryos. Additionally, sex chromosome discrepancies are possible (incorrect gender prediction). One recognized source of misdiagnosis is embryo mosaicism; a phenomenon in which the cells biopsied and analyzed are not genetically representative of the remainder of the embryo. Mosaicism may or may not be detected by PGT-A. Other reasons for misdiagnosis include but are not limited to sample mix-up, technical difficulties, abnormalities beyond the scope or detection limit of the technology employed, human error, and sample contamination. The use of non-validated sample collection and handling procedures and spontaneous conception in which pregnancy arises due to sexual intercourse rather than the transferred PGT-A tested embryo, can lead to misdiagnosis. Accordingly, abstinence from intercourse is recommended for two weeks before and after embryo transfer.',
+      
+      technicalLimits: 'Ally Genetics uses a technique known as Next Generation Sequencing (NGS) to evaluate the amount of chromosomal material present across the entire genome and identifies regions of missing or extra information. NGS can detect whole chromosome aneuploidies (entire extra or missing chromosomes) as well as some types of segmental aneuploidies (missing or extra segments of chromosomes). This test cannot detect chromosomal abnormalities without an imbalance in genetic material.',
+      
+      technicalLimitsList: [
+        'Single gene disorders – PGT-A for aneuploidy does not analyze specific genes and cannot detect conditions caused by single gene mutations, such as Cystic Fibrosis, Spinal Muscular Atrophy, Sickle Cell Anemia etc.',
+        'Multifactorial conditions – Conditions that are caused by a combination of genetic and environmental factors, such as diabetes, schizophrenia, developmental delay, intellectual disability, and autism spectrum disorders are not detected.',
+        'Polyploidy/Haploidy – Polyploidy is a state in which there is an entire additional set(s) of chromosomes. Haploidy is a state in which there is only a single complete set of chromosomes. This test cannot detect homogenous polyploidy/haploidy.',
+        'Balanced chromosomal rearrangements – Balanced chromosomal rearrangements, such as balanced translocations and inversions cannot be identified by this test.',
+        'Uniparental disomy (UPD) – UPD is the presence of two copies of a chromosome from one parent and none from the other. UPD for certain chromosomes is associated with genetic syndromes that might include cognitive or physical disabilities. Genome-wide UPD of paternal origin can result in a molar pregnancy. UPD cannot be detected by this test.',
+        'Small segmental changes – PGT-A technology is designed to test for aneuploidy (whole chromosomes that are extra or missing). It can also detect segmental aneuploidy, including deletions, duplications, and unbalanced rearrangements, depending on the size of the chromosome segment involved. Extra or missing chromosome segments, smaller than 20Mb, may not be detected.'
+      ],
+      
+      followUpRecommendation: 'PGT-A cannot guarantee the birth of a chromosomally normal child. Due to inherent limitations, PGT-A should not be viewed as a replacement for prenatal testing and prenatal testing for ongoing pregnancies is recommended. Prenatal testing options can include noninvasive pregnancy screening (NIPS/NIPT) and diagnostic testing by chorionic villus sampling (CVS) or amniocentesis. Your prenatal provider and/or a prenatal genetic counselor can discuss which type of prenatal testing may be most appropriate for you.',
+      
+      testResults: {
+        normal: 'Normal (Euploid): No whole chromosome or segmental abnormalities larger than 20Mb were detected.',
+        abnormal: 'Abnormal (Aneuploid): One or more whole chromosome or segmental chromosome abnormality was detected.',
+        trisomy: 'Trisomy: The presence of three copies of a chromosome rather than the normal two. A trisomic sample indicates the corresponding embryo is at a very high risk of being chromosomally abnormal.',
+        monosomy: 'Monosomy: The presence of one copy of a chromosome rather than the normal two. A monosomic sample indicates the corresponding embryo is at a very high risk of being chromosomally abnormal.',
+        complexAbnormal: 'Complex Abnormal: The presence of five or more aneuploidy events. A complex abnormal sample indicates the corresponding embryo is at a very high risk of being chromosomally abnormal.',
+        noDiagnosis: 'No Diagnosis: The chromosomal health of embryos whose samples yield a "No Diagnosis" designation should be considered unknown.',
+        insufficientDNA: 'Insufficient Template DNA: No diagnosis due to insufficient template DNA indicates the failure of a sample\'s DNA to amplify enough to warrant further testing.',
+        inconclusive: 'Inconclusive Results: Ally Genetics PGT-A uses a statistical model to call the number of chromosomes for each embryo sample. In some cases, due to degraded DNA or other sample aberrations, data will not conform to the statistical model.'
+      },
+      
+      mosaicResults: 'At this time, Ally Genetics reports samples as mosaic when more than 40% and less than 70% of a sample biopsy\'s amplified DNA appears aneuploid (abnormal), based on our own internal validation studies and the research available at the time this document was written. Mosaic embryos contain two or more populations of cells with differing chromosome content (e.g. some cells are euploid (normal) and others aneuploid (abnormal)). Mosaicism is a relatively common phenomenon in human preimplantation embryos. Even if not detected, PGT-A cannot rule out mosaicism as only a few cells are biopsied and analyzed from each embryo. There is a high correlation between the biopsied sample and the whole embryo; however, the exact correlation has yet to be determined and your sample may not reflect the true chromosomal composition of the embryo as a whole. The outcome of transferring an embryo with a mosaic PGT-A result cannot be predicted. A mosaic embryo may not implant, may result in a spontaneous miscarriage, may develop abnormally, or may result in the birth of a child with mild to severe birth defects and/or intellectual disabilities. Due to the uncertainty surrounding PGT-A mosaic embryos, Ally Genetics does not recommend their transfer; however, the determination of which embryo(s) to transfer and/or discard should always be made with the guidance of your physician and/or a licensed genetic counselor.',
+      
+      alternatives: 'The risks, benefits, and alternatives to PGT-A should be discussed thoroughly with your physician, genetic counselor, or the authorized person ordering this test. PGT-A is an optional test that is offered to improve the likelihood of having a successful pregnancy and a healthy child. You are not obligated to undergo PGT-A, even if your fertility specialist recommends it. If you do not wish to undergo PGT-A but wish to know the chromosomal status of your pregnancy, prenatal screening, prenatal diagnosis, and ultrasound examination are also available as alternative ways to evaluate chromosomal abnormalities and/or birth defects.',
+      
+      costs: 'Fees for PGT-A are in addition to any other costs associated with your IVF treatment. Ally Genetics does not accept insurance for the coverage of these fees. All fees paid to Ally Genetics are due when samples arrive at our laboratory. Fees must be paid to Ally Genetics directly or paid to your IVF center, depending on the payment procedure chosen by your IVF provider. Samples with all required documents and information are processed in the order received. Once testing has begun, Ally Genetics cannot stop sample processing and the full cost of testing will be incurred. For the vast majority of samples received, results will be reported to your IVF clinic within 14 days. Billing questions are best answered by the Ally Genetics support team via lab@allygenetics.com.',
+      
+      confidentiality: 'Ally Genetics keeps test results confidential and is in compliance with all Health Insurance Portability and Accountability Act (HIPAA) regulations. Ally Genetics will release your test results only to the referring physician, genetic counselor, reference laboratory, patient, or patient\'s representative in order to protect patient confidentiality. All other releases of results must be directed by you (or a person legally authorized to act on your behalf) in writing, or as otherwise required by federal and Michigan state laws. The Department of Health of your state and the Food and Drug Administration (FDA) may also inspect the records.',
+      
+      retentionOfSamples: 'Ally Genetics is committed to improving the field of preimplantation genetics and may contact your IVF center for information regarding the outcome of your IVF cycle. Additionally, results of this testing may be presented in aggregate at scientific/medical meetings or published in scientific journals or other publications; however, your identity will not be disclosed. PGT-A samples and/or DNA may be discarded after a time period of 60 days following results reporting or the discontinuation of testing for any reason. Ally Genetics is not obligated to store DNA samples obtained from embryo biopsies; however, we will attempt to honor reasonable written requests from your physician in cases of medical necessity. Ally Genetics may keep leftover de-identified sample DNA for ongoing research. If your samples are to be used for research, they will be de-identified, and resulting data will not contain any of your protected health information. All identifiers associated with such samples and/or sample data will be removed prior to publication or release to any outside collaborator of Ally Genetics. The goal of this research is to increase the knowledge related to infertility and to help couples have healthy babies. Your sample material will never be used to make new embryos or future babies. You will not be entitled to receive any payment, benefits, or rights to any resulting products or discoveries based on this research. If you do not want your de-identified samples used, you may email a request for sample destruction to lab@allygenetics.com within 60 days after test results have been issued. Declining to allow your samples to be used for research will in no way affect the quality of care provided to you by Ally Genetics.',
+      
+      attestations: [
+        'I have read the complete consent form and have decided to proceed with preimplantation genetic testing for aneuploidy (PGT-A). I request that Ally Genetics perform PGT-A on all embryo biopsy samples sent by our IVF team during our IVF cycle. This consent applies to this and all future IVF cycles in which I request PGT-A testing with Ally Genetics.',
+        'I acknowledge the indications, procedures, risks, limitations, and complications of the proposed test, as well as the financial cost of said test(s).',
+        'I understand that PGT-A can determine the number of chromosomes present in an embryo, but that PGT-A is not 100% accurate, cannot detect all chromosomal abnormalities, and does not guarantee a healthy baby nor a particular gender.',
+        'I understand that my/our pregnancy must be followed by an IVF physician, obstetrician, and/or other appropriately trained healthcare professional and that PGT-A is not a substitute for prenatal diagnosis (CVS or amniocentesis). Additionally, prenatal screening may be recommended regardless of the use of PGT-A.',
+        'I understand and accept Ally Genetic\'s research and sample retention policies as well as how to request sample destruction after testing.',
+        'I understand it is my responsibility to schedule genetic counseling. I have been given the opportunity to talk with an Ally Genetics affiliated genetic counselor by phone and to ask questions about PGT-A and the information contained in this consent form.',
+        'I acknowledge that Ally Genetics, its employees, directors, and authorized agents may not be held liable in any manner whatsoever for any birth defects, chromosomal abnormalities, false positive findings, false negative findings, gender misidentifications, shipping or transport errors, nor for any damage in contract or tort arising out of the PGT-A.',
+        'I acknowledge that any legal controversy, dispute, or disagreement arising out of the services provided by Ally Genetics or any subsidiary thereof shall be settled by binding arbitration by the American Arbitration Association, under the applicable Arbitration Rules then in effect. Information may be obtained, and claims may be filed in the state of Michigan office of the American Arbitration Association. All disputes shall be decided under the laws of the state of Michigan.'
+      ]
+    },
+    
+    warningBoxes: {
+      pgtAccuracy: {
+        title: 'IMPORTANT: Please Read and Acknowledge',
+        text: 'I understand that PGT-A is not 100% accurate. The biopsied cells may not be representative of the entire embryo, which means a chromosomally normal embryo could be misclassified as abnormal, potentially leading to the discard of a viable embryo.',
+        checkbox: 'I acknowledge and understand that PGT-A is not 100% accurate, that the biopsied cells may not represent the entire embryo, and that viable embryos could potentially be misclassified and discarded'
+      },
+      noSexSelection: {
+        title: 'IMPORTANT: Please Read and Acknowledge',
+        text: 'Ally Genetics does not perform PGT for sex selection or family balancing purposes. While PGT-A testing may identify sex chromosomes, sex chromosome discrepancies are possible (incorrect gender prediction). Ally Genetics makes no guarantee regarding the determination of sex from the sample.',
+        checkbox: 'I acknowledge and understand that Ally Genetics does not perform sex selection or family balancing, and makes no guarantee on sex determination from PGT-A testing'
+      },
+      liabilityWaiver: {
+        title: 'IMPORTANT: Please Read and Acknowledge',
+        text: 'By signing this consent, I agree not to hold Ally Genetics, its employees, directors, and authorized agents legally responsible for any misdiagnosis, including but not limited to false positive findings, false negative findings, gender misidentifications, or any other errors arising from the inherent limitations of PGT-A testing. I understand that PGT-A is a screening tool with known limitations and is not a guarantee of embryo health or pregnancy outcome.',
+        checkbox: 'I acknowledge and agree that I will not hold Ally Genetics legally responsible for any misdiagnosis or testing errors, and I understand that PGT-A results do not guarantee a healthy pregnancy or baby'
+      }
+    },
+    
+    requiredAgreements: [
+      'I have read and understood this consent form in its entirety',
+      'I consent to the use of electronic signatures and electronic records for this consent form',
+      'I agree to all terms stated in this consent form and voluntarily consent to Preimplantation Genetic Testing',
+      'I understand that Ally Genetics does not accept insurance and that payment in full must be received prior to the release of results'
+    ],
+    
+    signatureAttestations: [
+      'I have read, or have had read to me and understand this patient consent form.',
+      'The decision to consent to, or refuse, the above testing is entirely mine.',
+      'I have had the opportunity to discuss the pros and cons of proceeding, including the purposes, limitations, and possible risks, with my healthcare provider, a genetic counselor, and/or someone my healthcare provider has designated.',
+      'I have all the information I desire and require to make an informed decision and all my questions have been satisfactorily answered.'
+    ]
+  }
+}
+
+// ============================================================================
 // CONSENT SIGNING PAGE (Public - No Auth Required)
 // ============================================================================
 function ConsentSigningPage() {
@@ -6371,6 +6455,9 @@ function ConsentSigningPage() {
         ipAddress = 'unknown'
       }
 
+      // Get the current consent content to store what they signed
+      const consentContent = getConsentContent()
+
       // Update consent record
       const { error: updateError } = await supabase
         .from('consents')
@@ -6380,6 +6467,7 @@ function ConsentSigningPage() {
           signature_type: signatureType,
           signature_data: signatureData,
           ip_address: ipAddress,
+          consent_content: consentContent,
           metadata: {
             checkboxes: checkboxes,
             keyAcknowledgments: {
