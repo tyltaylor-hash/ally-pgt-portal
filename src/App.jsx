@@ -2050,8 +2050,8 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onMouseDown={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col" onMouseDown={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-start justify-between flex-shrink-0">
           <div>
@@ -2305,8 +2305,8 @@ function OrderSuppliesModal({ onClose }) {
 
   if (success) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8 text-center" onClick={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onMouseDown={onClose}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8 text-center" onMouseDown={(e) => e.stopPropagation()}>
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Check className="w-8 h-8 text-green-600" />
           </div>
@@ -2334,13 +2334,13 @@ function OrderSuppliesModal({ onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-gray-200">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onMouseDown={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-lg font-semibold text-ally-navy">Order Supplies</h2>
           <p className="text-sm text-gray-600 mt-1">Request collection kits and supplies for your clinic</p>
         </div>
-        <form onSubmit={handleSubmitOrder} className="p-6 space-y-6">
+        <form onSubmit={handleSubmitOrder} className="p-6 space-y-6 overflow-y-auto flex-1">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Complete Kits
