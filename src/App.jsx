@@ -1154,16 +1154,10 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
   }
 
   function generateRequisitionPDF(cycle) {
-    // Debug - log the cycle data to console
-    console.log('Generating PDF for cycle:', cycle)
-    console.log('tests_ordered:', cycle.tests_ordered, 'type:', typeof cycle.tests_ordered)
-    console.log('sample_type:', cycle.sample_type)
-    console.log('male_factor_infertility:', cycle.male_factor_infertility)
-    
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
     const pageHeight = doc.internal.pageSize.getHeight()
-    const margin = 15
+    const margin = 12
     const contentWidth = pageWidth - (margin * 2)
     let y = margin
     
@@ -1183,321 +1177,402 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
       return sex.charAt(0).toUpperCase() + sex.slice(1)
     }
     
-    // Helper to format sample type
-    const formatSampleType = (type) => {
-      if (!type) return ''
-      const types = {
-        'd5_d6_d7_trophectoderm': 'D5/6/7 Trophectoderm',
-        'rebiopsy': 'Rebiopsy',
-        'other': 'Other'
+    // State abbreviation helper
+    const getStateAbbrev = (state) => {
+      if (!state) return ''
+      if (state.length === 2) return state.toUpperCase()
+      const states = {
+        'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR', 'california': 'CA',
+        'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE', 'florida': 'FL', 'georgia': 'GA',
+        'hawaii': 'HI', 'idaho': 'ID', 'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA',
+        'kansas': 'KS', 'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+        'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS', 'missouri': 'MO',
+        'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ',
+        'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH',
+        'oklahoma': 'OK', 'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+        'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT', 'vermont': 'VT',
+        'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY'
       }
-      return types[type] || type
+      return states[state.toLowerCase()] || state
     }
     
-    // Colors - Navy Blue theme
-    const navyBlue = [30, 58, 95] // #1e3a5f
-    const lightNavy = [232, 238, 244] // light navy background
+    // Colors
+    const navyBlue = [30, 58, 95]
+    const teal = [13, 148, 136]
+    const lightBg = [240, 244, 248]
     const warningYellow = [254, 243, 199]
-    const warningBorder = [245, 158, 11]
+    const warningBorder = [180, 83, 9]
     
     // ===== HEADER =====
     doc.setFillColor(...navyBlue)
-    doc.rect(0, 0, pageWidth, 3, 'F') // Top border line
+    doc.rect(0, 0, pageWidth, 2.5, 'F')
     
-    y = 12
+    y = 10
     // Left - Company name
     doc.setTextColor(...navyBlue)
-    doc.setFontSize(14)
+    doc.setFontSize(18)
     doc.setFont('helvetica', 'bold')
-    doc.text('ALLY GENETICS', margin, y)
+    doc.text('Ally Genetics', margin, y)
     doc.setFontSize(7)
     doc.setFont('helvetica', 'italic')
-    doc.text('Better Partnerships, Better Results', margin, y + 4)
+    doc.setTextColor(...teal)
+    doc.text('Better Partnerships. Better Results.', margin, y + 4)
     
     // Center - Form title
-    doc.setFontSize(9)
+    doc.setTextColor(...navyBlue)
+    doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
-    doc.text('Preimplantation Genetic Testing', pageWidth / 2, y - 2, { align: 'center' })
-    doc.setFontSize(12)
-    doc.text('Test Requisition Form', pageWidth / 2, y + 4, { align: 'center' })
+    doc.text('PGT Test Requisition Form', pageWidth / 2, y + 2, { align: 'center' })
     
     // Right - Contact info
     doc.setFontSize(7)
     doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...navyBlue)
     doc.text('Ally Genetics Laboratory', pageWidth - margin, y - 4, { align: 'right' })
     doc.setFont('helvetica', 'normal')
-    doc.text('1001 Parchment Dr SE', pageWidth - margin, y, { align: 'right' })
-    doc.text('Grand Rapids, MI 49546', pageWidth - margin, y + 3, { align: 'right' })
-    doc.text('Phone: (616) 465-2400', pageWidth - margin, y + 6, { align: 'right' })
-    doc.text('Email: lab@allygenetics.com', pageWidth - margin, y + 9, { align: 'right' })
+    doc.setTextColor(80, 80, 80)
+    doc.text('1001 Parchment Dr SE', pageWidth - margin, y - 0.5, { align: 'right' })
+    doc.text('Grand Rapids, MI 49546', pageWidth - margin, y + 2.5, { align: 'right' })
+    doc.text('Phone: (616) 465-2400', pageWidth - margin, y + 5.5, { align: 'right' })
+    doc.text('Email: lab@allygenetics.com', pageWidth - margin, y + 8.5, { align: 'right' })
     
-    y = 28
+    y = 22
     doc.setFillColor(...navyBlue)
-    doc.rect(0, y, pageWidth, 0.5, 'F') // Header bottom border
+    doc.rect(0, y, pageWidth, 0.8, 'F')
     
     // ===== NOTICE BAR =====
-    y += 5
-    doc.setFillColor(...lightNavy)
-    doc.rect(margin, y, contentWidth, 8, 'F')
+    y += 4
+    doc.setFillColor(...lightBg)
+    doc.roundedRect(margin, y, contentWidth, 7, 1, 1, 'F')
     doc.setDrawColor(...navyBlue)
-    doc.rect(margin, y, contentWidth, 8, 'S')
+    doc.roundedRect(margin, y, contentWidth, 7, 1, 1, 'S')
     doc.setTextColor(...navyBlue)
-    doc.setFontSize(7)
+    doc.setFontSize(6.5)
     doc.setFont('helvetica', 'bold')
-    doc.text('COMPLETED TEST REQUISITION FORM MUST BE RECEIVED PRIOR TO SAMPLES & BIOPSY WORKSHEET.', pageWidth / 2, y + 5, { align: 'center' })
+    doc.text('PLEASE COMPLETE ALL SECTIONS • INCOMPLETE FORMS MAY DELAY PROCESSING', pageWidth / 2, y + 4.5, { align: 'center' })
     
     // ===== SECTION HELPER =====
-    const drawSection = (title, startY) => {
+    const drawSectionHeader = (title, startY) => {
       doc.setFillColor(...navyBlue)
       doc.rect(margin, startY, contentWidth, 6, 'F')
       doc.setTextColor(255, 255, 255)
       doc.setFontSize(8)
       doc.setFont('helvetica', 'bold')
-      doc.text(title, margin + 3, startY + 4)
-      return startY + 8
+      doc.text(title, margin + 3, startY + 4.2)
+      return startY + 6
     }
     
-    const drawField = (label, value, x, fieldY, labelWidth = 25) => {
-      doc.setTextColor(0, 0, 0)
+    const drawFieldRow = (fields, fieldY, startX = margin + 3) => {
+      let x = startX
+      doc.setFontSize(6)
+      fields.forEach(field => {
+        // Label
+        doc.setTextColor(100, 100, 100)
+        doc.setFont('helvetica', 'normal')
+        doc.text(field.label, x, fieldY)
+        // Value
+        doc.setTextColor(...navyBlue)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        const valueY = fieldY + 4
+        doc.text(field.value || '', x, valueY)
+        // Underline
+        doc.setDrawColor(60, 60, 60)
+        doc.line(x, valueY + 1, x + field.width - 5, valueY + 1)
+        doc.setFontSize(6)
+        x += field.width
+      })
+      return fieldY + 9
+    }
+    
+    const drawCheckbox = (x, checkY, checked, label) => {
+      doc.setDrawColor(60, 60, 60)
+      doc.setLineWidth(0.3)
+      doc.rect(x, checkY - 2.5, 3.5, 3.5, 'S')
+      if (checked) {
+        doc.setFillColor(...teal)
+        doc.rect(x + 0.5, checkY - 2, 2.5, 2.5, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(6)
+        doc.text('✓', x + 0.8, checkY + 0.3)
+      }
+      doc.setTextColor(40, 40, 40)
       doc.setFontSize(7)
       doc.setFont('helvetica', 'normal')
-      doc.text(label, x, fieldY)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...navyBlue)
-      doc.text(value || '', x + labelWidth, fieldY)
+      doc.text(label, x + 5, checkY)
+      doc.setLineWidth(0.2)
     }
     
     // ===== PATIENT INFORMATION =====
-    y += 12
-    y = drawSection('PATIENT INFORMATION', y)
+    y += 10
+    y = drawSectionHeader('PATIENT INFORMATION', y)
     
-    const colWidth = contentWidth / 2
-    const leftCol = margin + 3
-    const rightCol = margin + colWidth + 3
+    // Section border
+    const patientSectionStart = y
+    y += 3
     
-    // Patient column
-    drawField('First Name:', cycle.patient_first_name || '', leftCol, y, 20)
-    drawField('Last Name:', cycle.patient_last_name || '', leftCol + 55, y, 20)
-    y += 5
-    drawField('DOB:', formatDate(cycle.patient_dob), leftCol, y, 10)
-    drawField('Sex:', formatSex(cycle.patient_sex), leftCol + 40, y, 10)
-    y += 5
-    drawField('Email:', cycle.patient_email || '', leftCol, y, 12)
-    y += 5
-    drawField('Phone:', cycle.patient_phone || '', leftCol, y, 12)
+    // Row 1: Names and DOB
+    y = drawFieldRow([
+      { label: 'FIRST NAME', value: cycle.patient_first_name || '', width: 45 },
+      { label: 'LAST NAME', value: cycle.patient_last_name || '', width: 45 },
+      { label: 'DATE OF BIRTH', value: formatDate(cycle.patient_dob), width: 35 },
+      { label: 'SEX', value: formatSex(cycle.patient_sex), width: 25 }
+    ], y)
     
-    // Partner column (same row as patient)
-    let partnerY = y - 15
-    if (cycle.partner_first_name) {
-      drawField('Partner First:', cycle.partner_first_name || '', rightCol, partnerY, 25)
-      drawField('Last:', cycle.partner_last_name || '', rightCol + 60, partnerY, 12)
-      partnerY += 5
-      drawField('DOB:', formatDate(cycle.partner_dob), rightCol, partnerY, 10)
-      drawField('Sex:', formatSex(cycle.partner_sex), rightCol + 40, partnerY, 10)
-      partnerY += 5
-      drawField('Email:', cycle.partner_email || '', rightCol, partnerY, 12)
-      partnerY += 5
-      drawField('Phone:', cycle.partner_phone || '', rightCol, partnerY, 12)
+    // Row 2: Address
+    y = drawFieldRow([
+      { label: 'ADDRESS', value: cycle.patient_address || '', width: 80 },
+      { label: 'CITY', value: cycle.patient_city || '', width: 40 },
+      { label: 'STATE', value: getStateAbbrev(cycle.patient_state), width: 15 },
+      { label: 'ZIP', value: cycle.patient_zip || '', width: 20 }
+    ], y)
+    
+    // Row 3: Contact
+    y = drawFieldRow([
+      { label: 'PHONE', value: cycle.patient_phone || '', width: 50 },
+      { label: 'EMAIL', value: cycle.patient_email || '', width: 100 }
+    ], y)
+    
+    // Draw section border
+    doc.setDrawColor(200, 200, 200)
+    doc.rect(margin, patientSectionStart, contentWidth, y - patientSectionStart + 1, 'S')
+    
+    // ===== PARTNER INFORMATION =====
+    y += 4
+    y = drawSectionHeader('PARTNER INFORMATION', y)
+    const partnerSectionStart = y
+    y += 3
+    
+    if (cycle.partner_first_name || cycle.no_partner === false) {
+      y = drawFieldRow([
+        { label: 'FIRST NAME', value: cycle.partner_first_name || '', width: 45 },
+        { label: 'LAST NAME', value: cycle.partner_last_name || '', width: 45 },
+        { label: 'DATE OF BIRTH', value: formatDate(cycle.partner_dob), width: 35 },
+        { label: 'SEX', value: formatSex(cycle.partner_sex), width: 25 }
+      ], y)
+      
+      y = drawFieldRow([
+        { label: 'PHONE', value: cycle.partner_phone || '', width: 50 },
+        { label: 'EMAIL', value: cycle.partner_email || '', width: 100 }
+      ], y)
+    } else {
+      doc.setTextColor(100, 100, 100)
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'italic')
+      doc.text('No partner / Single parent', margin + 5, y + 3)
+      y += 8
     }
     
-    // ===== IVF CENTER INFORMATION =====
-    y += 8
-    y = drawSection('IVF CENTER INFORMATION', y)
+    doc.setDrawColor(200, 200, 200)
+    doc.rect(margin, partnerSectionStart, contentWidth, y - partnerSectionStart + 1, 'S')
     
-    // Get clinic info from cycle
+    // ===== IVF CENTER INFORMATION =====
+    y += 4
+    y = drawSectionHeader('IVF CENTER / CLINIC INFORMATION', y)
+    const clinicSectionStart = y
+    y += 3
+    
     const clinicName = cycle.clinic?.name || ''
     const clinicPhone = cycle.clinic?.phone || ''
     const clinicAddress = cycle.clinic?.address || ''
     const clinicCity = cycle.clinic?.city || ''
-    const clinicState = cycle.clinic?.state || ''
+    const clinicState = getStateAbbrev(cycle.clinic?.state)
     const clinicZip = cycle.clinic?.zip || ''
-    const clinicEmail = cycle.clinic?.email || ''
     
-    drawField('IVF Center Name:', clinicName, leftCol, y, 30)
-    drawField('Phone:', clinicPhone, rightCol, y, 15)
-    y += 5
-    drawField('Address:', clinicAddress, leftCol, y, 15)
-    drawField('City:', clinicCity, leftCol + 70, y, 10)
-    drawField('State:', clinicState, rightCol, y, 12)
-    drawField('Zip:', clinicZip, rightCol + 30, y, 10)
-    y += 5
-    drawField('Email:', clinicEmail, leftCol, y, 12)
+    y = drawFieldRow([
+      { label: 'CLINIC NAME', value: clinicName, width: 100 },
+      { label: 'PHONE', value: clinicPhone, width: 50 }
+    ], y)
     
-    // ===== CYCLE INFORMATION =====
-    y += 8
-    y = drawSection('CYCLE INFORMATION', y)
+    y = drawFieldRow([
+      { label: 'ADDRESS', value: clinicAddress, width: 80 },
+      { label: 'CITY', value: clinicCity, width: 40 },
+      { label: 'STATE', value: clinicState, width: 15 },
+      { label: 'ZIP', value: clinicZip, width: 20 }
+    ], y)
     
-    // Male Factor and Donor Gametes
-    doc.setTextColor(0, 0, 0)
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'normal')
-    doc.text('Male Factor Infertility?', leftCol, y)
+    // Ordering Physician
+    const providerName = cycle.ordering_provider 
+      ? `${cycle.ordering_provider.first_name || ''} ${cycle.ordering_provider.last_name || ''}${cycle.ordering_provider.credentials ? ', ' + cycle.ordering_provider.credentials : ''}`
+      : ''
     
-    // Draw checkboxes for Yes/No
-    const checkboxSize = 3
-    const yesX = leftCol + 38
-    const noX = leftCol + 52
-    doc.rect(yesX, y - 2.5, checkboxSize, checkboxSize, 'S')
-    doc.rect(noX, y - 2.5, checkboxSize, checkboxSize, 'S')
-    if (cycle.male_factor_infertility) {
-      doc.setFillColor(...navyBlue)
-      doc.rect(yesX + 0.5, y - 2, checkboxSize - 1, checkboxSize - 1, 'F')
-    } else {
-      doc.setFillColor(...navyBlue)
-      doc.rect(noX + 0.5, y - 2, checkboxSize - 1, checkboxSize - 1, 'F')
-    }
-    doc.text('Yes', yesX + 4, y)
-    doc.text('No', noX + 4, y)
+    y = drawFieldRow([
+      { label: 'ORDERING PHYSICIAN', value: providerName, width: 70 },
+      { label: 'NPI', value: cycle.ordering_provider?.npi || '', width: 40 },
+      { label: 'PHYSICIAN EMAIL', value: cycle.ordering_provider?.email || '', width: 50 }
+    ], y)
     
-    // Donor Gametes
-    doc.text('Donor Gametes Used?', rightCol, y)
-    const eggDonorX = rightCol + 38
-    const spermDonorX = rightCol + 70
-    doc.rect(eggDonorX, y - 2.5, checkboxSize, checkboxSize, 'S')
-    doc.rect(spermDonorX, y - 2.5, checkboxSize, checkboxSize, 'S')
-    if (cycle.is_egg_donor) {
-      doc.setFillColor(...navyBlue)
-      doc.rect(eggDonorX + 0.5, y - 2, checkboxSize - 1, checkboxSize - 1, 'F')
-    }
-    if (cycle.is_sperm_donor) {
-      doc.setFillColor(...navyBlue)
-      doc.rect(spermDonorX + 0.5, y - 2, checkboxSize - 1, checkboxSize - 1, 'F')
-    }
-    doc.text(`Egg Donor${cycle.egg_donor_age ? ' (' + cycle.egg_donor_age + ')' : ''}`, eggDonorX + 4, y)
-    doc.text(`Sperm Donor${cycle.sperm_donor_age ? ' (' + cycle.sperm_donor_age + ')' : ''}`, spermDonorX + 4, y)
-    
-    y += 6
-    doc.text('Sample Type:', leftCol, y)
-    const sampleTypes = ['d5_d6_d7_trophectoderm', 'rebiopsy', 'other']
-    const sampleLabels = ['D5/6/7 Trophectoderm', 'Rebiopsy', 'Other']
-    let sampleX = leftCol + 22
-    sampleTypes.forEach((type, i) => {
-      doc.rect(sampleX, y - 2.5, checkboxSize, checkboxSize, 'S')
-      if (cycle.sample_type === type) {
-        doc.setFillColor(...navyBlue)
-        doc.rect(sampleX + 0.5, y - 2, checkboxSize - 1, checkboxSize - 1, 'F')
-      }
-      doc.text(sampleLabels[i], sampleX + 4, y)
-      sampleX += 35 + (i === 0 ? 5 : 0)
-    })
+    doc.setDrawColor(200, 200, 200)
+    doc.rect(margin, clinicSectionStart, contentWidth, y - clinicSectionStart + 1, 'S')
     
     // ===== TEST INFORMATION =====
-    y += 8
-    y = drawSection('TEST INFORMATION', y)
+    y += 4
+    y = drawSectionHeader('TEST INFORMATION', y)
+    const testSectionStart = y
+    y += 4
     
-    // Test checkboxes
-    const pgtaX = leftCol
-    const pgtsrX = leftCol + 30
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.rect(pgtaX, y - 3, 4, 4, 'S')
-    doc.rect(pgtsrX, y - 3, 4, 4, 'S')
-    if (cycle.tests_ordered?.includes('pgt_a')) {
-      doc.setFillColor(...navyBlue)
-      doc.rect(pgtaX + 0.5, y - 2.5, 3, 3, 'F')
-    }
-    if (cycle.tests_ordered?.includes('pgt_sr')) {
-      doc.setFillColor(...navyBlue)
-      doc.rect(pgtsrX + 0.5, y - 2.5, 3, 3, 'F')
-    }
-    doc.setTextColor(0, 0, 0)
-    doc.text('PGT-A', pgtaX + 6, y)
-    doc.text('PGT-SR', pgtsrX + 6, y)
-    
-    y += 6
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'normal')
-    drawField('Reason for Testing:', cycle.reason_for_testing || '', leftCol, y, 30)
-    
-    // Mask Sex Results
-    y += 6
-    doc.setDrawColor(100, 100, 100)
-    doc.setLineDashPattern([1, 1], 0)
-    doc.rect(leftCol, y - 3, contentWidth - 6, 7, 'S')
-    doc.setLineDashPattern([], 0)
-    doc.rect(leftCol + 2, y - 1.5, checkboxSize, checkboxSize, 'S')
-    if (cycle.mask_sex_results) {
-      doc.setFillColor(...navyBlue)
-      doc.rect(leftCol + 2.5, y - 1, checkboxSize - 1, checkboxSize - 1, 'F')
-    }
-    doc.setFont('helvetica', 'bold')
-    doc.text('Mask Sex Results', leftCol + 7, y + 1)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(100, 100, 100)
-    doc.text('(Do not report embryo sex chromosomes)', leftCol + 35, y + 1)
-    
-    // ===== WARNING NOTICE =====
-    y += 12
-    doc.setFillColor(...warningYellow)
-    doc.rect(margin, y, contentWidth, 8, 'F')
-    doc.setDrawColor(...warningBorder)
-    doc.rect(margin, y, contentWidth, 8, 'S')
-    doc.setTextColor(146, 64, 14)
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'bold')
-    doc.text('⚠ TESTING WILL NOT BE COMPLETED WITHOUT A SIGNED PATIENT CONSENT FORM.', pageWidth / 2, y + 5, { align: 'center' })
-    
-    // ===== SIGNATURE SECTION =====
-    y += 14
-    doc.setDrawColor(200, 200, 200)
-    doc.line(margin, y, pageWidth - margin, y)
-    y += 5
-    
-    doc.setTextColor(0, 0, 0)
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'normal')
-    
-    // Left signature
-    doc.text('Form Completed By:', leftCol, y)
-    doc.line(leftCol + 30, y + 1, leftCol + 80, y + 1)
-    doc.setTextColor(...navyBlue)
-    doc.setFont('helvetica', 'bold')
-    doc.text(cycle.form_completed_by || '', leftCol + 32, y)
-    
-    // Date
-    doc.setTextColor(0, 0, 0)
-    doc.setFont('helvetica', 'normal')
-    y += 6
-    doc.text('Date:', leftCol, y)
-    doc.line(leftCol + 10, y + 1, leftCol + 40, y + 1)
-    doc.setTextColor(...navyBlue)
-    doc.setFont('helvetica', 'bold')
-    doc.text(formatDate(cycle.created_at), leftCol + 12, y)
-    
-    // Right signature - Ordering Physician
-    const rightSigY = y - 6
-    doc.setTextColor(0, 0, 0)
-    doc.setFont('helvetica', 'normal')
-    doc.text('Ordering Physician:', rightCol, rightSigY)
-    doc.line(rightCol + 32, rightSigY + 1, rightCol + 85, rightSigY + 1)
-    const providerName = cycle.ordering_provider 
-      ? `${cycle.ordering_provider.first_name} ${cycle.ordering_provider.last_name}${cycle.ordering_provider.credentials ? ', ' + cycle.ordering_provider.credentials : ''}`
-      : ''
-    doc.setTextColor(...navyBlue)
-    doc.setFont('helvetica', 'bold')
-    doc.text(providerName, rightCol + 34, rightSigY)
-    
-    doc.setTextColor(0, 0, 0)
-    doc.setFont('helvetica', 'normal')
-    doc.text('Physician Signature:', rightCol, y)
-    doc.line(rightCol + 32, y + 1, rightCol + 85, y + 1)
-    doc.setTextColor(...navyBlue)
-    doc.setFont('helvetica', 'italic')
-    doc.text('✓ Electronically Signed', rightCol + 34, y)
-    
-    // ===== FOOTER =====
-    doc.setFillColor(...navyBlue)
-    doc.rect(0, pageHeight - 12, pageWidth, 0.5, 'F')
+    // Tests Ordered
     doc.setTextColor(100, 100, 100)
     doc.setFontSize(6)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...navyBlue)
-    doc.text('Ally Genetics Laboratory', pageWidth / 2, pageHeight - 8, { align: 'center' })
     doc.setFont('helvetica', 'normal')
-    doc.setTextColor(100, 100, 100)
-    doc.text('1001 Parchment Dr SE, Grand Rapids, MI 49546 | Phone: (616) 465-2400 | Email: lab@allygenetics.com | www.allygenetics.com', pageWidth / 2, pageHeight - 5, { align: 'center' })
+    doc.text('TESTS ORDERED', margin + 3, y)
+    y += 4
     
-    doc.save(`${cycle.case_number}_requisition.pdf`)
+    const testsOrdered = cycle.tests_ordered || []
+    drawCheckbox(margin + 3, y, testsOrdered.includes('pgt_a'), 'PGT-A (Aneuploidy Screening)')
+    drawCheckbox(margin + 60, y, testsOrdered.includes('pgt_m'), 'PGT-M (Monogenic / Single Gene)')
+    drawCheckbox(margin + 125, y, testsOrdered.includes('pgt_sr'), 'PGT-SR (Structural Rearrangement)')
+    
+    y += 7
+    doc.setTextColor(100, 100, 100)
+    doc.setFontSize(6)
+    doc.text('SAMPLE TYPE', margin + 3, y)
+    y += 4
+    
+    drawCheckbox(margin + 3, y, cycle.sample_type === 'd5_d6_d7_trophectoderm', 'D5/D6/D7 Trophectoderm Biopsy')
+    drawCheckbox(margin + 65, y, cycle.sample_type === 'd3_blastomere', 'D3 Blastomere Biopsy')
+    drawCheckbox(margin + 115, y, cycle.sample_type === 'rebiopsy', 'Rebiopsy')
+    
+    y += 7
+    doc.setTextColor(100, 100, 100)
+    doc.setFontSize(6)
+    doc.text('REPORTING OPTIONS', margin + 3, y)
+    y += 4
+    
+    drawCheckbox(margin + 3, y, cycle.mask_sex_results === true, 'Mask Sex Results (Do not report embryo sex)')
+    
+    y += 4
+    doc.setDrawColor(200, 200, 200)
+    doc.rect(margin, testSectionStart, contentWidth, y - testSectionStart + 1, 'S')
+    
+    // ===== CYCLE INFORMATION =====
+    y += 4
+    y = drawSectionHeader('CYCLE INFORMATION', y)
+    const cycleSectionStart = y
+    y += 3
+    
+    // Diagnosis
+    y = drawFieldRow([
+      { label: 'DIAGNOSIS / INDICATION FOR TESTING', value: cycle.reason_for_testing || '', width: 155 }
+    ], y)
+    
+    // Male Factor
+    doc.setTextColor(100, 100, 100)
+    doc.setFontSize(6)
+    doc.text('MALE FACTOR INFERTILITY', margin + 3, y)
+    y += 4
+    drawCheckbox(margin + 3, y, cycle.male_factor_infertility === true, 'Yes')
+    drawCheckbox(margin + 25, y, cycle.male_factor_infertility === false, 'No')
+    
+    // Donor Gametes
+    doc.setTextColor(100, 100, 100)
+    doc.setFontSize(6)
+    doc.text('DONOR GAMETES USED', margin + 70, y - 4)
+    drawCheckbox(margin + 70, y, cycle.is_egg_donor === true, 'Egg Donor')
+    drawCheckbox(margin + 105, y, cycle.is_sperm_donor === true, 'Sperm Donor')
+    drawCheckbox(margin + 145, y, !cycle.is_egg_donor && !cycle.is_sperm_donor, 'None')
+    
+    y += 4
+    doc.setDrawColor(200, 200, 200)
+    doc.rect(margin, cycleSectionStart, contentWidth, y - cycleSectionStart + 1, 'S')
+    
+    // ===== SIGNATURES =====
+    y += 4
+    y = drawSectionHeader('SIGNATURES & CONSENT', y)
+    const sigSectionStart = y
+    y += 5
+    
+    const halfWidth = contentWidth / 2 - 5
+    
+    // Left box - Ordering Physician
+    doc.setDrawColor(200, 200, 200)
+    doc.rect(margin + 2, y, halfWidth, 25, 'S')
+    doc.setTextColor(...navyBlue)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'bold')
+    doc.text('ORDERING PHYSICIAN', margin + 5, y + 4)
+    
+    doc.setDrawColor(60, 60, 60)
+    doc.line(margin + 5, y + 14, margin + halfWidth - 5, y + 14)
+    doc.setTextColor(100, 100, 100)
+    doc.setFontSize(6)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Signature', margin + 5, y + 17)
+    
+    // Digital signature badge
+    doc.setFillColor(232, 245, 243)
+    doc.roundedRect(margin + 5, y + 19, 35, 4.5, 0.5, 0.5, 'F')
+    doc.setDrawColor(...teal)
+    doc.roundedRect(margin + 5, y + 19, 35, 4.5, 0.5, 0.5, 'S')
+    doc.setTextColor(...teal)
+    doc.setFontSize(5.5)
+    doc.setFont('helvetica', 'bold')
+    doc.text('✓ DIGITALLY SIGNED', margin + 7, y + 22)
+    
+    doc.setTextColor(80, 80, 80)
+    doc.setFontSize(6)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Date: ' + formatDate(cycle.created_at), margin + 50, y + 22)
+    
+    // Right box - Patient Consent
+    doc.setDrawColor(200, 200, 200)
+    doc.rect(margin + halfWidth + 8, y, halfWidth, 25, 'S')
+    doc.setTextColor(...navyBlue)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'bold')
+    doc.text('PATIENT CONSENT', margin + halfWidth + 11, y + 4)
+    
+    doc.setDrawColor(60, 60, 60)
+    doc.line(margin + halfWidth + 11, y + 14, margin + contentWidth - 5, y + 14)
+    doc.setTextColor(100, 100, 100)
+    doc.setFontSize(6)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Patient Signature', margin + halfWidth + 11, y + 17)
+    
+    // Consent on file badge
+    doc.setFillColor(232, 245, 243)
+    doc.roundedRect(margin + halfWidth + 11, y + 19, 32, 4.5, 0.5, 0.5, 'F')
+    doc.setDrawColor(...teal)
+    doc.roundedRect(margin + halfWidth + 11, y + 19, 32, 4.5, 0.5, 0.5, 'S')
+    doc.setTextColor(...teal)
+    doc.setFontSize(5.5)
+    doc.setFont('helvetica', 'bold')
+    doc.text('✓ CONSENT ON FILE', margin + halfWidth + 13, y + 22)
+    
+    doc.setTextColor(80, 80, 80)
+    doc.setFontSize(6)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Date: ' + formatDate(cycle.created_at), margin + halfWidth + 55, y + 22)
+    
+    y += 27
+    doc.setDrawColor(200, 200, 200)
+    doc.rect(margin, sigSectionStart, contentWidth, y - sigSectionStart + 1, 'S')
+    
+    // ===== FOOTER NOTICE =====
+    y += 4
+    doc.setFillColor(...lightBg)
+    doc.roundedRect(margin, y, contentWidth, 12, 1, 1, 'F')
+    doc.setDrawColor(...navyBlue)
+    doc.roundedRect(margin, y, contentWidth, 12, 1, 1, 'S')
+    
+    doc.setTextColor(...navyBlue)
+    doc.setFontSize(6)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Important:', margin + 3, y + 4)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(60, 60, 60)
+    doc.text('By signing this requisition, the ordering physician certifies that informed consent has been obtained from the patient', margin + 18, y + 4)
+    doc.text('and/or their legal representative for the requested genetic testing. Results will be reported to the ordering physician and IVF center only.', margin + 3, y + 7.5)
+    doc.text('For questions, contact Ally Genetics at (616) 465-2400 or lab@allygenetics.com.', margin + 3, y + 11)
+    
+    // ===== PAGE FOOTER =====
+    doc.setFillColor(...navyBlue)
+    doc.rect(0, pageHeight - 8, pageWidth, 0.5, 'F')
+    doc.setTextColor(100, 100, 100)
+    doc.setFontSize(5.5)
+    doc.text('Ally Genetics Laboratory | 1001 Parchment Dr SE, Grand Rapids, MI 49546 | (616) 465-2400 | lab@allygenetics.com | www.allygenetics.com', pageWidth / 2, pageHeight - 4, { align: 'center' })
+    
+    doc.save(`Requisition_${cycle.patient_last_name}_${cycle.patient_first_name}.pdf`)
   }
 
   function generateConsentPDF(cycle, signerType, consent) {
