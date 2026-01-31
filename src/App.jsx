@@ -3972,6 +3972,7 @@ function NewRequisitionPage() {
     if (formData.indication) caseData.indication = formData.indication
     if (formData.reason_for_testing) caseData.reason_for_testing = formData.reason_for_testing
     if (formData.form_completed_by) caseData.form_completed_by = formData.form_completed_by
+    if (karyotype_file_path) caseData.karyotype_file_path = karyotype_file_path
 
     const { data: newCase, error: insertError } = await supabase
       .from('cases')
@@ -6271,8 +6272,10 @@ function ConsentSigningPage() {
     readUnderstood: false,
     electronicConsent: false,
     agreeTerms: false,
+    insurancePayment: false,
     keyPoint1: false, // PGT-A accuracy and viable embryo discard
-    keyPoint2: false  // No sex selection/family balancing
+    keyPoint2: false, // No sex selection/family balancing
+    keyPoint3: false  // Liability waiver
   })
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -6333,9 +6336,9 @@ function ConsentSigningPage() {
   async function handleSubmit(e) {
     e.preventDefault()
     
-    // Validation - ALL 5 checkboxes must be checked
-    if (!checkboxes.readUnderstood || !checkboxes.electronicConsent || !checkboxes.agreeTerms || !checkboxes.keyPoint1 || !checkboxes.keyPoint2) {
-      setError('Please check all required boxes, including the two key acknowledgment points')
+    // Validation - ALL 7 checkboxes must be checked
+    if (!checkboxes.readUnderstood || !checkboxes.electronicConsent || !checkboxes.agreeTerms || !checkboxes.insurancePayment || !checkboxes.keyPoint1 || !checkboxes.keyPoint2 || !checkboxes.keyPoint3) {
+      setError('Please check all required boxes, including all key acknowledgment points')
       return
     }
 
@@ -6381,7 +6384,9 @@ function ConsentSigningPage() {
             checkboxes: checkboxes,
             keyAcknowledgments: {
               pgtAccuracy: checkboxes.keyPoint1,
-              noSexSelection: checkboxes.keyPoint2
+              noSexSelection: checkboxes.keyPoint2,
+              liabilityWaiver: checkboxes.keyPoint3,
+              insurancePayment: checkboxes.insurancePayment
             },
             user_agent: navigator.userAgent,
             signed_at: new Date().toISOString(),
@@ -6525,7 +6530,7 @@ function ConsentSigningPage() {
 
               <p className="mb-4"><strong>Misdiagnosis:</strong></p>
               <p className="mb-4">
-                No genetic testing is 100% accurate and PGT-A is no different. There remains an empirically determined 1-5% chance of misdiagnosis, either by false negative or false positive result. A false negative result will indicate an embryo has a normal number of chromosomes when there is actually a chromosomal abnormality. <strong>A false positive result will indicate an embryo has an abnormal chromosome copy number when it is actually normal, potentially leading to the discard of viable embryos.</strong> One recognized source of misdiagnosis is embryo mosaicism; a phenomenon in which the cells biopsied and analyzed are not genetically representative of the remainder of the embryo.
+                No genetic testing is 100% accurate and PGT-A is no different. Because only a small number of cells are biopsied from the outer layer of the embryo, the sample may not be representative of the entire embryo's chromosomal makeup. A false negative result will indicate an embryo has a normal number of chromosomes when there is actually a chromosomal abnormality. <strong>A false positive result will indicate an embryo has an abnormal chromosome copy number when it is actually normal, potentially leading to the discard of viable embryos.</strong> One recognized source of misdiagnosis is embryo mosaicism; a phenomenon in which the cells biopsied and analyzed are not genetically representative of the remainder of the embryo.
               </p>
 
               <p className="mb-4"><strong>Technical Limits of Detection</strong></p>
@@ -6540,7 +6545,7 @@ function ConsentSigningPage() {
 
               <p className="mb-4"><strong>Follow-Up Recommendation for Prenatal Diagnosis</strong></p>
               <p className="mb-4">
-                PGT-A cannot guarantee the birth of a chromosomally normal child. Due to inherent limitations and the chance of misdiagnosis, PGT-A should not be viewed as a replacement for prenatal testing and prenatal testing for ongoing pregnancies is recommended.
+                PGT-A cannot guarantee the birth of a chromosomally normal child. Due to inherent limitations, PGT-A should not be viewed as a replacement for prenatal testing and prenatal testing for ongoing pregnancies is recommended.
               </p>
 
               <p className="mb-4"><strong>Confidentiality and HIPAA</strong></p>
@@ -6562,9 +6567,8 @@ function ConsentSigningPage() {
               <div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">IMPORTANT: Please Read and Acknowledge</h3>
                 <p className="text-gray-800 font-semibold">
-                  I understand that PGT-A is not 100% accurate. There is a 1-5% chance of misdiagnosis. 
-                  A false positive result could incorrectly identify a chromosomally normal (viable) embryo as abnormal, 
-                  potentially leading to the discard of an embryo that could have resulted in a healthy pregnancy.
+                  I understand that PGT-A is not 100% accurate. The biopsied cells may not be representative of the entire embryo, 
+                  which means a chromosomally normal embryo could be misclassified as abnormal, potentially leading to the discard of a viable embryo.
                 </p>
               </div>
             </div>
@@ -6576,7 +6580,7 @@ function ConsentSigningPage() {
                 className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
               />
               <span className="text-sm font-semibold text-gray-900">
-                ✓ I acknowledge and understand that PGT-A is not 100% accurate and that viable embryos could potentially be discarded due to false positive results
+                ✓ I acknowledge and understand that PGT-A is not 100% accurate, that the biopsied cells may not represent the entire embryo, and that viable embryos could potentially be misclassified and discarded
               </span>
             </label>
           </div>
@@ -6603,6 +6607,33 @@ function ConsentSigningPage() {
               />
               <span className="text-sm font-semibold text-gray-900">
                 ✓ I acknowledge and understand that Ally Genetics does not perform sex selection or family balancing, and makes no guarantee on sex determination from PGT-A testing
+              </span>
+            </label>
+          </div>
+
+          {/* KEY ACKNOWLEDGMENT POINT #3 - LIABILITY WAIVER - MUST ACKNOWLEDGE */}
+          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
+            <div className="flex items-start gap-3 mb-4">
+              <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">IMPORTANT: Please Read and Acknowledge</h3>
+                <p className="text-gray-800 font-semibold">
+                  By signing this consent, I agree not to hold Ally Genetics, its employees, directors, and authorized agents 
+                  legally responsible for any misdiagnosis, including but not limited to false positive findings, false negative findings, 
+                  gender misidentifications, or any other errors arising from the inherent limitations of PGT-A testing. 
+                  I understand that PGT-A is a screening tool with known limitations and is not a guarantee of embryo health or pregnancy outcome.
+                </p>
+              </div>
+            </div>
+            <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
+              <input
+                type="checkbox"
+                checked={checkboxes.keyPoint3}
+                onChange={(e) => setCheckboxes(prev => ({ ...prev, keyPoint3: e.target.checked }))}
+                className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+              />
+              <span className="text-sm font-semibold text-gray-900">
+                ✓ I acknowledge and agree that I will not hold Ally Genetics legally responsible for any misdiagnosis or testing errors, and I understand that PGT-A results do not guarantee a healthy pregnancy or baby
               </span>
             </label>
           </div>
@@ -6644,6 +6675,18 @@ function ConsentSigningPage() {
                 />
                 <span className="text-sm text-gray-700">
                   I agree to all terms stated in this consent form and voluntarily consent to Preimplantation Genetic Testing
+                </span>
+              </label>
+              
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={checkboxes.insurancePayment}
+                  onChange={(e) => setCheckboxes(prev => ({ ...prev, insurancePayment: e.target.checked }))}
+                  className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
+                />
+                <span className="text-sm text-gray-700">
+                  I understand that Ally Genetics does not accept insurance and that payment in full must be received prior to the release of results
                 </span>
               </label>
             </div>
