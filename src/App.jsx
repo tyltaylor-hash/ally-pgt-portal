@@ -865,11 +865,12 @@ function ClinicDashboard() {
   }, [userData])
 
   async function fetchPatients() {
-    // Fetch all cases for this clinic with ordering provider info and consents
+    // Fetch all cases for this clinic with ordering provider info, clinic info, and consents
     const { data: allCases } = await supabase
       .from('cases')
       .select(`
         *,
+        clinic:clinics(id, name, address, city, state, zip, phone, email),
         ordering_provider:providers(first_name, last_name, credentials),
         consents(id, signer_type, status, signed_at, consent_token)
       `)
@@ -1153,6 +1154,12 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
   }
 
   function generateRequisitionPDF(cycle) {
+    // Debug - log the cycle data to console
+    console.log('Generating PDF for cycle:', cycle)
+    console.log('tests_ordered:', cycle.tests_ordered, 'type:', typeof cycle.tests_ordered)
+    console.log('sample_type:', cycle.sample_type)
+    console.log('male_factor_infertility:', cycle.male_factor_infertility)
+    
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
     const pageHeight = doc.internal.pageSize.getHeight()
