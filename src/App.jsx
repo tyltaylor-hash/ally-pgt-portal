@@ -1100,7 +1100,7 @@ function ClinicDashboard() {
                       ) : reportLocked ? (
                         <span className="group relative inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-100 cursor-not-allowed">
                           <svg className="w-3 h-3 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 1a3 3 0 00-3 3v4H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V10a2 2 0 00-2-2h-2V4a3 3 0 00-3-3z" /></svg>
-                          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-44 bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center">
+                          <div className="absolute top-6 left-1/2 -translate-x-1/2 w-44 bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center">
                             Report is ready but locked until consents are completed. Once signed, the report will be released.
                           </div>
                         </span>
