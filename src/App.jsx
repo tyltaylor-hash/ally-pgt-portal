@@ -711,12 +711,23 @@ function AdminDashboard() {
         .eq('clinic_id', caseData.clinic_id)
         .eq('is_active', true)
 
-      // Log notification (in production, this would send actual emails)
-      console.log('Would send report ready notification to:', clinicUsers?.map(u => u.email))
-      
-      // For now, we'll create a notification record (you can set up email later)
-      // In production, integrate with Resend, SendGrid, or similar
-      
+      // Send email notification via Edge Function
+      if (clinicUsers?.length > 0) {
+        try {
+          await supabase.functions.invoke('send-report-notification', {
+            body: {
+              emails: clinicUsers.map(u => u.email),
+              case_number: caseData.case_number,
+              patient_name: caseData.patient_name || 'Patient',
+              clinic_name: caseData.clinic_name || 'Clinic',
+              report_url: urlData.publicUrl,
+            }
+          })
+        } catch (emailError) {
+          console.error('Failed to send report notification:', emailError)
+        }
+      }
+
       alert(`Report uploaded successfully! ${clinicUsers?.length || 0} clinic users will be notified.`)
       fetchData()
     } catch (err) {
@@ -921,27 +932,51 @@ function ClinicDashboard() {
     }
   }
 
-  const filteredPatients = patients
-    .filter(p => {
+  // Flatten patients into individual case rows
+  const allCaseRows = patients.flatMap(p =>
+    p.cycles.map(c => ({
+      ...c,
+      patientName: `${p.last_name}, ${p.first_name}`,
+      dob: p.dob,
+      doctor: p.doctor,
+      patient: p,
+    }))
+  )
+
+  const filteredPatients = allCaseRows
+    .filter(c => {
       if (!searchTerm) return true
       const search = searchTerm.toLowerCase()
       return (
-        p.first_name?.toLowerCase().includes(search) ||
-        p.last_name?.toLowerCase().includes(search) ||
-        p.dob?.includes(search)
+        c.patientName?.toLowerCase().includes(search) ||
+        c.dob?.includes(search) ||
+        c.case_number?.toLowerCase().includes(search)
       )
     })
     .sort((a, b) => {
+      // Report ready cases always float to top, newest first
+      const aReport = a.status === 'report_ready' ? 1 : 0
+      const bReport = b.status === 'report_ready' ? 1 : 0
+      if (aReport !== bReport) return bReport - aReport
+      if (aReport && bReport) {
+        return new Date(b.report_uploaded_at || 0) - new Date(a.report_uploaded_at || 0)
+      }
+
       let aVal, bVal
       if (sortField === 'name') {
-        aVal = `${a.last_name} ${a.first_name}`.toLowerCase()
-        bVal = `${b.last_name} ${b.first_name}`.toLowerCase()
+        aVal = c.patientName?.toLowerCase() || ''
+        bVal = c.patientName?.toLowerCase() || ''
+        aVal = a.patientName?.toLowerCase() || ''
+        bVal = b.patientName?.toLowerCase() || ''
       } else if (sortField === 'dob') {
         aVal = a.dob || ''
         bVal = b.dob || ''
       } else if (sortField === 'doctor') {
-        aVal = a.doctor.toLowerCase()
-        bVal = b.doctor.toLowerCase()
+        aVal = (a.doctor || '').toLowerCase()
+        bVal = (b.doctor || '').toLowerCase()
+      } else if (sortField === 'case') {
+        aVal = a.case_number || ''
+        bVal = b.case_number || ''
       }
       
       if (sortDirection === 'asc') {
@@ -995,16 +1030,16 @@ function ClinicDashboard() {
       {/* Patient Records Table */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-4">
-          <h2 className="text-lg font-semibold text-ally-navy">Patient Records</h2>
+        <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3">
+          <h2 className="text-base font-semibold text-ally-navy whitespace-nowrap">Cases</h2>
           <div className="relative flex-1 max-w-xs">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by name or DOB..."
+              placeholder="Search patient, case #..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ally-teal w-full text-sm"
+              className="pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ally-teal w-full text-xs"
             />
           </div>
         </div>
@@ -1015,76 +1050,94 @@ function ClinicDashboard() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th 
+                  onClick={() => handleSort('case')}
+                  className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-28"
+                >Case #</th>
+                <th 
                   onClick={() => handleSort('name')}
-                  className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    Patient Name
-                    <svg className={`w-3 h-3 ${sortField === 'name' ? 'text-ally-teal' : 'text-gray-400 opacity-50'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </th>
+                  className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >Patient</th>
                 <th 
                   onClick={() => handleSort('dob')}
-                  className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    Date of Birth
-                    <svg className={`w-3 h-3 ${sortField === 'dob' ? 'text-ally-teal' : 'text-gray-400 opacity-50'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </th>
+                  className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-24"
+                >DOB</th>
                 <th 
                   onClick={() => handleSort('doctor')}
-                  className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    Doctor
-                    <svg className={`w-3 h-3 ${sortField === 'doctor' ? 'text-ally-teal' : 'text-gray-400 opacity-50'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </th>
+                  className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >Doctor</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Consent</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">Req</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Report</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredPatients.length > 0 ? filteredPatients.map((patient, idx) => (
-                <tr 
-                  key={idx}
-                  onClick={() => setSelectedPatient(patient)}
-                  className="hover:bg-gray-50 cursor-pointer transition-colors"
-                >
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-ally-teal/10 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-ally-teal font-medium text-sm">
-                          {patient.first_name?.[0]}{patient.last_name?.[0]}
-                        </span>
-                      </div>
-                      <span className="font-medium text-gray-900">
-                        {patient.last_name}, {patient.first_name}
+            <tbody className="divide-y divide-gray-100">
+              {filteredPatients.length > 0 ? filteredPatients.map((c, idx) => {
+                const consentSigned = c.patientConsent?.status === 'signed' && (!c.requires_partner_consent || c.partnerConsent?.status === 'signed')
+                const consentPending = !consentSigned && (c.patientConsent || c.partnerConsent)
+                const hasReport = !!c.report_file_url
+                const isReportReady = c.status === 'report_ready'
+
+                return (
+                  <tr 
+                    key={c.id || idx}
+                    onClick={() => setSelectedPatient(c.patient)}
+                    className={`cursor-pointer transition-colors text-sm ${isReportReady ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-gray-50'}`}
+                  >
+                    <td className="px-3 py-2">
+                      <span className={`font-medium ${isReportReady ? 'text-green-700' : 'text-ally-teal'}`}>
+                        {c.case_number}
                       </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {patient.dob ? new Date(patient.dob).toLocaleDateString('en-US') : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{patient.doctor}</td>
-                </tr>
-              )) : (
+                      {isReportReady && <span className="ml-1.5 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">New</span>}
+                    </td>
+                    <td className="px-3 py-2 text-gray-900 font-medium">{c.patientName}</td>
+                    <td className="px-3 py-2 text-gray-500 text-xs">{c.dob ? new Date(c.dob + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' }) : '—'}</td>
+                    <td className="px-3 py-2 text-gray-500 text-xs">{c.doctor}</td>
+                    <td className="px-3 py-2 text-center">
+                      {consentSigned ? (
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100">
+                          <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                        </span>
+                      ) : consentPending ? (
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-100">
+                          <svg className="w-3 h-3 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100">
+                          <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100">
+                        <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {hasReport ? (
+                        <a href={c.report_file_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                          className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100 hover:bg-green-200 transition-colors">
+                          <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        </a>
+                      ) : (
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100">
+                          <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              }) : (
                 <tr>
-                  <td colSpan={3} className="px-6 py-12 text-center text-gray-500">
-                    <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                    <FileText className="w-10 h-10 mx-auto mb-3 text-gray-300" />
                     {searchTerm ? (
-                      <p>No patients found matching "{searchTerm}"</p>
+                      <p className="text-sm">No cases found matching "{searchTerm}"</p>
                     ) : (
                       <div>
-                        <p className="mb-2">No patients yet.</p>
+                        <p className="text-sm mb-1">No cases yet.</p>
                         <button 
                           onClick={() => setShowRequisitionModal(true)}
-                          className="text-ally-teal hover:underline"
+                          className="text-ally-teal hover:underline text-sm"
                         >
                           Submit your first requisition →
                         </button>
@@ -3058,12 +3111,23 @@ function AllCasesPage() {
         .eq('clinic_id', caseData.clinic_id)
         .eq('is_active', true)
 
-      // Log notification (in production, this would send actual emails via Resend/SendGrid)
-      console.log('Sending report ready notification to:', clinicUsers?.map(u => u.email))
-      
-      // Store notification for email sending
-      // You would integrate with an email service here
-      
+      // Send email notification via Edge Function
+      if (clinicUsers?.length > 0) {
+        try {
+          await supabase.functions.invoke('send-report-notification', {
+            body: {
+              emails: clinicUsers.map(u => u.email),
+              case_number: caseData.case_number,
+              patient_name: caseData.patient_name || 'Patient',
+              clinic_name: caseData.clinic_name || 'Clinic',
+              report_url: urlData.publicUrl,
+            }
+          })
+        } catch (emailError) {
+          console.error('Failed to send report notification:', emailError)
+        }
+      }
+
       alert(`Report uploaded successfully!\n\nNotification will be sent to ${clinicUsers?.length || 0} user(s) at ${caseData.clinic?.name}.`)
       fetchData()
     } catch (err) {
