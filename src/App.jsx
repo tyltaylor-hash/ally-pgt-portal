@@ -606,7 +606,6 @@ function ClinicLayout({ children }) {
 // STATUS HELPERS
 // ============================================================================
 const statusLabels = {
-  requisition_submitted: 'Submitted',
   consent_pending: 'Consent Pending',
   consent_complete: 'Consent Complete',
   samples_received: 'Samples Received',
@@ -617,7 +616,6 @@ const statusLabels = {
 }
 
 const statusColors = {
-  requisition_submitted: 'bg-gray-100 text-gray-800',
   consent_pending: 'bg-yellow-100 text-yellow-800',
   consent_complete: 'bg-blue-100 text-blue-800',
   samples_received: 'bg-blue-100 text-blue-800',
@@ -703,14 +701,6 @@ function AdminDashboard() {
         .eq('id', caseData.id)
 
       if (updateError) throw updateError
-
-      // Get all users for this clinic to send notifications
-      const { data: clinicUsers } = await supabase
-        .from('users')
-        .select('email, first_name')
-        .eq('clinic_id', caseData.clinic_id)
-        .eq('is_active', true)
-
 
       alert('Report uploaded successfully! Clinic will be notified once consents are signed.')
       fetchData()
@@ -1051,7 +1041,6 @@ function ClinicDashboard() {
                   className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >Doctor</th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Consent</th>
-                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">Req</th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Report</th>
               </tr>
             </thead>
@@ -1107,11 +1096,6 @@ function ClinicDashboard() {
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-center">
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100">
-                        <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
                       {reportReleasable ? (
                         <button onClick={handleReportClick}
                           className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100 hover:bg-green-200 transition-colors">
@@ -1134,7 +1118,7 @@ function ClinicDashboard() {
                 )
               }) : (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
                     <FileText className="w-10 h-10 mx-auto mb-3 text-gray-300" />
                     {searchTerm ? (
                       <p className="text-sm">No cases found matching "{searchTerm}"</p>
@@ -1142,7 +1126,7 @@ function ClinicDashboard() {
                       <div>
                         <p className="text-sm mb-1">No cases yet.</p>
                         <button 
-                          onClick={() => setShowRequisitionModal(true)}
+                          onClick={() => navigate('/clinic/cases/new')}
                           className="text-ally-teal hover:underline text-sm"
                         >
                           Submit your first requisition →
@@ -3110,15 +3094,7 @@ function AllCasesPage() {
 
       if (updateError) throw updateError
 
-      // Get all users for this clinic to send notifications
-      const { data: clinicUsers } = await supabase
-        .from('users')
-        .select('email, first_name')
-        .eq('clinic_id', caseData.clinic_id)
-        .eq('is_active', true)
-
-
-      alert(`Report uploaded successfully!\n\nReport uploaded. Clinic will be notified once consents are signed.`)
+      alert('Report uploaded successfully! Clinic will be notified once consents are signed.')
       fetchData()
     } catch (err) {
       console.error('Upload error:', err)
@@ -3129,6 +3105,13 @@ function AllCasesPage() {
   }
 
   async function handleUpdateStatus(caseId, newStatus) {
+    if (newStatus === 'report_ready') {
+      const caseRow = cases.find(c => c.id === caseId)
+      if (!caseRow?.report_file_url) {
+        alert('Cannot set status to Report Ready — no report has been uploaded for this case.')
+        return
+      }
+    }
     await supabase
       .from('cases')
       .update({ status: newStatus })
@@ -3396,13 +3379,6 @@ function CaseDetailsPage({ isAdmin = false }) {
         })
         .eq('id', id)
 
-      // Get clinic users for notification
-      const { data: clinicUsers } = await supabase
-        .from('users')
-        .select('email, first_name')
-        .eq('clinic_id', caseData.clinic_id)
-        .eq('is_active', true)
-
       alert('Report uploaded! Clinic will be notified once consents are signed.')
       fetchCaseData()
     } catch (err) {
@@ -3413,6 +3389,10 @@ function CaseDetailsPage({ isAdmin = false }) {
   }
 
   async function handleStatusChange(newStatus) {
+    if (newStatus === 'report_ready' && !caseData?.report_file_url) {
+      alert('Cannot set status to Report Ready — no report has been uploaded for this case.')
+      return
+    }
     setUpdatingStatus(true)
     await supabase
       .from('cases')
@@ -3423,8 +3403,26 @@ function CaseDetailsPage({ isAdmin = false }) {
   }
 
   async function handleResendConsent(consent) {
-    // In production, this would trigger an email
-    alert(`Consent request resent to ${consent.signer_email}`)
+    if (!consent?.consent_token) {
+      alert('No consent token found.')
+      return
+    }
+    try {
+      await supabase.functions.invoke('send-consent-email', {
+        body: {
+          to: consent.signer_email,
+          firstName: consent.signer_name?.split(' ')[0] || '',
+          signerType: consent.signer_type,
+          consentToken: consent.consent_token,
+          caseNumber: caseData.case_number,
+          clinicName: caseData.clinic?.name || ''
+        }
+      })
+      alert(`Consent email resent to ${consent.signer_email}`)
+    } catch (err) {
+      console.error('Failed to resend consent:', err)
+      alert('Failed to resend consent email. Please try again.')
+    }
   }
 
   if (loading) {
@@ -3577,7 +3575,7 @@ function CaseDetailsPage({ isAdmin = false }) {
                       <span className="text-sm text-yellow-600">Pending</span>
                       {isAdmin && (
                         <button 
-                          onClick={() => handleResendConsent({ signer_email: caseData.patient_email })}
+                          onClick={() => handleResendConsent(patientConsent)}
                           className="text-xs text-ally-teal hover:underline"
                         >
                           Resend
@@ -3612,7 +3610,7 @@ function CaseDetailsPage({ isAdmin = false }) {
                         <span className="text-sm text-yellow-600">Pending</span>
                         {isAdmin && (
                           <button 
-                            onClick={() => handleResendConsent({ signer_email: caseData.partner_email })}
+                            onClick={() => handleResendConsent(partnerConsent)}
                             className="text-xs text-ally-teal hover:underline"
                           >
                             Resend
@@ -3632,31 +3630,89 @@ function CaseDetailsPage({ isAdmin = false }) {
               <h2 className="font-semibold">Report</h2>
             </div>
             <div className="p-6">
-              {caseData.report_file_url ? (
-                <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <div>
-                      <p className="font-medium text-green-800">Report Available</p>
-                      <p className="text-sm text-green-600">
-                        Uploaded {caseData.report_uploaded_at ? new Date(caseData.report_uploaded_at).toLocaleDateString() : ''}
-                      </p>
+              {(() => {
+                const consentFullySigned = patientConsent?.status === 'signed' &&
+                  (!caseData.requires_partner_consent || partnerConsent?.status === 'signed')
+                const reportReleasable = caseData.report_file_url && (isAdmin || consentFullySigned)
+                const reportLocked = caseData.report_file_url && !isAdmin && !consentFullySigned
+
+                if (reportReleasable) {
+                  return (
+                    <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                        <div>
+                          <p className="font-medium text-green-800">Report Available</p>
+                          <p className="text-sm text-green-600">
+                            Uploaded {caseData.report_uploaded_at ? new Date(caseData.report_uploaded_at).toLocaleDateString() : ''}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a 
+                          href={caseData.report_file_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm"
+                        >
+                          <Download className="w-4 h-4" />
+                          Download Report
+                        </a>
+                        {isAdmin && (
+                          <label className="flex items-center gap-1 border border-gray-300 px-3 py-2 rounded-md hover:bg-gray-50 text-sm cursor-pointer">
+                            <Upload className="w-4 h-4" />
+                            Replace
+                            <input
+                              type="file"
+                              accept=".pdf"
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files?.[0]) handleUploadReport(e.target.files[0])
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <a 
-                      href={caseData.report_file_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm"
-                    >
-                      <Download className="w-4 h-4" />
-                      Download Report
-                    </a>
+                  )
+                }
+
+                if (reportLocked) {
+                  return (
+                    <div className="flex items-center gap-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex-shrink-0">
+                        <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 1a3 3 0 00-3 3v4H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V10a2 2 0 00-2-2h-2V4a3 3 0 00-3-3z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-medium text-yellow-800">Report Locked</p>
+                        <p className="text-sm text-yellow-700">
+                          Report is ready but locked until{' '}
+                          {patientConsent?.status !== 'signed' && caseData.requires_partner_consent && partnerConsent?.status !== 'signed'
+                            ? 'patient and partner consents are signed'
+                            : patientConsent?.status !== 'signed'
+                              ? 'patient consent is signed'
+                              : 'partner consent is signed'
+                          }.
+                        </p>
+                      </div>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="text-center py-8">
+                    <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-gray-500 mb-4">No report uploaded yet.</p>
                     {isAdmin && (
-                      <label className="flex items-center gap-1 border border-gray-300 px-3 py-2 rounded-md hover:bg-gray-50 text-sm cursor-pointer">
-                        <Upload className="w-4 h-4" />
-                        Replace
+                      <label className="inline-flex items-center gap-2 bg-ally-teal text-white px-4 py-2 rounded-md hover:bg-ally-teal-dark cursor-pointer">
+                        {uploadingReport ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Upload className="w-4 h-4" />
+                        )}
+                        Upload Report
                         <input
                           type="file"
                           accept=".pdf"
@@ -3664,36 +3720,13 @@ function CaseDetailsPage({ isAdmin = false }) {
                           onChange={(e) => {
                             if (e.target.files?.[0]) handleUploadReport(e.target.files[0])
                           }}
+                          disabled={uploadingReport}
                         />
                       </label>
                     )}
                   </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p className="text-gray-500 mb-4">No report uploaded yet.</p>
-                  {isAdmin && (
-                    <label className="inline-flex items-center gap-2 bg-ally-teal text-white px-4 py-2 rounded-md hover:bg-ally-teal-dark cursor-pointer">
-                      {uploadingReport ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Upload className="w-4 h-4" />
-                      )}
-                      Upload Report
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        className="hidden"
-                        onChange={(e) => {
-                          if (e.target.files?.[0]) handleUploadReport(e.target.files[0])
-                        }}
-                        disabled={uploadingReport}
-                      />
-                    </label>
-                  )}
-                </div>
-              )}
+                )
+              })()}
             </div>
           </div>
         </div>
@@ -3988,6 +4021,7 @@ function NewRequisitionPage() {
     
     // Conditionally add fields only if they have values
     if (userData.id) caseData.created_by = userData.id
+    caseData.requires_partner_consent = isPartnerRequired
     if (formData.patient_phone) caseData.patient_phone = formData.patient_phone
     if (formData.patient_sex) caseData.patient_sex = formData.patient_sex
     if (formData.partner_first_name) caseData.partner_first_name = formData.partner_first_name
@@ -6955,7 +6989,7 @@ function ConsentSigningPage() {
         // Fetch the full case with all consents
         const { data: fullCase } = await supabase
           .from('cases')
-          .select(`*, consents(id, signer_type, status)`)
+          .select(`*, consents(id, signer_type, status), clinic:clinics(name)`)
           .eq('id', consent.case_id)
           .single()
 
