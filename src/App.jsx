@@ -2228,27 +2228,44 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
                     <FileText className="w-3.5 h-3.5 text-ally-teal" />
                     Reports
                   </div>
-                  {cycle.report_file_url ? (
-                    <button 
-                      onClick={() => handleDownload(cycle, 'report')}
-                      className="w-full flex items-center justify-between p-2 bg-gray-50 hover:bg-ally-teal/10 border border-gray-200 hover:border-ally-teal rounded-md transition-all text-left"
-                      disabled={downloading === `${cycle.id}-report`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium text-gray-900 truncate">PGT Report</div>
-                        <div className="text-[10px] text-gray-500">
-                          {cycle.report_uploaded_at ? new Date(cycle.report_uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : 'Available'}
+                  {(() => {
+                    const consentSigned = cycle.patientConsent?.status === 'signed' && (!cycle.requires_partner_consent || cycle.partnerConsent?.status === 'signed')
+                    if (cycle.report_file_url && consentSigned) {
+                      return (
+                        <button 
+                          onClick={() => handleDownload(cycle, 'report')}
+                          className="w-full flex items-center justify-between p-2 bg-gray-50 hover:bg-ally-teal/10 border border-gray-200 hover:border-ally-teal rounded-md transition-all text-left"
+                          disabled={downloading === `${cycle.id}-report`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-gray-900 truncate">PGT Report</div>
+                            <div className="text-[10px] text-gray-500">
+                              {cycle.report_uploaded_at ? new Date(cycle.report_uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : 'Available'}
+                            </div>
+                          </div>
+                          {downloading === `${cycle.id}-report` ? (
+                            <Loader2 className="w-3.5 h-3.5 text-ally-teal animate-spin flex-shrink-0 ml-2" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5 text-ally-teal flex-shrink-0 ml-2" />
+                          )}
+                        </button>
+                      )
+                    }
+                    if (cycle.report_file_url && !consentSigned) {
+                      return (
+                        <div className="flex items-center justify-between p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <svg className="w-3.5 h-3.5 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 1a3 3 0 00-3 3v4H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V10a2 2 0 00-2-2h-2V4a3 3 0 00-3-3z" /></svg>
+                            <div className="min-w-0">
+                              <div className="text-xs font-medium text-yellow-800 truncate">PGT Report</div>
+                              <div className="text-[10px] text-yellow-700">Locked until consents are signed</div>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      {downloading === `${cycle.id}-report` ? (
-                        <Loader2 className="w-3.5 h-3.5 text-ally-teal animate-spin flex-shrink-0 ml-2" />
-                      ) : (
-                        <Download className="w-3.5 h-3.5 text-ally-teal flex-shrink-0 ml-2" />
-                      )}
-                    </button>
-                  ) : (
-                    <div className="text-center py-4 text-gray-400 text-xs">No reports yet</div>
-                  )}
+                      )
+                    }
+                    return <div className="text-center py-4 text-gray-400 text-xs">No reports yet</div>
+                  })()}
                 </div>
               </div>
             </div>
