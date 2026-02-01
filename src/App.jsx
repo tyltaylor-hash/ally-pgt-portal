@@ -964,8 +964,6 @@ function ClinicDashboard() {
 
       let aVal, bVal
       if (sortField === 'name') {
-        aVal = c.patientName?.toLowerCase() || ''
-        bVal = c.patientName?.toLowerCase() || ''
         aVal = a.patientName?.toLowerCase() || ''
         bVal = b.patientName?.toLowerCase() || ''
       } else if (sortField === 'dob') {
