@@ -159,7 +159,7 @@ function AuthProvider({ children }) {
     setUserData(realUserData)
   }
 
-  const isAllyStaff = realUserData?.role === 'ally_staff' || realUserData?.role === 'ally_admin'
+  const isAllyStaff = realUserData?.role === 'ally_admin'
   const activeUserData = impersonating || userData
 
   return (
@@ -392,7 +392,6 @@ function AdminLayout({ children }) {
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { name: 'All Cases', href: '/admin/cases', icon: FileText },
     { name: 'Clinics', href: '/admin/clinics', icon: Building2 },
-    { name: 'Users', href: '/admin/users', icon: Users },
     { name: 'Kit Orders', href: '/admin/orders', icon: Package },
   ]
 
@@ -462,7 +461,7 @@ function ClinicLayout({ children }) {
 
   const handleStopImpersonation = () => {
     stopImpersonation()
-    navigate('/admin/users')
+    navigate('/admin/clinics')
   }
 
   const navigation = [
@@ -5201,17 +5200,20 @@ function ClinicsPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingClinic, setEditingClinic] = useState(null)
   const [showProvidersModal, setShowProvidersModal] = useState(null)
+  const [showClinicUsersModal, setShowClinicUsersModal] = useState(null)
+  const [clinicUsers, setClinicUsers] = useState([])
 
   useEffect(() => {
     fetchClinics()
   }, [])
 
   async function fetchClinics() {
-    const { data } = await supabase
-      .from('clinics')
-      .select('*, providers(*)')
-      .order('name')
-    setClinics(data || [])
+    const [clinicsResult, usersResult] = await Promise.all([
+      supabase.from('clinics').select('*, providers(*)').order('name'),
+      supabase.from('users').select('*').eq('role', 'clinic_user')
+    ])
+    setClinics(clinicsResult.data || [])
+    setClinicUsers(usersResult.data || [])
     setLoading(false)
   }
 
@@ -5243,6 +5245,7 @@ function ClinicsPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Providers</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Users</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
@@ -5266,6 +5269,14 @@ function ClinicsPage() {
                     className="text-ally-teal hover:underline text-sm"
                   >
                     {clinic.providers?.length || 0} providers
+                  </button>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <button
+                    onClick={() => setShowClinicUsersModal(clinic)}
+                    className="text-ally-teal hover:underline text-sm"
+                  >
+                    {clinicUsers.filter(u => u.clinic_id === clinic.id).length} users
                   </button>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -5300,6 +5311,15 @@ function ClinicsPage() {
           clinic={editingClinic}
           onClose={() => { setShowAddModal(false); setEditingClinic(null); }}
           onSave={() => { fetchClinics(); setShowAddModal(false); setEditingClinic(null); }}
+        />
+      )}
+
+      {/* Clinic Users Modal */}
+      {showClinicUsersModal && (
+        <ClinicUsersModal
+          clinic={showClinicUsersModal}
+          onClose={() => setShowClinicUsersModal(null)}
+          onSave={() => { fetchClinics(); setShowClinicUsersModal(null); }}
         />
       )}
 
@@ -5465,6 +5485,214 @@ function ClinicModal({ clinic, onClose, onSave }) {
 // ============================================================================
 // PROVIDERS MODAL
 // ============================================================================
+
+// ============================================================================
+// CLINIC USERS MODAL
+// ============================================================================
+function ClinicUsersModal({ clinic, onClose, onSave }) {
+  const { supabase } = useAuth()
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+  const [resetSentFor, setResetSentFor] = useState(null)
+  const [newUser, setNewUser] = useState({ first_name: '', last_name: '', email: '', sendWelcomeEmail: true })
+
+  useEffect(() => {
+    fetchUsers()
+  }, [])
+
+  async function fetchUsers() {
+    const { data } = await supabase
+      .from('users')
+      .select('*')
+      .eq('clinic_id', clinic.id)
+      .order('last_name')
+    setUsers(data || [])
+    setLoading(false)
+  }
+
+  async function addUser(e) {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+      let tempPassword = ''
+      for (let i = 0; i < 12; i++) tempPassword += chars.charAt(Math.floor(Math.random() * chars.length))
+
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newUser.email,
+        password: tempPassword,
+        options: { data: { first_name: newUser.first_name, last_name: newUser.last_name } }
+      })
+      if (authError) throw authError
+
+      await supabase.from('users').insert({
+        auth_id: authData.user.id,
+        email: newUser.email,
+        first_name: newUser.first_name,
+        last_name: newUser.last_name,
+        clinic_id: clinic.id,
+        role: 'clinic_user',
+        is_active: true,
+        must_change_password: newUser.sendWelcomeEmail,
+      })
+
+      if (newUser.sendWelcomeEmail) {
+        await supabase.auth.resetPasswordForEmail(newUser.email, {
+          redirectTo: window.location.origin + '/login'
+        })
+      }
+
+      setNewUser({ first_name: '', last_name: '', email: '', sendWelcomeEmail: true })
+      setShowAddForm(false)
+      setSaving(false)
+      fetchUsers()
+    } catch (err) {
+      setError(err.message)
+      setSaving(false)
+    }
+  }
+
+  async function toggleActive(user) {
+    await supabase.from('users').update({ is_active: !user.is_active }).eq('id', user.id)
+    fetchUsers()
+  }
+
+  async function sendPasswordReset(user) {
+    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo: window.location.origin + '/login'
+    })
+    if (!error) setResetSentFor(user.id)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Users at {clinic.name}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+
+        <div className="p-6 overflow-y-auto flex-1">
+          {loading ? (
+            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-ally-teal" /></div>
+          ) : (
+            <>
+              <div className="space-y-2 mb-4">
+                {users.map((user) => (
+                  <div key={user.id} className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-medium">{user.last_name}, {user.first_name}</span>
+                        <span className="text-sm text-gray-400 ml-2">({user.email})</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => toggleActive(user)}
+                          className={`text-sm px-2 py-1 rounded ${user.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}
+                        >
+                          {user.is_active ? 'Active' : 'Inactive'}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-3">
+                      {resetSentFor === user.id ? (
+                        <span className="flex items-center gap-1 text-xs text-green-700">
+                          <CheckCircle className="w-3 h-3" /> Reset email sent
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => sendPasswordReset(user)}
+                          className="flex items-center gap-1 text-xs text-gray-500 hover:text-ally-teal"
+                        >
+                          <Mail className="w-3 h-3" /> Reset password
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {users.length === 0 && !showAddForm && (
+                  <p className="text-center text-gray-500 py-4">No users yet</p>
+                )}
+              </div>
+
+              {showAddForm ? (
+                <div className="border-t pt-4 space-y-3">
+                  {error && (
+                    <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">{error}</div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="First Name *"
+                      value={newUser.first_name}
+                      onChange={(e) => setNewUser(u => ({ ...u, first_name: e.target.value }))}
+                      required
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Last Name *"
+                      value={newUser.last_name}
+                      onChange={(e) => setNewUser(u => ({ ...u, last_name: e.target.value }))}
+                      required
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+                    />
+                  </div>
+                  <input
+                    type="email"
+                    placeholder="Email *"
+                    value={newUser.email}
+                    onChange={(e) => setNewUser(u => ({ ...u, email: e.target.value }))}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+                  />
+                  <label className="flex items-center gap-2 cursor-pointer bg-gray-50 border rounded-lg p-3">
+                    <input
+                      type="checkbox"
+                      checked={newUser.sendWelcomeEmail}
+                      onChange={(e) => setNewUser(u => ({ ...u, sendWelcomeEmail: e.target.checked }))}
+                      className="rounded border-gray-300 text-ally-teal focus:ring-ally-teal"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Send welcome email with password setup link</span>
+                      <p className="text-xs text-gray-500">User will receive an email to set their own password</p>
+                    </div>
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={addUser}
+                      disabled={saving}
+                      className="flex items-center gap-2 bg-ally-teal text-white px-4 py-2 rounded-md hover:bg-ally-teal-dark disabled:opacity-50"
+                    >
+                      {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                      Add User
+                    </button>
+                    <button type="button" onClick={() => { setShowAddForm(false); setError(null) }} className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="flex items-center gap-2 text-ally-teal hover:underline"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add User
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ProvidersModal({ clinic, onClose, onSave }) {
   const { supabase } = useAuth()
   const [providers, setProviders] = useState([])
@@ -5644,8 +5872,6 @@ function UsersPage() {
 
   const roleLabels = {
     clinic_user: 'Clinic User',
-    clinic_admin: 'Clinic Admin',
-    ally_staff: 'Ally Staff',
     ally_admin: 'Ally Admin'
   }
 
@@ -5687,7 +5913,7 @@ function UsersPage() {
           className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
         >
           <option value="">All clinics</option>
-          <option value="ally">Ally Staff (no clinic)</option>
+          <option value="ally">No clinic</option>
           {clinics.map(c => (
             <option key={c.id} value={c.id}>
               {c.name}{c.city ? ` (${c.city}, ${c.state || ''})` : ''}
@@ -5718,7 +5944,7 @@ function UsersPage() {
                   {user.email}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {user.clinic?.name || <span className="text-gray-400 italic">Ally Staff</span>}
+                  {user.clinic?.name || <span className="text-gray-400 italic">No clinic</span>}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -5928,7 +6154,7 @@ function BulkImportUsersModal({ clinics, onClose, onSave }) {
   }
 
   function downloadTemplate() {
-    const template = 'email,first_name,last_name,role\njohn.doe@example.com,John,Doe,clinic_user\njane.smith@example.com,Jane,Smith,clinic_admin'
+    const template = 'email,first_name,last_name,role\njohn.doe@example.com,John,Doe,clinic_user\njane.smith@example.com,Jane,Smith,ally_admin'
     const blob = new Blob([template], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -6031,7 +6257,7 @@ function BulkImportUsersModal({ clinics, onClose, onSave }) {
             <p className="text-sm text-blue-800 font-medium mb-2">CSV Format Requirements:</p>
             <ul className="text-xs text-blue-700 space-y-1">
               <li>• Required columns: <code className="bg-blue-100 px-1">email</code>, <code className="bg-blue-100 px-1">first_name</code>, <code className="bg-blue-100 px-1">last_name</code></li>
-              <li>• Optional column: <code className="bg-blue-100 px-1">role</code> (clinic_user or clinic_admin)</li>
+              <li>• Optional column: <code className="bg-blue-100 px-1">role</code> (clinic_user or ally_admin)</li>
               <li>• First row must be the header</li>
             </ul>
             <button
@@ -6322,7 +6548,7 @@ function AddUserModal({ clinics, onClose, onSave }) {
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             >
-              <option value="">No clinic (Ally Staff)</option>
+              <option value="">No clinic</option>
               {clinics.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -6338,8 +6564,6 @@ function AddUserModal({ clinics, onClose, onSave }) {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             >
               <option value="clinic_user">Clinic User</option>
-              <option value="clinic_admin">Clinic Admin</option>
-              <option value="ally_staff">Ally Staff</option>
               <option value="ally_admin">Ally Admin</option>
             </select>
           </div>
@@ -6449,7 +6673,7 @@ function EditUserModal({ user, clinics, onClose, onSave }) {
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             >
-              <option value="">No clinic (Ally Staff)</option>
+              <option value="">No clinic</option>
               {clinics.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -6464,8 +6688,6 @@ function EditUserModal({ user, clinics, onClose, onSave }) {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             >
               <option value="clinic_user">Clinic User</option>
-              <option value="clinic_admin">Clinic Admin</option>
-              <option value="ally_staff">Ally Staff</option>
               <option value="ally_admin">Ally Admin</option>
             </select>
           </div>
@@ -7651,7 +7873,6 @@ export default function App() {
           <Route path="/admin/cases" element={<ProtectedRoute adminOnly><AdminLayout><AllCasesPage /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/cases/:id" element={<ProtectedRoute adminOnly><AdminLayout><CaseDetailsPage isAdmin={true} /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/clinics" element={<ProtectedRoute adminOnly><AdminLayout><ClinicsPage /></AdminLayout></ProtectedRoute>} />
-          <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminLayout><UsersPage /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/orders" element={<ProtectedRoute adminOnly><AdminLayout><KitOrdersPage /></AdminLayout></ProtectedRoute>} />
           
           {/* Clinic Routes */}
