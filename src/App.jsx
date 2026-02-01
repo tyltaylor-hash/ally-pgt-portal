@@ -659,8 +659,6 @@ function AdminDashboard() {
     const statusCounts = {
       total: statusData?.length || 0,
       consent_pending: statusData?.filter(c => c.status === 'consent_pending').length || 0,
-      samples_received: statusData?.filter(c => c.status === 'samples_received').length || 0,
-      in_progress: statusData?.filter(c => c.status === 'in_progress').length || 0,
       report_ready: statusData?.filter(c => c.status === 'report_ready').length || 0,
     }
 
@@ -715,8 +713,6 @@ function AdminDashboard() {
   const statCards = [
     { label: 'Total Cases', value: counts.total || 0, icon: FileText, color: 'bg-gray-100 text-gray-600' },
     { label: 'Consent Pending', value: counts.consent_pending || 0, icon: Clock, color: 'bg-yellow-50 text-yellow-600' },
-    { label: 'Samples Received', value: counts.samples_received || 0, icon: AlertCircle, color: 'bg-blue-50 text-blue-600' },
-    { label: 'In Progress', value: counts.in_progress || 0, icon: Loader2, color: 'bg-purple-50 text-purple-600' },
     { label: 'Reports Ready', value: counts.report_ready || 0, icon: CheckCircle, color: 'bg-green-50 text-green-600' },
   ]
 
@@ -2125,10 +2121,8 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
                     Started: {new Date(cycle.created_at).toLocaleDateString('en-US')}
                   </p>
                 </div>
-                <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-                  cycle.status === 'complete' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                }`}>
-                  {cycle.status === 'complete' ? 'Completed' : 'Active'}
+                <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                  Active
                 </span>
               </div>
 
@@ -2556,7 +2550,7 @@ function PatientFolderModal({ caseData, onClose, supabase }) {
       name: 'PGT Report', 
       description: 'Final testing results',
       icon: BarChart3,
-      available: caseData.status === 'report_ready' || caseData.status === 'complete'
+      available: caseData.status === 'report_ready'
     },
   ]
 
@@ -3170,10 +3164,7 @@ function AllCasesPage() {
           <option value="">All Statuses</option>
           <option value="consent_pending">Consent Pending</option>
           <option value="consent_complete">Consent Complete</option>
-          <option value="samples_received">Samples Received</option>
-          <option value="in_progress">In Progress</option>
           <option value="report_ready">Report Ready</option>
-          <option value="complete">Complete</option>
         </select>
       </div>
 
@@ -3225,10 +3216,7 @@ function AllCasesPage() {
                     >
                       <option value="consent_pending">Consent Pending</option>
                       <option value="consent_complete">Consent Complete</option>
-                      <option value="samples_received">Samples Received</option>
-                      <option value="in_progress">In Progress</option>
                       <option value="report_ready">Report Ready</option>
-                      <option value="complete">Complete</option>
                     </select>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-right">
@@ -3750,10 +3738,7 @@ function CaseDetailsPage({ isAdmin = false }) {
                 >
                   <option value="consent_pending">Consent Pending</option>
                   <option value="consent_complete">Consent Complete</option>
-                  <option value="samples_received">Samples Received</option>
-                  <option value="in_progress">In Progress</option>
                   <option value="report_ready">Report Ready</option>
-                  <option value="complete">Complete</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>
@@ -4789,10 +4774,7 @@ function ClinicCasesPage() {
           <option value="">All Statuses</option>
           <option value="consent_pending">Consent Pending</option>
           <option value="consent_complete">Consent Complete</option>
-          <option value="samples_received">Samples Received</option>
-          <option value="in_progress">In Progress</option>
           <option value="report_ready">Report Ready</option>
-          <option value="complete">Complete</option>
         </select>
       </div>
 
@@ -6993,28 +6975,38 @@ function ConsentSigningPage() {
           .eq('id', consent.case_id)
           .single()
 
-        if (fullCase && fullCase.report_file_url) {
+        if (fullCase) {
           const patientSigned = fullCase.consents?.find(c => c.signer_type === 'patient')?.status === 'signed'
           const partnerSigned = !fullCase.requires_partner_consent || fullCase.consents?.find(c => c.signer_type === 'partner')?.status === 'signed'
 
           if (patientSigned && partnerSigned) {
-            // All consents signed and report exists — notify clinic users
-            const { data: clinicUsers } = await supabase
-              .from('users')
-              .select('email')
-              .eq('clinic_id', fullCase.clinic_id)
-              .eq('is_active', true)
+            // All consents signed — auto-update case status
+            if (fullCase.status === 'consent_pending') {
+              await supabase
+                .from('cases')
+                .update({ status: 'consent_complete' })
+                .eq('id', fullCase.id)
+            }
 
-            if (clinicUsers?.length > 0) {
-              await supabase.functions.invoke('send-report-notification', {
-                body: {
-                  emails: clinicUsers.map(u => u.email),
-                  case_number: fullCase.case_number,
-                  patient_name: `${fullCase.patient_first_name || ''} ${fullCase.patient_last_name || ''}`.trim(),
-                  clinic_name: fullCase.clinic?.name || 'Clinic',
-                  report_url: fullCase.report_file_url,
-                }
-              })
+            // If report also exists, notify clinic users
+            if (fullCase.report_file_url) {
+              const { data: clinicUsers } = await supabase
+                .from('users')
+                .select('email')
+                .eq('clinic_id', fullCase.clinic_id)
+                .eq('is_active', true)
+
+              if (clinicUsers?.length > 0) {
+                await supabase.functions.invoke('send-report-notification', {
+                  body: {
+                    emails: clinicUsers.map(u => u.email),
+                    case_number: fullCase.case_number,
+                    patient_name: `${fullCase.patient_first_name || ''} ${fullCase.patient_last_name || ''}`.trim(),
+                    clinic_name: fullCase.clinic?.name || 'Clinic',
+                    report_url: fullCase.report_file_url,
+                  }
+                })
+              }
             }
           }
         }
