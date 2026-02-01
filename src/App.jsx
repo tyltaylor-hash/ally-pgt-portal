@@ -711,24 +711,8 @@ function AdminDashboard() {
         .eq('clinic_id', caseData.clinic_id)
         .eq('is_active', true)
 
-      // Send email notification via Edge Function
-      if (clinicUsers?.length > 0) {
-        try {
-          await supabase.functions.invoke('send-report-notification', {
-            body: {
-              emails: clinicUsers.map(u => u.email),
-              case_number: caseData.case_number,
-              patient_name: caseData.patient_name || 'Patient',
-              clinic_name: caseData.clinic_name || 'Clinic',
-              report_url: urlData.publicUrl,
-            }
-          })
-        } catch (emailError) {
-          console.error('Failed to send report notification:', emailError)
-        }
-      }
 
-      alert(`Report uploaded successfully! ${clinicUsers?.length || 0} clinic users will be notified.`)
+      alert('Report uploaded successfully! Clinic will be notified once consents are signed.')
       fetchData()
     } catch (err) {
       console.error('Upload error:', err)
@@ -1029,7 +1013,7 @@ function ClinicDashboard() {
       </div>
 
       {/* Patient Records Table */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-visible">
         {/* Header */}
         <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3">
           <h2 className="text-base font-semibold text-ally-navy whitespace-nowrap">Cases</h2>
@@ -1136,7 +1120,7 @@ function ClinicDashboard() {
                       ) : reportLocked ? (
                         <span className="group relative inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-100 cursor-not-allowed">
                           <svg className="w-3 h-3 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 1a3 3 0 00-3 3v4H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V10a2 2 0 00-2-2h-2V4a3 3 0 00-3-3z" /></svg>
-                          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-44 bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center">
+                          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-44 bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center">
                             Report is ready but locked until consents are completed. Once signed, the report will be released.
                           </div>
                         </span>
@@ -3133,24 +3117,8 @@ function AllCasesPage() {
         .eq('clinic_id', caseData.clinic_id)
         .eq('is_active', true)
 
-      // Send email notification via Edge Function
-      if (clinicUsers?.length > 0) {
-        try {
-          await supabase.functions.invoke('send-report-notification', {
-            body: {
-              emails: clinicUsers.map(u => u.email),
-              case_number: caseData.case_number,
-              patient_name: caseData.patient_name || 'Patient',
-              clinic_name: caseData.clinic_name || 'Clinic',
-              report_url: urlData.publicUrl,
-            }
-          })
-        } catch (emailError) {
-          console.error('Failed to send report notification:', emailError)
-        }
-      }
 
-      alert(`Report uploaded successfully!\n\nNotification will be sent to ${clinicUsers?.length || 0} user(s) at ${caseData.clinic?.name}.`)
+      alert(`Report uploaded successfully!\n\nReport uploaded. Clinic will be notified once consents are signed.`)
       fetchData()
     } catch (err) {
       console.error('Upload error:', err)
@@ -3435,7 +3403,7 @@ function CaseDetailsPage({ isAdmin = false }) {
         .eq('clinic_id', caseData.clinic_id)
         .eq('is_active', true)
 
-      alert(`Report uploaded! ${clinicUsers?.length || 0} clinic users will be notified.`)
+      alert('Report uploaded! Clinic will be notified once consents are signed.')
       fetchCaseData()
     } catch (err) {
       alert('Error uploading report: ' + err.message)
@@ -6981,6 +6949,45 @@ function ConsentSigningPage() {
       }
 
       setSubmitting(false)
+
+      // Check if all consents are now signed and report exists — if so, notify clinic
+      try {
+        // Fetch the full case with all consents
+        const { data: fullCase } = await supabase
+          .from('cases')
+          .select(`*, consents(id, signer_type, status)`)
+          .eq('id', consent.case_id)
+          .single()
+
+        if (fullCase && fullCase.report_file_url) {
+          const patientSigned = fullCase.consents?.find(c => c.signer_type === 'patient')?.status === 'signed'
+          const partnerSigned = !fullCase.requires_partner_consent || fullCase.consents?.find(c => c.signer_type === 'partner')?.status === 'signed'
+
+          if (patientSigned && partnerSigned) {
+            // All consents signed and report exists — notify clinic users
+            const { data: clinicUsers } = await supabase
+              .from('users')
+              .select('email')
+              .eq('clinic_id', fullCase.clinic_id)
+              .eq('is_active', true)
+
+            if (clinicUsers?.length > 0) {
+              await supabase.functions.invoke('send-report-notification', {
+                body: {
+                  emails: clinicUsers.map(u => u.email),
+                  case_number: fullCase.case_number,
+                  patient_name: `${fullCase.patient_first_name || ''} ${fullCase.patient_last_name || ''}`.trim(),
+                  clinic_name: fullCase.clinic?.name || 'Clinic',
+                  report_url: fullCase.report_file_url,
+                }
+              })
+            }
+          }
+        }
+      } catch (notifyErr) {
+        console.error('Failed to send report notification after consent:', notifyErr)
+      }
+
       setSuccess(true)
     } catch (err) {
       console.error('Error submitting consent:', err)
