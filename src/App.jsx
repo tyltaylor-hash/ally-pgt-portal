@@ -954,13 +954,16 @@ function ClinicDashboard() {
       )
     })
     .sort((a, b) => {
-      // Report ready cases always float to top, newest first
-      const aReport = a.status === 'report_ready' ? 1 : 0
-      const bReport = b.status === 'report_ready' ? 1 : 0
+      // Report ready + consent signed + not viewed = top (new reports)
+      // Report ready + consent not signed = next (awaiting consent)
+      // Everything else sorted normally
+      const aReport = a.report_file_url && a.patientConsent?.status === 'signed' && (!a.requires_partner_consent || a.partnerConsent?.status === 'signed') && !a.report_viewed_at ? 2
+        : a.report_file_url && !(a.patientConsent?.status === 'signed' && (!a.requires_partner_consent || a.partnerConsent?.status === 'signed')) ? 1
+        : 0
+      const bReport = b.report_file_url && b.patientConsent?.status === 'signed' && (!b.requires_partner_consent || b.partnerConsent?.status === 'signed') && !b.report_viewed_at ? 2
+        : b.report_file_url && !(b.patientConsent?.status === 'signed' && (!b.requires_partner_consent || b.partnerConsent?.status === 'signed')) ? 1
+        : 0
       if (aReport !== bReport) return bReport - aReport
-      if (aReport && bReport) {
-        return new Date(b.report_uploaded_at || 0) - new Date(a.report_uploaded_at || 0)
-      }
 
       let aVal, bVal
       if (sortField === 'name') {
@@ -1049,7 +1052,7 @@ function ClinicDashboard() {
               <tr>
                 <th 
                   onClick={() => handleSort('case')}
-                  className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-28"
+                  className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-52"
                 >Case #</th>
                 <th 
                   onClick={() => handleSort('name')}
@@ -1073,24 +1076,38 @@ function ClinicDashboard() {
                 const consentSigned = c.patientConsent?.status === 'signed' && (!c.requires_partner_consent || c.partnerConsent?.status === 'signed')
                 const consentPending = !consentSigned && (c.patientConsent || c.partnerConsent)
                 const hasReport = !!c.report_file_url
-                const isReportReady = c.status === 'report_ready'
+                const reportReleasable = hasReport && consentSigned
+                const reportLocked = hasReport && !consentSigned
+                const isNew = reportReleasable && !c.report_viewed_at
+
+                async function handleReportClick(e) {
+                  e.stopPropagation()
+                  if (!reportReleasable) return
+                  if (!c.report_viewed_at) {
+                    await supabase.from('cases').update({ report_viewed_at: new Date().toISOString() }).eq('id', c.id)
+                    c.report_viewed_at = new Date().toISOString()
+                    fetchPatients()
+                  }
+                  window.open(c.report_file_url, '_blank')
+                }
 
                 return (
                   <tr 
                     key={c.id || idx}
                     onClick={() => setSelectedPatient(c.patient)}
-                    className={`cursor-pointer transition-colors text-sm ${isReportReady ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-gray-50'}`}
+                    className={`cursor-pointer transition-colors text-sm ${isNew ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-gray-50'}`}
                   >
-                    <td className="px-3 py-2">
-                      <span className={`font-medium ${isReportReady ? 'text-green-700' : 'text-ally-teal'}`}>
+                    <td className="px-3 py-2.5">
+                      <span className={`font-medium ${isNew ? 'text-green-700' : 'text-ally-teal'}`}>
                         {c.case_number}
                       </span>
-                      {isReportReady && <span className="ml-1.5 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">New</span>}
+                      {isNew && <span className="ml-1.5 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">New</span>}
+                      {reportLocked && <span className="ml-1.5 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">Awaiting Consent</span>}
                     </td>
-                    <td className="px-3 py-2 text-gray-900 font-medium">{c.patientName}</td>
-                    <td className="px-3 py-2 text-gray-500 text-xs">{c.dob ? new Date(c.dob + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' }) : '—'}</td>
-                    <td className="px-3 py-2 text-gray-500 text-xs">{c.doctor}</td>
-                    <td className="px-3 py-2 text-center">
+                    <td className="px-3 py-2.5 text-gray-900 font-medium">{c.patientName}</td>
+                    <td className="px-3 py-2.5 text-gray-500 text-xs">{c.dob ? new Date(c.dob + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' }) : '—'}</td>
+                    <td className="px-3 py-2.5 text-gray-500 text-xs">{c.doctor}</td>
+                    <td className="px-3 py-2.5 text-center">
                       {consentSigned ? (
                         <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100">
                           <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
@@ -1105,17 +1122,24 @@ function ClinicDashboard() {
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-center">
+                    <td className="px-3 py-2.5 text-center">
                       <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100">
                         <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-center">
-                      {hasReport ? (
-                        <a href={c.report_file_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                    <td className="px-3 py-2.5 text-center">
+                      {reportReleasable ? (
+                        <button onClick={handleReportClick}
                           className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100 hover:bg-green-200 transition-colors">
                           <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                        </a>
+                        </button>
+                      ) : reportLocked ? (
+                        <span className="group relative inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-100 cursor-not-allowed">
+                          <svg className="w-3 h-3 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 1a3 3 0 00-3 3v4H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V10a2 2 0 00-2-2h-2V4a3 3 0 00-3-3z" /></svg>
+                          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-44 bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center">
+                            Report is ready but locked until consents are completed. Once signed, the report will be released.
+                          </div>
+                        </span>
                       ) : (
                         <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100">
                           <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
