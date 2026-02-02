@@ -5524,7 +5524,10 @@ function ClinicUsersModal({ clinic, onClose, onSave }) {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newUser.email,
         password: tempPassword,
-        options: { data: { first_name: newUser.first_name, last_name: newUser.last_name } }
+        options: { 
+          data: { first_name: newUser.first_name, last_name: newUser.last_name },
+          email_confirm: true // Don't auto-login the new user
+        }
       })
       if (authError) throw authError
 
