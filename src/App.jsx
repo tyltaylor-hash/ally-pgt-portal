@@ -5521,12 +5521,14 @@ function ClinicUsersModal({ clinic, onClose, onSave }) {
       let tempPassword = ''
       for (let i = 0; i < 12; i++) tempPassword += chars.charAt(Math.floor(Math.random() * chars.length))
 
+      // Save current admin session
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newUser.email,
         password: tempPassword,
         options: { 
-          data: { first_name: newUser.first_name, last_name: newUser.last_name },
-          email_confirm: true // Don't auto-login the new user
+          data: { first_name: newUser.first_name, last_name: newUser.last_name }
         }
       })
       if (authError) throw authError
@@ -5545,6 +5547,14 @@ function ClinicUsersModal({ clinic, onClose, onSave }) {
       if (newUser.sendWelcomeEmail) {
         await supabase.auth.resetPasswordForEmail(newUser.email, {
           redirectTo: window.location.origin + '/login'
+        })
+      }
+
+      // Restore admin session
+      if (currentSession) {
+        await supabase.auth.setSession({
+          access_token: currentSession.access_token,
+          refresh_token: currentSession.refresh_token
         })
       }
 
