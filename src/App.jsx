@@ -3162,6 +3162,25 @@ function AllCasesPage() {
     fetchData()
   }
 
+  async function handleDeleteCase(caseData) {
+    if (!confirm(`Are you sure you want to delete case "${caseData.case_number}"?\n\nPatient: ${caseData.patient_first_name} ${caseData.patient_last_name}\n\nThis will permanently delete the case and all associated data. This action cannot be undone.`)) {
+      return
+    }
+    
+    // Delete associated consents
+    await supabase.from('consents').delete().eq('case_id', caseData.id)
+    
+    // Delete associated biopsy worksheets
+    await supabase.from('biopsy_worksheets').delete().eq('case_id', caseData.id)
+    
+    // Delete the case
+    await supabase.from('cases').delete().eq('id', caseData.id)
+    
+    // Note: Files in storage remain but are orphaned - could clean up manually if needed
+    
+    fetchData()
+  }
+
   const filteredCases = cases.filter(c => {
     const matchesStatus = !statusFilter || c.status === statusFilter
     const matchesClinic = !clinicFilter || c.clinic_id === clinicFilter
@@ -3231,6 +3250,7 @@ function AllCasesPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Report</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -3318,11 +3338,19 @@ function AllCasesPage() {
                       </label>
                     )}
                   </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-right">
+                    <button
+                      onClick={() => handleDeleteCase(c)}
+                      className="text-red-600 hover:text-red-800 text-sm"
+                    >
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
               {filteredCases.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
                     {cases.length === 0 ? (
                       <>
                         <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
@@ -5358,9 +5386,44 @@ function ClinicsPage() {
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                   <button
                     onClick={() => setEditingClinic(clinic)}
-                    className="text-ally-teal hover:underline"
+                    className="text-ally-teal hover:underline mr-3"
                   >
                     Edit
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const userCount = clinicUsers.filter(u => u.clinic_id === clinic.id).length
+                      const providerCount = clinic.providers?.length || 0
+                      const { count: caseCount } = await supabase.from('cases').select('*', { count: 'exact', head: true }).eq('clinic_id', clinic.id)
+                      
+                      const warnings = []
+                      if (caseCount > 0) warnings.push(`${caseCount} cases`)
+                      if (userCount > 0) warnings.push(`${userCount} users`)
+                      if (providerCount > 0) warnings.push(`${providerCount} providers`)
+                      
+                      let message = `Are you sure you want to delete "${clinic.name}"?`
+                      if (warnings.length > 0) {
+                        message += `\n\nThis will also delete: ${warnings.join(', ')}`
+                      }
+                      message += '\n\nThis action cannot be undone.'
+                      
+                      if (confirm(message)) {
+                        // Delete in order: cases, users (auth + db), providers, clinic
+                        await supabase.from('cases').delete().eq('clinic_id', clinic.id)
+                        
+                        // Get user auth_ids before deleting
+                        const { data: usersToDelete } = await supabase.from('users').select('auth_id').eq('clinic_id', clinic.id)
+                        await supabase.from('users').delete().eq('clinic_id', clinic.id)
+                        
+                        await supabase.from('providers').delete().eq('clinic_id', clinic.id)
+                        await supabase.from('clinics').delete().eq('id', clinic.id)
+                        
+                        fetchClinics()
+                      }
+                    }}
+                    className="text-red-600 hover:underline"
+                  >
+                    Delete
                   </button>
                 </td>
               </tr>
@@ -5561,7 +5624,8 @@ function ClinicModal({ clinic, onClose, onSave }) {
 // CLINIC USERS MODAL
 // ============================================================================
 function ClinicUsersModal({ clinic, onClose, onSave }) {
-  const { supabase } = useAuth()
+  const { supabase, startImpersonation } = useAuth()
+  const navigate = useNavigate()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -5640,6 +5704,20 @@ function ClinicUsersModal({ clinic, onClose, onSave }) {
     }
   }
 
+  async function deleteUser(user) {
+    if (!confirm(`Are you sure you want to delete user "${user.first_name} ${user.last_name}"?\n\nThis action cannot be undone.`)) {
+      return
+    }
+    
+    // Delete from users table
+    await supabase.from('users').delete().eq('id', user.id)
+    
+    // Note: We can't delete from auth.users via client - that requires admin API
+    // The user record in auth will remain but be orphaned (won't be able to access anything)
+    
+    fetchUsers()
+  }
+
   async function toggleActive(user) {
     await supabase.from('users').update({ is_active: !user.is_active }).eq('id', user.id)
     fetchUsers()
@@ -5683,6 +5761,16 @@ function ClinicUsersModal({ clinic, onClose, onSave }) {
                       </div>
                     </div>
                     <div className="mt-2 flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          startImpersonation(user)
+                          onClose()
+                          navigate('/clinic')
+                        }}
+                        className="flex items-center gap-1 text-xs text-ally-teal hover:text-ally-teal-dark font-medium"
+                      >
+                        <Eye className="w-3 h-3" /> Login As
+                      </button>
                       {resetSentFor === user.id ? (
                         <span className="flex items-center gap-1 text-xs text-green-700">
                           <CheckCircle className="w-3 h-3" /> Reset email sent
@@ -5695,6 +5783,12 @@ function ClinicUsersModal({ clinic, onClose, onSave }) {
                           <Mail className="w-3 h-3" /> Reset password
                         </button>
                       )}
+                      <button
+                        onClick={() => deleteUser(user)}
+                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700"
+                      >
+                        <X className="w-3 h-3" /> Delete
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -5816,6 +5910,15 @@ function ProvidersModal({ clinic, onClose, onSave }) {
     onSave()
   }
 
+  async function deleteProvider(provider) {
+    if (!confirm(`Are you sure you want to delete provider "${provider.first_name} ${provider.last_name}"?\n\nThis action cannot be undone.`)) {
+      return
+    }
+    await supabase.from('providers').delete().eq('id', provider.id)
+    fetchProviders()
+    onSave()
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col">
@@ -5837,12 +5940,20 @@ function ProvidersModal({ clinic, onClose, onSave }) {
                       {provider.credentials && <span className="text-gray-500">, {provider.credentials}</span>}
                       {provider.email && <span className="text-sm text-gray-400 ml-2">({provider.email})</span>}
                     </div>
-                    <button
-                      onClick={() => toggleProviderActive(provider)}
-                      className={`text-sm px-2 py-1 rounded ${provider.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}
-                    >
-                      {provider.is_active ? 'Active' : 'Inactive'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleProviderActive(provider)}
+                        className={`text-sm px-2 py-1 rounded ${provider.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}
+                      >
+                        {provider.is_active ? 'Active' : 'Inactive'}
+                      </button>
+                      <button
+                        onClick={() => deleteProvider(provider)}
+                        className="text-sm px-2 py-1 text-red-600 hover:text-red-800"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {providers.length === 0 && !showAddForm && (
