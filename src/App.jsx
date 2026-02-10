@@ -393,6 +393,7 @@ function AdminLayout({ children }) {
     { name: 'All Cases', href: '/admin/cases', icon: FileText },
     { name: 'Clinics', href: '/admin/clinics', icon: Building2 },
     { name: 'Kit Orders', href: '/admin/orders', icon: Package },
+    { name: 'Bulk Import', href: '/admin/import', icon: Upload },
   ]
 
   return (
@@ -7089,6 +7090,301 @@ function KitOrdersPage() {
 }
 
 // ============================================================================
+// BULK IMPORT PAGE (Admin Only)
+// ============================================================================
+function BulkImportPage() {
+  const { supabase } = useAuth()
+  const [files, setFiles] = useState([])
+  const [clinics, setClinics] = useState([])
+  const [selectedClinic, setSelectedClinic] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [progress, setProgress] = useState({ current: 0, total: 0 })
+  const [results, setResults] = useState([])
+  const [completed, setCompleted] = useState(false)
+
+  useEffect(() => {
+    fetchClinics()
+  }, [])
+
+  async function fetchClinics() {
+    const { data } = await supabase.from('clinics').select('id, name').order('name')
+    setClinics(data || [])
+  }
+
+  function handleFileSelect(e) {
+    const selectedFiles = Array.from(e.target.files).filter(f => f.name.endsWith('.pdf'))
+    setFiles(selectedFiles)
+    setResults([])
+    setCompleted(false)
+  }
+
+  function parseFilename(filename) {
+    // Format: "LastName, FirstName YYYY-MM-DD.pdf"
+    const match = filename.match(/^(.+),\s*(.+)\s+(\d{4}-\d{2}-\d{2})\.pdf$/i)
+    if (match) {
+      return {
+        lastName: match[1].trim(),
+        firstName: match[2].trim(),
+        reportDate: match[3]
+      }
+    }
+    return null
+  }
+
+  async function generateCaseNumber() {
+    const year = new Date().getFullYear()
+    const { data } = await supabase
+      .from('cases')
+      .select('case_number')
+      .like('case_number', `AG-${year}-%`)
+      .order('case_number', { ascending: false })
+      .limit(1)
+    
+    let nextNum = 1
+    if (data && data.length > 0) {
+      const lastNum = parseInt(data[0].case_number.split('-')[2])
+      nextNum = lastNum + 1
+    }
+    return `AG-${year}-${String(nextNum).padStart(4, '0')}`
+  }
+
+  async function handleImport() {
+    if (!selectedClinic || files.length === 0) {
+      alert('Please select a clinic and upload PDF files')
+      return
+    }
+
+    setImporting(true)
+    setProgress({ current: 0, total: files.length })
+    const importResults = []
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      setProgress({ current: i + 1, total: files.length })
+
+      const parsed = parseFilename(file.name)
+      if (!parsed) {
+        importResults.push({ filename: file.name, status: 'error', message: 'Could not parse filename' })
+        continue
+      }
+
+      try {
+        // Generate case number
+        const caseNumber = await generateCaseNumber()
+
+        // Create case (status = completed, no emails sent)
+        const { data: newCase, error: caseError } = await supabase
+          .from('cases')
+          .insert({
+            case_number: caseNumber,
+            clinic_id: selectedClinic,
+            patient_first_name: parsed.firstName,
+            patient_last_name: parsed.lastName,
+            patient_dob: '1900-01-01', // Placeholder DOB
+            test_type: 'pgt_a',
+            status: 'completed',
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single()
+
+        if (caseError) throw caseError
+
+        // Upload report to storage
+        const filePath = `reports/${selectedClinic}/${caseNumber}_report_${Date.now()}.pdf`
+        const { error: uploadError } = await supabase.storage
+          .from('case-documents')
+          .upload(filePath, file)
+
+        if (uploadError) throw uploadError
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('case-documents')
+          .getPublicUrl(filePath)
+
+        // Update case with report URL
+        await supabase
+          .from('cases')
+          .update({
+            report_file_url: urlData.publicUrl,
+            report_file_name: file.name,
+            report_uploaded_at: parsed.reportDate + 'T00:00:00Z'
+          })
+          .eq('id', newCase.id)
+
+        importResults.push({ 
+          filename: file.name, 
+          status: 'success', 
+          message: `Created ${caseNumber}`,
+          caseNumber 
+        })
+
+      } catch (err) {
+        importResults.push({ filename: file.name, status: 'error', message: err.message })
+      }
+    }
+
+    setResults(importResults)
+    setImporting(false)
+    setCompleted(true)
+  }
+
+  const successCount = results.filter(r => r.status === 'success').length
+  const errorCount = results.filter(r => r.status === 'error').length
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Bulk Import Reports</h1>
+        <p className="text-gray-600 mt-1">Import historical reports and create cases automatically</p>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm border p-6 space-y-6">
+        {/* Instructions */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="font-medium text-blue-900 mb-2">File Naming Format</h3>
+          <p className="text-blue-800 text-sm">
+            Files must be named: <code className="bg-blue-100 px-1 rounded">LastName, FirstName YYYY-MM-DD.pdf</code>
+          </p>
+          <p className="text-blue-700 text-sm mt-1">
+            Example: <code className="bg-blue-100 px-1 rounded">Turvin, Kelsey 2025-05-16.pdf</code>
+          </p>
+        </div>
+
+        {/* Clinic Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Select Clinic</label>
+          <select
+            value={selectedClinic}
+            onChange={(e) => setSelectedClinic(e.target.value)}
+            className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            disabled={importing}
+          >
+            <option value="">-- Select Clinic --</option>
+            {clinics.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* File Upload */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Upload PDF Reports</label>
+          <input
+            type="file"
+            multiple
+            accept=".pdf"
+            onChange={handleFileSelect}
+            disabled={importing}
+            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-ally-teal file:text-white hover:file:bg-ally-teal-dark"
+          />
+          {files.length > 0 && (
+            <p className="mt-2 text-sm text-gray-600">{files.length} PDF file(s) selected</p>
+          )}
+        </div>
+
+        {/* File Preview */}
+        {files.length > 0 && !completed && (
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Files to Import:</h3>
+            <div className="max-h-60 overflow-y-auto border rounded-md divide-y">
+              {files.map((file, idx) => {
+                const parsed = parseFilename(file.name)
+                return (
+                  <div key={idx} className="px-3 py-2 text-sm flex items-center justify-between">
+                    <span className="text-gray-900">{file.name}</span>
+                    {parsed ? (
+                      <span className="text-green-600">✓ {parsed.lastName}, {parsed.firstName}</span>
+                    ) : (
+                      <span className="text-red-600">✗ Invalid format</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Progress */}
+        {importing && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-ally-teal" />
+              <span className="text-gray-700">Importing {progress.current} of {progress.total}...</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-ally-teal h-2 rounded-full transition-all"
+                style={{ width: `${(progress.current / progress.total) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Results */}
+        {completed && (
+          <div className="space-y-4">
+            <div className="flex gap-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                <p className="text-green-800 font-medium">{successCount} Imported Successfully</p>
+              </div>
+              {errorCount > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                  <p className="text-red-800 font-medium">{errorCount} Errors</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="max-h-60 overflow-y-auto border rounded-md divide-y">
+              {results.map((result, idx) => (
+                <div key={idx} className={`px-3 py-2 text-sm flex items-center justify-between ${result.status === 'error' ? 'bg-red-50' : ''}`}>
+                  <span className="text-gray-900">{result.filename}</span>
+                  <span className={result.status === 'success' ? 'text-green-600' : 'text-red-600'}>
+                    {result.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Import Button */}
+        {!completed && (
+          <button
+            onClick={handleImport}
+            disabled={importing || !selectedClinic || files.length === 0}
+            className="bg-ally-teal text-white px-6 py-2 rounded-md hover:bg-ally-teal-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {importing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Importing...
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4" />
+                Import {files.length} Report{files.length !== 1 ? 's' : ''}
+              </>
+            )}
+          </button>
+        )}
+
+        {/* Reset */}
+        {completed && (
+          <button
+            onClick={() => { setFiles([]); setResults([]); setCompleted(false); }}
+            className="bg-gray-100 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-200"
+          >
+            Import More
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
 // RESET PASSWORD PAGE
 // ============================================================================
 function ResetPasswordPage() {
@@ -7253,6 +7549,7 @@ export default function App() {
           <Route path="/admin/cases/:id" element={<ProtectedRoute adminOnly><AdminLayout><CaseDetailsPage isAdmin={true} /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/clinics" element={<ProtectedRoute adminOnly><AdminLayout><ClinicsPage /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/orders" element={<ProtectedRoute adminOnly><AdminLayout><KitOrdersPage /></AdminLayout></ProtectedRoute>} />
+          <Route path="/admin/import" element={<ProtectedRoute adminOnly><AdminLayout><BulkImportPage /></AdminLayout></ProtectedRoute>} />
           
           {/* Clinic Routes */}
           <Route path="/clinic" element={<ProtectedRoute><ClinicLayout><ClinicDashboard /></ClinicLayout></ProtectedRoute>} />
