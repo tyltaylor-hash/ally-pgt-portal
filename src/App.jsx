@@ -7095,6 +7095,7 @@ function KitOrdersPage() {
 function BulkImportPage() {
   const { supabase } = useAuth()
   const [files, setFiles] = useState([])
+  const [fileData, setFileData] = useState({}) // Manual overrides for each file
   const [clinics, setClinics] = useState([])
   const [selectedClinic, setSelectedClinic] = useState('')
   const [importing, setImporting] = useState(false)
@@ -7114,6 +7115,18 @@ function BulkImportPage() {
   function handleFileSelect(e) {
     const selectedFiles = Array.from(e.target.files).filter(f => f.name.endsWith('.pdf'))
     setFiles(selectedFiles)
+    
+    // Initialize fileData with parsed values or empty
+    const initialData = {}
+    selectedFiles.forEach((file, idx) => {
+      const parsed = parseFilename(file.name)
+      initialData[idx] = {
+        firstName: parsed?.firstName || '',
+        lastName: parsed?.lastName || '',
+        reportDate: parsed?.reportDate || new Date().toISOString().split('T')[0]
+      }
+    })
+    setFileData(initialData)
     setResults([])
     setCompleted(false)
   }
@@ -7129,6 +7142,13 @@ function BulkImportPage() {
       }
     }
     return null
+  }
+
+  function updateFileData(idx, field, value) {
+    setFileData(prev => ({
+      ...prev,
+      [idx]: { ...prev[idx], [field]: value }
+    }))
   }
 
   async function generateCaseNumber() {
@@ -7154,19 +7174,22 @@ function BulkImportPage() {
       return
     }
 
+    // Validate all files have names
+    for (let i = 0; i < files.length; i++) {
+      if (!fileData[i]?.firstName || !fileData[i]?.lastName) {
+        alert(`Please enter first and last name for: ${files[i].name}`)
+        return
+      }
+    }
+
     setImporting(true)
     setProgress({ current: 0, total: files.length })
     const importResults = []
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
+      const data = fileData[i]
       setProgress({ current: i + 1, total: files.length })
-
-      const parsed = parseFilename(file.name)
-      if (!parsed) {
-        importResults.push({ filename: file.name, status: 'error', message: 'Could not parse filename' })
-        continue
-      }
 
       try {
         // Generate case number
@@ -7178,8 +7201,8 @@ function BulkImportPage() {
           .insert({
             case_number: caseNumber,
             clinic_id: selectedClinic,
-            patient_first_name: parsed.firstName,
-            patient_last_name: parsed.lastName,
+            patient_first_name: data.firstName,
+            patient_last_name: data.lastName,
             patient_dob: '1900-01-01', // Placeholder DOB
             test_type: 'pgt_a',
             status: 'completed',
@@ -7209,7 +7232,7 @@ function BulkImportPage() {
           .update({
             report_file_url: urlData.publicUrl,
             report_file_name: file.name,
-            report_uploaded_at: parsed.reportDate + 'T00:00:00Z'
+            report_uploaded_at: data.reportDate + 'T00:00:00Z'
           })
           .eq('id', newCase.id)
 
@@ -7243,12 +7266,12 @@ function BulkImportPage() {
       <div className="bg-white rounded-lg shadow-sm border p-6 space-y-6">
         {/* Instructions */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-medium text-blue-900 mb-2">File Naming Format</h3>
+          <h3 className="font-medium text-blue-900 mb-2">How it works</h3>
           <p className="text-blue-800 text-sm">
-            Files must be named: <code className="bg-blue-100 px-1 rounded">LastName, FirstName YYYY-MM-DD.pdf</code>
+            Upload PDF reports and we'll try to parse patient names from filenames. You can edit any name before importing.
           </p>
           <p className="text-blue-700 text-sm mt-1">
-            Example: <code className="bg-blue-100 px-1 rounded">Turvin, Kelsey 2025-05-16.pdf</code>
+            Auto-parse format: <code className="bg-blue-100 px-1 rounded">LastName, FirstName YYYY-MM-DD.pdf</code>
           </p>
         </div>
 
@@ -7284,21 +7307,50 @@ function BulkImportPage() {
           )}
         </div>
 
-        {/* File Preview */}
+        {/* File List with Editable Names */}
         {files.length > 0 && !completed && (
           <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Files to Import:</h3>
-            <div className="max-h-60 overflow-y-auto border rounded-md divide-y">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Review & Edit Patient Names:</h3>
+            <div className="border rounded-md divide-y max-h-96 overflow-y-auto">
               {files.map((file, idx) => {
                 const parsed = parseFilename(file.name)
+                const data = fileData[idx] || {}
+                const isValid = data.firstName && data.lastName
                 return (
-                  <div key={idx} className="px-3 py-2 text-sm flex items-center justify-between">
-                    <span className="text-gray-900">{file.name}</span>
-                    {parsed ? (
-                      <span className="text-green-600">✓ {parsed.lastName}, {parsed.firstName}</span>
-                    ) : (
-                      <span className="text-red-600">✗ Invalid format</span>
-                    )}
+                  <div key={idx} className={`p-3 ${!isValid ? 'bg-yellow-50' : ''}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-600 truncate max-w-xs">{file.name}</span>
+                      {parsed ? (
+                        <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Auto-parsed</span>
+                      ) : (
+                        <span className="text-xs text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded">Manual entry</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <input
+                        type="text"
+                        placeholder="First Name *"
+                        value={data.firstName || ''}
+                        onChange={(e) => updateFileData(idx, 'firstName', e.target.value)}
+                        disabled={importing}
+                        className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Last Name *"
+                        value={data.lastName || ''}
+                        onChange={(e) => updateFileData(idx, 'lastName', e.target.value)}
+                        disabled={importing}
+                        className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                      />
+                      <input
+                        type="date"
+                        value={data.reportDate || ''}
+                        onChange={(e) => updateFileData(idx, 'reportDate', e.target.value)}
+                        disabled={importing}
+                        className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                      />
+                    </div>
                   </div>
                 )
               })}
@@ -7373,7 +7425,7 @@ function BulkImportPage() {
         {/* Reset */}
         {completed && (
           <button
-            onClick={() => { setFiles([]); setResults([]); setCompleted(false); }}
+            onClick={() => { setFiles([]); setFileData({}); setResults([]); setCompleted(false); }}
             className="bg-gray-100 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-200"
           >
             Import More
