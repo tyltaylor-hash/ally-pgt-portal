@@ -246,7 +246,7 @@ function LoginPage() {
     setLoading(true)
     
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/login'
+      redirectTo: window.location.origin + '/reset-password'
     })
     
     if (error) {
@@ -653,12 +653,13 @@ function AdminDashboard() {
       .order('created_at', { ascending: false })
       .limit(15)
 
-    const { data: statusData } = await supabase.from('cases').select('status')
+    const { data: statusData } = await supabase.from('cases').select('status, report_file_url')
     
     const statusCounts = {
       total: statusData?.length || 0,
       consent_pending: statusData?.filter(c => c.status === 'consent_pending').length || 0,
       report_ready: statusData?.filter(c => c.status === 'report_ready').length || 0,
+      reports_filled: statusData?.filter(c => c.report_file_url).length || 0,
     }
 
     setCases(allCases || [])
@@ -710,9 +711,10 @@ function AdminDashboard() {
   }
 
   const statCards = [
-    { label: 'Total Cases', value: counts.total || 0, icon: FileText, color: 'bg-gray-100 text-gray-600' },
+    { label: 'Requisitions Submitted', value: counts.total || 0, icon: FileText, color: 'bg-gray-100 text-gray-600' },
+    { label: 'Reports Filled', value: counts.reports_filled || 0, icon: CheckCircle, color: 'bg-green-50 text-green-600' },
     { label: 'Consent Pending', value: counts.consent_pending || 0, icon: Clock, color: 'bg-yellow-50 text-yellow-600' },
-    { label: 'Reports Ready', value: counts.report_ready || 0, icon: CheckCircle, color: 'bg-green-50 text-green-600' },
+    { label: 'Reports Ready', value: counts.report_ready || 0, icon: FileText, color: 'bg-blue-50 text-blue-600' },
   ]
 
   if (loading) {
@@ -2285,8 +2287,10 @@ function OrderSuppliesModal({ onClose }) {
     biopsy_collection_kits: 0,
     shipping_containers: 0,
     collection_tubes: 0,
+    collection_buffer: 0,
     fedex_labels: 0,
     ice_packs: 0,
+    delivery_by: '',
     shipping_address: '',
     notes: ''
   })
@@ -2321,9 +2325,11 @@ function OrderSuppliesModal({ onClose }) {
         biopsy_collection_kits: orderForm.biopsy_collection_kits,
         shipping_containers: orderForm.shipping_containers,
         collection_tubes: orderForm.collection_tubes,
+        collection_buffer: orderForm.collection_buffer,
         fedex_labels: orderForm.fedex_labels,
         ice_packs: orderForm.ice_packs,
       },
+      delivery_by: orderForm.delivery_by || null,
       shipping_address: orderForm.shipping_address || clinicAddress,
       notes: orderForm.notes,
     }).select().single()
@@ -2341,9 +2347,11 @@ function OrderSuppliesModal({ onClose }) {
             biopsy_collection_kits: orderForm.biopsy_collection_kits,
             shipping_containers: orderForm.shipping_containers,
             collection_tubes: orderForm.collection_tubes,
+            collection_buffer: orderForm.collection_buffer,
             fedex_labels: orderForm.fedex_labels,
             ice_packs: orderForm.ice_packs,
           },
+          delivery_by: orderForm.delivery_by || 'Not specified',
           shipping_address: orderForm.shipping_address || clinicAddress,
           notes: orderForm.notes || 'None',
         }
@@ -2363,8 +2371,10 @@ function OrderSuppliesModal({ onClose }) {
       biopsy_collection_kits: 0, 
       shipping_containers: 0, 
       collection_tubes: 0,
+      collection_buffer: 0,
       fedex_labels: 0,
       ice_packs: 0,
+      delivery_by: '',
       shipping_address: '', 
       notes: '' 
     })
@@ -2411,13 +2421,24 @@ function OrderSuppliesModal({ onClose }) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Complete Kits
-              <span className="text-xs text-gray-500 ml-2">(Includes: PCR tube, shipping container, biopsy collection kit, FedEx label)</span>
+              <span className="text-xs text-gray-500 ml-2">(1 kit = 4 biopsy collection kits, shipped in increments of 4)</span>
             </label>
+            <p className="text-xs text-gray-500 mb-2">Includes: PCR tubes, shipping container, biopsy collection kits, FedEx label</p>
             <input
               type="number"
               min="0"
               value={orderForm.complete_kits}
               onChange={(e) => setOrderForm(f => ({ ...f, complete_kits: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Delivery By</label>
+            <input
+              type="date"
+              value={orderForm.delivery_by}
+              onChange={(e) => setOrderForm(f => ({ ...f, delivery_by: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             />
           </div>
@@ -2455,6 +2476,17 @@ function OrderSuppliesModal({ onClose }) {
               min="0"
               value={orderForm.collection_tubes}
               onChange={(e) => setOrderForm(f => ({ ...f, collection_tubes: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Collection Buffer</label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.collection_buffer}
+              onChange={(e) => setOrderForm(f => ({ ...f, collection_buffer: parseInt(e.target.value) || 0 }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             />
           </div>
@@ -3878,7 +3910,7 @@ function NewRequisitionPage() {
     partner_sex: 'male',
     is_sperm_donor: false,
     male_factor_infertility: false,
-    sample_type: 'd5_d6_d7_trophectoderm',
+    sample_type: 'trophectoderm',
     ordering_provider_id: '',
     tests_ordered: [],
     indication: '',
@@ -3906,10 +3938,17 @@ function NewRequisitionPage() {
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }))
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      }
+      // If "No Partner" is checked, automatically set sperm source to donor
+      if (name === 'no_partner' && checked) {
+        updated.sperm_source = 'donor'
+      }
+      return updated
+    })
   }
 
   function handleTestChange(test) {
@@ -3961,7 +4000,7 @@ function NewRequisitionPage() {
     }
 
     if (formData.is_egg_donor && !formData.egg_donor_age) {
-      setError('Please enter the egg donor age')
+      setError('Please select the egg donor age')
       setLoading(false)
       return
     }
@@ -4034,9 +4073,15 @@ function NewRequisitionPage() {
     if (formData.ordering_provider_id) caseData.ordering_provider_id = formData.ordering_provider_id
     if (formData.mask_sex_results) caseData.mask_sex_results = formData.mask_sex_results
     if (formData.is_egg_donor) caseData.is_egg_donor = formData.is_egg_donor
-    if (formData.egg_donor_age) caseData.egg_donor_age = parseInt(formData.egg_donor_age)
+    // Store egg donor age only if it's a numeric value (not 'unknown')
+    if (formData.egg_donor_age && formData.egg_donor_age !== 'unknown') {
+      caseData.egg_donor_age = parseInt(formData.egg_donor_age)
+    }
     if (formData.sperm_source === 'donor') caseData.is_sperm_donor = true
-    if (formData.sperm_donor_age) caseData.sperm_donor_age = parseInt(formData.sperm_donor_age)
+    // Store sperm donor age only if it's a numeric value (not 'unknown')
+    if (formData.sperm_donor_age && formData.sperm_donor_age !== 'unknown') {
+      caseData.sperm_donor_age = parseInt(formData.sperm_donor_age)
+    }
     if (formData.male_factor_infertility) caseData.male_factor_infertility = formData.male_factor_infertility
     if (formData.sample_type) caseData.sample_type = formData.sample_type
     if (formData.indication) caseData.indication = formData.indication
@@ -4255,18 +4300,10 @@ function NewRequisitionPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sample Type *</label>
-                <select
-                  name="sample_type"
-                  value={formData.sample_type}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                >
-                  <option value="d5_d6_d7_trophectoderm">D5/6/7 Trophectoderm</option>
-                  <option value="rebiopsy">Rebiopsy</option>
-                  <option value="other">Other</option>
-                </select>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sample Type</label>
+                <div className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-700">
+                  Trophectoderm
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Male Factor Infertility?</label>
@@ -4359,7 +4396,7 @@ function NewRequisitionPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone <span className="text-gray-400 font-normal">(for SMS verification)</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
               <input
                 type="tel"
                 name="patient_phone"
@@ -4369,7 +4406,7 @@ function NewRequisitionPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sex *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sex at Birth *</label>
               <div className="flex gap-4 mt-2">
                 <label className="flex items-center gap-2">
                   <input
@@ -4421,17 +4458,19 @@ function NewRequisitionPage() {
             {formData.is_egg_donor && (
               <div className="ml-6 max-w-xs">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Egg Donor Age *</label>
-                <input
-                  type="number"
+                <select
                   name="egg_donor_age"
                   value={formData.egg_donor_age}
                   onChange={handleChange}
                   required={formData.is_egg_donor}
-                  min="18"
-                  max="50"
-                  placeholder="Enter age"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                />
+                >
+                  <option value="">Select age...</option>
+                  <option value="unknown">Unknown</option>
+                  {[...Array(33)].map((_, i) => (
+                    <option key={i + 18} value={i + 18}>{i + 18}</option>
+                  ))}
+                </select>
               </div>
             )}
           </div>
@@ -4485,16 +4524,18 @@ function NewRequisitionPage() {
             {formData.sperm_source === 'donor' && (
               <div className="ml-6 max-w-xs">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Sperm Donor Age</label>
-                <input
-                  type="number"
+                <select
                   name="sperm_donor_age"
                   value={formData.sperm_donor_age}
                   onChange={handleChange}
-                  min="18"
-                  max="70"
-                  placeholder="Enter age"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-                />
+                >
+                  <option value="">Select age...</option>
+                  <option value="unknown">Unknown</option>
+                  {[...Array(53)].map((_, i) => (
+                    <option key={i + 18} value={i + 18}>{i + 18}</option>
+                  ))}
+                </select>
               </div>
             )}
           </div>
@@ -4570,7 +4611,7 @@ function NewRequisitionPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sex</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sex at Birth</label>
               <div className="flex gap-4 mt-2">
                 <label className="flex items-center gap-2">
                   <input
@@ -4871,8 +4912,10 @@ function OrderSuppliesPage() {
     biopsy_collection_kits: 0,
     shipping_containers: 0,
     collection_tubes: 0,
+    collection_buffer: 0,
     fedex_labels: 0,
     ice_packs: 0,
+    delivery_by: '',
     shipping_address: '',
     notes: ''
   })
@@ -4907,9 +4950,11 @@ function OrderSuppliesPage() {
         biopsy_collection_kits: orderForm.biopsy_collection_kits,
         shipping_containers: orderForm.shipping_containers,
         collection_tubes: orderForm.collection_tubes,
+        collection_buffer: orderForm.collection_buffer,
         fedex_labels: orderForm.fedex_labels,
         ice_packs: orderForm.ice_packs,
       },
+      delivery_by: orderForm.delivery_by || null,
       shipping_address: orderForm.shipping_address || clinicAddress,
       notes: orderForm.notes,
     }).select().single()
@@ -4927,9 +4972,11 @@ function OrderSuppliesPage() {
             biopsy_collection_kits: orderForm.biopsy_collection_kits,
             shipping_containers: orderForm.shipping_containers,
             collection_tubes: orderForm.collection_tubes,
+            collection_buffer: orderForm.collection_buffer,
             fedex_labels: orderForm.fedex_labels,
             ice_packs: orderForm.ice_packs,
           },
+          delivery_by: orderForm.delivery_by || 'Not specified',
           shipping_address: orderForm.shipping_address || clinicAddress,
           notes: orderForm.notes || 'None',
         }
@@ -4950,8 +4997,10 @@ function OrderSuppliesPage() {
       biopsy_collection_kits: 0, 
       shipping_containers: 0, 
       collection_tubes: 0,
+      collection_buffer: 0,
       fedex_labels: 0,
       ice_packs: 0,
+      delivery_by: '',
       shipping_address: '', 
       notes: '' 
     })
@@ -5000,13 +5049,24 @@ function OrderSuppliesPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Complete Kits
-              <span className="text-xs text-gray-500 ml-2">(Includes: PCR tube, shipping container, biopsy collection kit, FedEx label)</span>
+              <span className="text-xs text-gray-500 ml-2">(1 kit = 4 biopsy collection kits, shipped in increments of 4)</span>
             </label>
+            <p className="text-xs text-gray-500 mb-2">Includes: PCR tubes, shipping container, biopsy collection kits, FedEx label</p>
             <input
               type="number"
               min="0"
               value={orderForm.complete_kits}
               onChange={(e) => setOrderForm(f => ({ ...f, complete_kits: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Delivery By</label>
+            <input
+              type="date"
+              value={orderForm.delivery_by}
+              onChange={(e) => setOrderForm(f => ({ ...f, delivery_by: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             />
           </div>
@@ -5044,6 +5104,17 @@ function OrderSuppliesPage() {
               min="0"
               value={orderForm.collection_tubes}
               onChange={(e) => setOrderForm(f => ({ ...f, collection_tubes: parseInt(e.target.value) || 0 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Collection Buffer</label>
+            <input
+              type="number"
+              min="0"
+              value={orderForm.collection_buffer}
+              onChange={(e) => setOrderForm(f => ({ ...f, collection_buffer: parseInt(e.target.value) || 0 }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             />
           </div>
@@ -5546,7 +5617,7 @@ function ClinicUsersModal({ clinic, onClose, onSave }) {
 
       if (newUser.sendWelcomeEmail) {
         await supabase.auth.resetPasswordForEmail(newUser.email, {
-          redirectTo: window.location.origin + '/login'
+          redirectTo: window.location.origin + '/reset-password'
         })
       }
 
@@ -5575,7 +5646,7 @@ function ClinicUsersModal({ clinic, onClose, onSave }) {
 
   async function sendPasswordReset(user) {
     const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-      redirectTo: window.location.origin + '/login'
+      redirectTo: window.location.origin + '/reset-password'
     })
     if (!error) setResetSentFor(user.id)
   }
@@ -6121,6 +6192,11 @@ function getConsentContent() {
     },
     
     warningBoxes: {
+      pgtNoPregnancyIncrease: {
+        title: 'IMPORTANT: Please Read and Acknowledge',
+        text: 'The use of PGT to select a euploid embryo has not been demonstrated to improve pregnancy rates over the transfer of multiple untested embryos.',
+        checkbox: 'I acknowledge and accept that the use of PGT to select a euploid embryo has not been demonstrated to improve pregnancy rates over the transfer of multiple untested embryos'
+      },
       pgtAccuracy: {
         title: 'IMPORTANT: Please Read and Acknowledge',
         text: 'I understand that PGT-A is not 100% accurate. The biopsied cells may not be representative of the entire embryo, which means a chromosomally normal embryo could be misclassified as abnormal, potentially leading to the discard of a viable embryo.',
@@ -6172,6 +6248,7 @@ function ConsentSigningPage() {
     electronicConsent: false,
     agreeTerms: false,
     insurancePayment: false,
+    keyPointPregnancy: false, // PGT will not increase pregnancy chances
     keyPoint1: false, // PGT-A accuracy and viable embryo discard
     keyPoint2: false, // No sex selection/family balancing
     keyPoint3: false  // Liability waiver
@@ -6236,7 +6313,7 @@ function ConsentSigningPage() {
     e.preventDefault()
     
     // Validation - ALL 7 checkboxes must be checked
-    if (!checkboxes.readUnderstood || !checkboxes.electronicConsent || !checkboxes.agreeTerms || !checkboxes.insurancePayment || !checkboxes.keyPoint1 || !checkboxes.keyPoint2 || !checkboxes.keyPoint3) {
+    if (!checkboxes.readUnderstood || !checkboxes.electronicConsent || !checkboxes.agreeTerms || !checkboxes.insurancePayment || !checkboxes.keyPointPregnancy || !checkboxes.keyPoint1 || !checkboxes.keyPoint2 || !checkboxes.keyPoint3) {
       setError('Please check all required boxes, including all key acknowledgment points')
       return
     }
@@ -6286,6 +6363,7 @@ function ConsentSigningPage() {
           metadata: {
             checkboxes: checkboxes,
             keyAcknowledgments: {
+              pgtNoPregnancyIncrease: checkboxes.keyPointPregnancy,
               pgtAccuracy: checkboxes.keyPoint1,
               noSexSelection: checkboxes.keyPoint2,
               liabilityWaiver: checkboxes.keyPoint3,
@@ -6510,6 +6588,30 @@ function ConsentSigningPage() {
                 PGT-A samples and/or DNA may be discarded after a time period of 60 days following results reporting. Ally Genetics may keep leftover de-identified sample DNA for ongoing research to help couples have healthy babies. Your sample material will never be used to make new embryos or future babies.
               </p>
             </div>
+          </div>
+
+          {/* KEY ACKNOWLEDGMENT - PGT WILL NOT INCREASE PREGNANCY CHANCES */}
+          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
+            <div className="flex items-start gap-3 mb-4">
+              <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">IMPORTANT: Please Read and Acknowledge</h3>
+                <p className="text-gray-800 font-semibold">
+                  The use of PGT to select a euploid embryo has not been demonstrated to improve pregnancy rates over the transfer of multiple untested embryos.
+                </p>
+              </div>
+            </div>
+            <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
+              <input
+                type="checkbox"
+                checked={checkboxes.keyPointPregnancy}
+                onChange={(e) => setCheckboxes(prev => ({ ...prev, keyPointPregnancy: e.target.checked }))}
+                className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+              />
+              <span className="text-sm font-semibold text-gray-900">
+                ✓ I acknowledge and accept that the use of PGT to select a euploid embryo has not been demonstrated to improve pregnancy rates over the transfer of multiple untested embryos
+              </span>
+            </label>
           </div>
 
           {/* KEY ACKNOWLEDGMENT POINT #1 - MUST ACKNOWLEDGE */}
@@ -6751,7 +6853,8 @@ function KitOrdersPage() {
   const { supabase } = useAuth()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all') // all, pending, shipped, delivered
+  const [filter, setFilter] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
     fetchOrders()
@@ -6779,24 +6882,36 @@ function KitOrdersPage() {
     fetchOrders()
   }
 
-  const filteredOrders = filter === 'all' 
-    ? orders 
-    : orders.filter(o => o.status === filter)
+  async function updateTrackingNumber(orderId, trackingNumber) {
+    await supabase
+      .from('kit_orders')
+      .update({ fedex_tracking: trackingNumber, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+    
+    fetchOrders()
+  }
+
+  // Filter by status and search term
+  const filteredOrders = orders.filter(o => {
+    const matchesStatus = filter === 'all' || o.status === filter
+    const matchesSearch = !searchTerm || 
+      o.clinic?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.fedex_tracking?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.id?.toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesStatus && matchesSearch
+  })
 
   const statusColors = {
     pending: 'bg-yellow-100 text-yellow-800',
-    processing: 'bg-blue-100 text-blue-800',
-    shipped: 'bg-purple-100 text-purple-800',
-    delivered: 'bg-green-100 text-green-800',
-    cancelled: 'bg-red-100 text-red-800'
+    fulfilled: 'bg-blue-100 text-blue-800',
+    shipped: 'bg-green-100 text-green-800'
   }
 
   const statusCounts = {
     all: orders.length,
     pending: orders.filter(o => o.status === 'pending').length,
-    processing: orders.filter(o => o.status === 'processing').length,
-    shipped: orders.filter(o => o.status === 'shipped').length,
-    delivered: orders.filter(o => o.status === 'delivered').length
+    fulfilled: orders.filter(o => o.status === 'fulfilled').length,
+    shipped: orders.filter(o => o.status === 'shipped').length
   }
 
   if (loading) {
@@ -6824,23 +6939,35 @@ function KitOrdersPage() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2 border-b">
-        {['all', 'pending', 'processing', 'shipped', 'delivered'].map(status => (
-          <button
-            key={status}
-            onClick={() => setFilter(status)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              filter === status 
-                ? 'border-ally-teal text-ally-teal' 
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {status.charAt(0).toUpperCase() + status.slice(1)}
-            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100">
-              {statusCounts[status]}
-            </span>
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-4 items-center justify-between">
+        <div className="flex gap-2 border-b">
+          {['all', 'pending', 'fulfilled', 'shipped'].map(status => (
+            <button
+              key={status}
+              onClick={() => setFilter(status)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                filter === status 
+                  ? 'border-ally-teal text-ally-teal' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {status.charAt(0).toUpperCase() + status.slice(1)}
+              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100">
+                {statusCounts[status]}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <Search className="w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search clinic or FedEx #..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ally-teal w-64"
+          />
+        </div>
       </div>
 
       {/* Orders List */}
@@ -6869,17 +6996,28 @@ function KitOrdersPage() {
                     {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="FedEx Tracking #"
+                      defaultValue={order.fedex_tracking || ''}
+                      onBlur={(e) => {
+                        if (e.target.value !== (order.fedex_tracking || '')) {
+                          updateTrackingNumber(order.id, e.target.value)
+                        }
+                      }}
+                      className="text-sm border border-gray-300 rounded-md px-3 py-1.5 w-48 focus:outline-none focus:ring-2 focus:ring-ally-teal"
+                    />
+                  </div>
                   <select
                     value={order.status}
                     onChange={(e) => updateOrderStatus(order.id, e.target.value)}
                     className="text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ally-teal"
                   >
                     <option value="pending">Pending</option>
-                    <option value="processing">Processing</option>
+                    <option value="fulfilled">Fulfilled</option>
                     <option value="shipped">Shipped</option>
-                    <option value="delivered">Delivered</option>
-                    <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
               </div>
@@ -6911,6 +7049,9 @@ function KitOrdersPage() {
                     {order.items?.collection_tubes > 0 && (
                       <p className="text-gray-900">Collection Tubes: <span className="font-medium">{order.items.collection_tubes}</span></p>
                     )}
+                    {order.items?.collection_buffer > 0 && (
+                      <p className="text-gray-900">Collection Buffer: <span className="font-medium">{order.items.collection_buffer}</span></p>
+                    )}
                     {order.items?.fedex_labels > 0 && (
                       <p className="text-gray-900">FedEx Labels: <span className="font-medium">{order.items.fedex_labels}</span></p>
                     )}
@@ -6918,6 +7059,11 @@ function KitOrdersPage() {
                       <p className="text-gray-900">Ice Packs: <span className="font-medium">{order.items.ice_packs}</span></p>
                     )}
                   </div>
+                  {order.delivery_by && (
+                    <p className="text-sm text-amber-700 mt-2 font-medium">
+                      Delivery By: {new Date(order.delivery_by).toLocaleDateString()}
+                    </p>
+                  )}
                 </div>
 
                 {/* Shipping Address */}
@@ -6943,6 +7089,139 @@ function KitOrdersPage() {
 }
 
 // ============================================================================
+// RESET PASSWORD PAGE
+// ============================================================================
+function ResetPasswordPage() {
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(false)
+  const navigate = useNavigate()
+  const { supabase } = useAuth()
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError(null)
+
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
+    setLoading(true)
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    })
+
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+    } else {
+      setSuccess(true)
+      // Sign out and redirect to login after 3 seconds
+      setTimeout(async () => {
+        await supabase.auth.signOut()
+        navigate('/login')
+      }, 3000)
+    }
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+        <div className="max-w-md w-full">
+          <div className="text-center mb-8">
+            <div className="flex justify-center mb-4">
+              <DNAHelixLogo size={64} />
+            </div>
+            <h1 className="text-2xl font-bold text-ally-navy">Ally Genetics Portal</h1>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm border p-6 text-center">
+            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Password Updated!</h2>
+            <p className="text-gray-600 mb-4">
+              Your password has been successfully changed. Redirecting to login...
+            </p>
+            <Loader2 className="w-6 h-6 animate-spin text-ally-teal mx-auto" />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+      <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <DNAHelixLogo size={64} />
+          </div>
+          <h1 className="text-2xl font-bold text-ally-navy">Ally Genetics Portal</h1>
+          <p className="text-gray-500 mt-2">Set your new password</p>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">
+                {error}
+              </div>
+            )}
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal focus:border-transparent"
+                placeholder="Enter new password"
+                required
+                minLength={6}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal focus:border-transparent"
+                placeholder="Confirm new password"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-ally-teal text-white py-2 px-4 rounded-md hover:bg-ally-teal-dark transition-colors disabled:opacity-50 flex items-center justify-center"
+            >
+              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Update Password
+            </button>
+
+            <div className="text-center">
+              <Link to="/login" className="text-sm text-gray-600 hover:text-ally-teal">
+                Back to sign in
+              </Link>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
 // PLACEHOLDER PAGES
 // ============================================================================
 function PlaceholderPage({ title }) {
@@ -6963,6 +7242,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           
           {/* Public Consent Signing Route - No Auth Required */}
           <Route path="/consent/:token" element={<ConsentSigningPage />} />
