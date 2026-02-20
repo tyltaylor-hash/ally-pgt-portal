@@ -30,7 +30,7 @@ function DNAHelixLogo({ size = 32, className = '' }) {
 // ============================================================================
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY
+
 
 // HIPAA Compliant Configuration:
 // - Auth tokens can persist (they don't contain PHI)
@@ -46,14 +46,6 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
     // Users will need to re-authenticate after this period
   }
 })
-
-// Admin client using service role key - used for admin operations like creating users
-// This bypasses RLS and email confirmation requirements
-const supabaseAdmin = supabaseServiceKey 
-  ? createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
-  : null
 
 // ============================================================================
 // AUTH CONTEXT
@@ -5666,32 +5658,19 @@ function ClinicUsersModal({ clinic, onClose, onSave }) {
       let tempPassword = ''
       for (let i = 0; i < 12; i++) tempPassword += chars.charAt(Math.floor(Math.random() * chars.length))
 
-      // Use admin API to create user - this creates them as confirmed without affecting current session
-      if (!supabaseAdmin) throw new Error('Admin client not configured. Please set VITE_SUPABASE_SERVICE_KEY.')
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: newUser.email,
-        password: tempPassword,
-        email_confirm: true,
-        user_metadata: { first_name: newUser.first_name, last_name: newUser.last_name }
+      // Call server-side edge function to create user (avoids browser security issues with admin API)
+      const { data: createData, error: createError } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: newUser.email,
+          password: tempPassword,
+          first_name: newUser.first_name,
+          last_name: newUser.last_name,
+          clinic_id: clinic.id,
+          sendWelcomeEmail: newUser.sendWelcomeEmail,
+        }
       })
-      if (authError) throw authError
-
-      await supabase.from('users').insert({
-        auth_id: authData.user.id,
-        email: newUser.email,
-        first_name: newUser.first_name,
-        last_name: newUser.last_name,
-        clinic_id: clinic.id,
-        role: 'clinic_user',
-        is_active: true,
-        must_change_password: newUser.sendWelcomeEmail,
-      })
-
-      if (newUser.sendWelcomeEmail) {
-        await supabase.auth.resetPasswordForEmail(newUser.email, {
-          redirectTo: window.location.origin + '/reset-password'
-        })
-      }
+      if (createError) throw createError
+      if (createData?.error) throw new Error(createData.error)
 
       setNewUser({ first_name: '', last_name: '', email: '', sendWelcomeEmail: true })
       setShowAddForm(false)
