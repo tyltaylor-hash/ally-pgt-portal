@@ -3415,6 +3415,138 @@ function CaseDetailsPage({ isAdmin = false }) {
     setLoading(false)
   }
 
+  async function handleDownloadConsent(signerType) {
+    const consent = consents.find(c => c.signer_type === signerType)
+    if (!consent || consent.status !== 'signed') return
+
+    const signerName = signerType === 'patient'
+      ? `${caseData.patient_first_name} ${caseData.patient_last_name}`
+      : `${caseData.partner_first_name} ${caseData.partner_last_name}`
+    const signerEmail = signerType === 'patient' ? caseData.patient_email : caseData.partner_email
+
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 15
+    const contentWidth = pageWidth - margin * 2
+    const navyBlue = [30, 58, 95]
+    const teal = [13, 148, 136]
+
+    // Header
+    doc.setFillColor(...navyBlue)
+    doc.rect(0, 0, pageWidth, 3, 'F')
+    doc.setTextColor(...navyBlue)
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Ally Genetics', margin, 12)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'italic')
+    doc.setTextColor(...teal)
+    doc.text('Better Partnerships. Better Results.', margin, 16)
+    doc.setFillColor(...navyBlue)
+    doc.rect(55, 8, pageWidth - 55 - margin, 10, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.text('PGT Informed Consent - Signed Copy', 58, 14)
+
+    let y = 25
+    // Consent info bar
+    doc.setFillColor(232, 245, 243)
+    doc.setDrawColor(...teal)
+    doc.rect(margin, y, contentWidth, 10, 'FD')
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...navyBlue)
+    doc.text('Consent Sent To:', margin + 2, y + 4)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...teal)
+    doc.text(signerEmail || 'N/A', margin + 28, y + 4)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...navyBlue)
+    doc.text('Signer:', margin + 80, y + 4)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...teal)
+    doc.text(`${signerName} (${signerType.charAt(0).toUpperCase() + signerType.slice(1)})`, margin + 93, y + 4)
+    y += 18
+
+    // Signature section header
+    doc.setFillColor(...navyBlue)
+    doc.rect(margin, y, contentWidth, 8, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`ELECTRONIC SIGNATURE - ${signerType.toUpperCase()}`, margin + 3, y + 5.5)
+    y += 12
+
+    // Signature box
+    doc.setDrawColor(...navyBlue)
+    doc.setLineWidth(0.5)
+    doc.rect(margin, y, contentWidth, 70, 'D')
+
+    doc.setFontSize(6)
+    doc.setTextColor(102, 102, 102)
+    doc.setFont('helvetica', 'normal')
+    doc.text('NAME (PRINT)', margin + 5, y + 8)
+    doc.text('ROLE', margin + 100, y + 8)
+    doc.setFontSize(10)
+    doc.setTextColor(...teal)
+    doc.text(signerName, margin + 5, y + 15)
+    doc.text(signerType.charAt(0).toUpperCase() + signerType.slice(1), margin + 100, y + 15)
+    doc.setDrawColor(51, 51, 51)
+    doc.setLineWidth(0.3)
+    doc.line(margin + 5, y + 17, margin + 90, y + 17)
+    doc.line(margin + 100, y + 17, margin + 160, y + 17)
+
+    doc.setFontSize(6)
+    doc.setTextColor(102, 102, 102)
+    doc.text('SIGNATURE', margin + 5, y + 28)
+    doc.text('DATE & TIME SIGNED', margin + 100, y + 28)
+    doc.setFontSize(14)
+    doc.setTextColor(...teal)
+    doc.setFont('helvetica', 'italic')
+    if (consent.signature_type === 'typed' && consent.signature_data) {
+      doc.text(consent.signature_data, margin + 5, y + 38)
+    } else {
+      doc.text(signerName, margin + 5, y + 38)
+    }
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.text(consent.signed_at ? new Date(consent.signed_at).toLocaleString() : '', margin + 100, y + 38)
+    doc.setDrawColor(51, 51, 51)
+    doc.line(margin + 5, y + 40, margin + 90, y + 40)
+    doc.line(margin + 100, y + 40, margin + 160, y + 40)
+
+    doc.setFillColor(232, 245, 243)
+    doc.setDrawColor(...teal)
+    doc.rect(margin + 5, y + 44, 35, 6, 'FD')
+    doc.setFontSize(6)
+    doc.setTextColor(...teal)
+    doc.setFont('helvetica', 'bold')
+    doc.text('✓ ELECTRONICALLY SIGNED', margin + 7, y + 48)
+
+    doc.setDrawColor(221, 221, 221)
+    doc.line(margin + 5, y + 54, margin + contentWidth - 5, y + 54)
+    doc.setFontSize(6)
+    doc.setTextColor(102, 102, 102)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Verification Details:', margin + 5, y + 59)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Consent Sent To: ${signerEmail || 'N/A'}  |  IP Address: ${consent.ip_address || 'N/A'}`, margin + 5, y + 64)
+    doc.text(`Document ID: CON-${caseData.case_number}-${signerType.toUpperCase()}`, margin + 5, y + 68)
+
+    // Footer
+    doc.setFillColor(...navyBlue)
+    doc.rect(0, pageHeight - 14, pageWidth, 14, 'F')
+    doc.setFontSize(6)
+    doc.setTextColor(255, 255, 255)
+    doc.text('phone: (616) 465-2400  |  fax: (616) 616-5887', margin, pageHeight - 8)
+    doc.text('email: lab@allygenetics.com  |  web: www.allygenetics.com', pageWidth / 2, pageHeight - 8, { align: 'center' })
+    doc.text('1001 Parchment Dr SE, Grand Rapids, MI 49546', pageWidth - margin, pageHeight - 8, { align: 'right' })
+
+    doc.save(`Consent_${caseData.patient_last_name}_${caseData.patient_first_name}_${signerType.charAt(0).toUpperCase() + signerType.slice(1)}.pdf`)
+  }
+
   async function handleUploadReport(file) {
     setUploadingReport(true)
     
@@ -3631,9 +3763,20 @@ function CaseDetailsPage({ isAdmin = false }) {
                 </div>
                 <div className="text-right">
                   {patientConsent?.signed_at ? (
-                    <p className="text-sm text-green-600">
-                      Signed {new Date(patientConsent.signed_at).toLocaleDateString()}
-                    </p>
+                    <div className="flex items-center gap-2 justify-end">
+                      <p className="text-sm text-green-600">
+                        Signed {new Date(patientConsent.signed_at).toLocaleDateString()}
+                      </p>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDownloadConsent('patient')}
+                          className="text-xs text-ally-teal hover:underline flex items-center gap-1"
+                        >
+                          <Download className="w-3 h-3" />
+                          Download
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-yellow-600">Pending</span>
@@ -3666,9 +3809,20 @@ function CaseDetailsPage({ isAdmin = false }) {
                   </div>
                   <div className="text-right">
                     {partnerConsent?.signed_at ? (
-                      <p className="text-sm text-green-600">
-                        Signed {new Date(partnerConsent.signed_at).toLocaleDateString()}
-                      </p>
+                      <div className="flex items-center gap-2 justify-end">
+                        <p className="text-sm text-green-600">
+                          Signed {new Date(partnerConsent.signed_at).toLocaleDateString()}
+                        </p>
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDownloadConsent('partner')}
+                            className="text-xs text-ally-teal hover:underline flex items-center gap-1"
+                          >
+                            <Download className="w-3 h-3" />
+                            Download
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-yellow-600">Pending</span>
