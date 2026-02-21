@@ -1615,7 +1615,7 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.save(`Requisition_${cycle.patient_last_name}_${cycle.patient_first_name}.pdf`)
   }
 
-  function generateConsentPDF(cycle, signerType, consent, returnBase64 = false) {
+  function generateConsentPDF(cycle, signerType, consent) {
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
     const pageHeight = doc.internal.pageSize.getHeight()
@@ -2084,11 +2084,8 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     
     addFooter()
     
-    // Save or return as base64
+    // Save
     const fileName = `Consent_${cycle.patient_last_name}_${cycle.patient_first_name}_${signerType.charAt(0).toUpperCase() + signerType.slice(1)}.pdf`
-    if (returnBase64) {
-      return doc.output('datauristring').split(',')[1]
-    }
     doc.save(fileName)
   }
 
@@ -4004,7 +4001,7 @@ function NewRequisitionPage() {
   }
 
   // Determine if partner info is required
-  const isPartnerRequired = !formData.no_partner && formData.sperm_source === 'partner'
+  const isPartnerRequired = !formData.no_partner
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -6471,69 +6468,6 @@ function ConsentSigningPage() {
       }
 
       setSubmitting(false)
-
-      // Send signed consent PDF to signer
-      try {
-        const signerFirstName = consent.signer_name?.split(' ')[0] || 'there'
-        const signerEmail = consent.recipient_email || consent.signer_email
-
-        const doc = new jsPDF()
-        const pageWidth = doc.internal.pageSize.getWidth()
-        const margin = 15
-
-        doc.setFillColor(30, 58, 95)
-        doc.rect(0, 0, pageWidth, 3, 'F')
-        doc.setTextColor(30, 58, 95)
-        doc.setFontSize(16)
-        doc.setFont('helvetica', 'bold')
-        doc.text('Ally Genetics', margin, 12)
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'bold')
-        doc.text('PGT Informed Consent - Signed Copy', pageWidth / 2, 12, { align: 'center' })
-
-        let y = 30
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'normal')
-        doc.setTextColor(60, 60, 60)
-        doc.text(`Signer: ${consent.signer_name || ''}`, margin, y); y += 8
-        doc.text(`Role: ${consent.signer_type === 'patient' ? 'Patient' : 'Partner'}`, margin, y); y += 8
-        doc.text(`Email: ${signerEmail || ''}`, margin, y); y += 8
-        doc.text(`Signed: ${new Date(consent.signed_at || new Date()).toLocaleString()}`, margin, y); y += 8
-        doc.text(`Document ID: CON-${caseData?.case_number || ''}-${(consent.signer_type || '').toUpperCase()}`, margin, y); y += 15
-
-        doc.setFontSize(9)
-        doc.setTextColor(100, 100, 100)
-        doc.text('This document confirms that the above individual has reviewed and electronically signed', margin, y); y += 6
-        doc.text('the Ally Genetics Informed Consent for Preimplantation Genetic Testing (PGT).', margin, y); y += 6
-        doc.text('The full consent document content was presented and agreed to at time of signing.', margin, y); y += 15
-
-        doc.setFontSize(9)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(30, 58, 95)
-        doc.text('Signature:', margin, y); y += 6
-        doc.setFont('helvetica', 'normal')
-        doc.setTextColor(60, 60, 60)
-        if (signatureType === 'typed') {
-          doc.setFontSize(14)
-          doc.setFont('helvetica', 'italic')
-          doc.text(typedName || '', margin, y); y += 10
-        } else {
-          doc.text('[Drawn signature on file]', margin, y); y += 10
-        }
-
-        doc.setFontSize(8)
-        doc.setTextColor(120, 120, 120)
-        doc.text('For questions, contact Ally Genetics at lab@allygenetics.com or (704) 323-9591', margin, y)
-
-        const pdfBase64 = doc.output('datauristring').split(',')[1]
-
-        await supabase.functions.invoke('send-signed-consent', {
-          body: { to: signerEmail, firstName: signerFirstName, pdfBase64 }
-        })
-      } catch (emailErr) {
-        console.error('Failed to send signed consent email:', emailErr)
-        // Don't block success — email is best effort
-      }
 
       // Check if all consents are now signed and report exists — if so, notify clinic
       try {
