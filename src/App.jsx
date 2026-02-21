@@ -7537,6 +7537,20 @@ function ResetPasswordPage() {
   const navigate = useNavigate()
   const { supabase } = useAuth()
 
+  useEffect(() => {
+    // Handle the recovery token from the email link
+    const hashParams = new URLSearchParams(window.location.hash.substring(1))
+    const accessToken = hashParams.get('access_token')
+    const type = hashParams.get('type')
+    
+    if (accessToken && type === 'recovery') {
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: hashParams.get('refresh_token') || ''
+      })
+    }
+  }, [])
+
   async function handleSubmit(e) {
     e.preventDefault()
     setError(null)
