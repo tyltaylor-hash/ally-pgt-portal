@@ -1385,7 +1385,7 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     const partnerSectionStart = y
     y += 3
     
-    if (cycle.partner_first_name || cycle.no_partner === false) {
+    if (!cycle.no_partner && cycle.partner_first_name) {
       y = drawFieldRow([
         { label: 'FIRST NAME', value: cycle.partner_first_name || '', width: 45 },
         { label: 'LAST NAME', value: cycle.partner_last_name || '', width: 45 },
@@ -1471,9 +1471,8 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.text('SAMPLE TYPE', margin + 3, y)
     y += 4
     
-    drawCheckbox(margin + 3, y, cycle.sample_type === 'd5_d6_d7_trophectoderm', 'D5/D6/D7 Trophectoderm Biopsy')
-    drawCheckbox(margin + 65, y, cycle.sample_type === 'd3_blastomere', 'D3 Blastomere Biopsy')
-    drawCheckbox(margin + 115, y, cycle.sample_type === 'rebiopsy', 'Rebiopsy')
+    drawCheckbox(margin + 3, y, true, 'D5/D6/D7 Trophectoderm Biopsy')
+    drawCheckbox(margin + 65, y, cycle.sample_type === 'rebiopsy', 'Rebiopsy')
     
     y += 7
     doc.setTextColor(100, 100, 100)
@@ -1534,6 +1533,12 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.setFont('helvetica', 'bold')
     doc.text('ORDERING PHYSICIAN', margin + 5, y + 4)
     
+    // Physician name
+    doc.setTextColor(...navyBlue)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.text(providerName, margin + 5, y + 10)
+    
     doc.setDrawColor(60, 60, 60)
     doc.line(margin + 5, y + 14, margin + halfWidth - 5, y + 14)
     doc.setTextColor(100, 100, 100)
@@ -1556,20 +1561,29 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.setFont('helvetica', 'normal')
     doc.text('Date: ' + formatDate(cycle.created_at), margin + 50, y + 22)
     
-    // Right box - Patient Consent
+    // Right box - Submitted By
+    const submittedByName = cycle.created_by_user 
+      ? `${cycle.created_by_user.first_name || ''} ${cycle.created_by_user.last_name || ''}`.trim()
+      : ''
     doc.setDrawColor(200, 200, 200)
     doc.rect(margin + halfWidth + 8, y, halfWidth, 25, 'S')
     doc.setTextColor(...navyBlue)
     doc.setFontSize(7)
     doc.setFont('helvetica', 'bold')
-    doc.text('PATIENT CONSENT', margin + halfWidth + 11, y + 4)
+    doc.text('SUBMITTED BY', margin + halfWidth + 11, y + 4)
+    
+    // Submitter name
+    doc.setTextColor(...navyBlue)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.text(submittedByName, margin + halfWidth + 11, y + 10)
     
     doc.setDrawColor(60, 60, 60)
     doc.line(margin + halfWidth + 11, y + 14, margin + contentWidth - 5, y + 14)
     doc.setTextColor(100, 100, 100)
     doc.setFontSize(6)
     doc.setFont('helvetica', 'normal')
-    doc.text('Patient Signature', margin + halfWidth + 11, y + 17)
+    doc.text('Signature', margin + halfWidth + 11, y + 17)
     
     // Consent on file badge
     doc.setFillColor(232, 245, 243)
@@ -4362,17 +4376,6 @@ function NewRequisitionPage() {
                   </label>
                 </div>
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Testing</label>
-              <textarea
-                name="reason_for_testing"
-                value={formData.reason_for_testing}
-                onChange={handleChange}
-                rows={2}
-                placeholder="Optional: Provide additional details about the reason for testing..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-              />
             </div>
           </div>
         </section>
