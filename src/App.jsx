@@ -6449,7 +6449,6 @@ function ConsentSigningPage() {
           signature_type: signatureType,
           signature_data: signatureData,
           ip_address: ipAddress,
-          consent_content: consentContent,
           metadata: {
             checkboxes: checkboxes,
             keyAcknowledgments: {
