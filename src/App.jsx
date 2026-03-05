@@ -5927,6 +5927,37 @@ function ClinicUsersModal({ clinic, onClose, onSave }) {
     if (!error) setResetSentFor(user.id)
   }
 
+  async function resendInvite(user) {
+    if (!confirm(`Resend invite to ${user.email}?\n\nThis will recreate their login account and send a fresh welcome email.`)) return
+    setSaving(true)
+    setError(null)
+    try {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+      let tempPassword = ''
+      for (let i = 0; i < 12; i++) tempPassword += chars.charAt(Math.floor(Math.random() * chars.length))
+
+      const { data: createData, error: createError } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: user.email,
+          password: tempPassword,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          clinic_id: clinic.id,
+          sendWelcomeEmail: true,
+          existing_user_id: user.id,
+        }
+      })
+      if (createError) throw createError
+      if (createData?.error) throw new Error(createData.error)
+
+      setResetSentFor(user.id)
+      fetchUsers()
+    } catch (err) {
+      setError('Failed to resend invite: ' + err.message)
+    }
+    setSaving(false)
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col">
@@ -5970,15 +6001,25 @@ function ClinicUsersModal({ clinic, onClose, onSave }) {
                       </button>
                       {resetSentFor === user.id ? (
                         <span className="flex items-center gap-1 text-xs text-green-700">
-                          <CheckCircle className="w-3 h-3" /> Reset email sent
+                          <CheckCircle className="w-3 h-3" /> Invite sent!
                         </span>
                       ) : (
-                        <button
-                          onClick={() => sendPasswordReset(user)}
-                          className="flex items-center gap-1 text-xs text-gray-500 hover:text-ally-teal"
-                        >
-                          <Mail className="w-3 h-3" /> Reset password
-                        </button>
+                        <>
+                          <button
+                            onClick={() => sendPasswordReset(user)}
+                            className="flex items-center gap-1 text-xs text-gray-500 hover:text-ally-teal"
+                          >
+                            <Mail className="w-3 h-3" /> Reset password
+                          </button>
+                          <button
+                            onClick={() => resendInvite(user)}
+                            disabled={saving}
+                            className="flex items-center gap-1 text-xs text-orange-500 hover:text-orange-700 font-medium"
+                            title="Use this if user can't log in - recreates their auth account"
+                          >
+                            <RefreshCw className="w-3 h-3" /> Resend Invite
+                          </button>
+                        </>
                       )}
                       <button
                         onClick={() => deleteUser(user)}
