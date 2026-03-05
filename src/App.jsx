@@ -1526,13 +1526,14 @@ function generateRequisitionPDF(cycle, currentUser = null) {
   doc.setFont('helvetica', 'normal')
   doc.text('Date: ' + formatDate(cycle.created_at), margin + 50, y + 22)
   
-  // Right box - Submitted By
-  const submittedByName = cycle.created_by_user 
-    ? `${cycle.created_by_user.first_name || ''} ${cycle.created_by_user.last_name || ''}`.trim()
-    : currentUser
-      ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()
-      : ''
-    : ''
+  // Right box - Submitted By — priority: form_completed_by > created_by_user > currentUser
+  const submittedByName = cycle.form_completed_by
+    ? cycle.form_completed_by
+    : cycle.created_by_user 
+      ? `${cycle.created_by_user.first_name || ''} ${cycle.created_by_user.last_name || ''}`.trim()
+      : currentUser
+        ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()
+        : ''
   doc.setDrawColor(200, 200, 200)
   doc.rect(margin + halfWidth + 8, y, halfWidth, 25, 'S')
   doc.setTextColor(...navyBlue)
