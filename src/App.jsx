@@ -390,7 +390,6 @@ function AdminLayout({ children }) {
   }
 
   const navigation = [
-    { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { name: 'All Cases', href: '/admin/cases', icon: FileText },
     { name: 'Clinics', href: '/admin/clinics', icon: Building2 },
     { name: 'Kit Orders', href: '/admin/orders', icon: Package },
@@ -1526,14 +1525,13 @@ function generateRequisitionPDF(cycle, currentUser = null) {
   doc.setFont('helvetica', 'normal')
   doc.text('Date: ' + formatDate(cycle.created_at), margin + 50, y + 22)
   
-  // Right box - Submitted By — priority: form_completed_by > created_by_user > currentUser
-  const submittedByName = cycle.form_completed_by
-    ? cycle.form_completed_by
-    : cycle.created_by_user 
-      ? `${cycle.created_by_user.first_name || ''} ${cycle.created_by_user.last_name || ''}`.trim()
-      : currentUser
-        ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()
-        : ''
+  // Right box - Submitted By
+  const submittedByName = cycle.created_by_user 
+    ? `${cycle.created_by_user.first_name || ''} ${cycle.created_by_user.last_name || ''}`.trim()
+    : currentUser
+      ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()
+      : ''
+    : ''
   doc.setDrawColor(200, 200, 200)
   doc.rect(margin + halfWidth + 8, y, halfWidth, 25, 'S')
   doc.setTextColor(...navyBlue)
@@ -3269,75 +3267,74 @@ function AllCasesPage() {
       {/* Cases Table */}
       <div className="bg-white rounded-lg border overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th onClick={() => handleSort('case_number')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Case # <SortIcon field="case_number" /></th>
-                <th onClick={() => handleSort('patient')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Patient <SortIcon field="patient" /></th>
-                <th onClick={() => handleSort('clinic')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Clinic <SortIcon field="clinic" /></th>
-                <th onClick={() => handleSort('provider')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Provider <SortIcon field="provider" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Tests</th>
-                <th onClick={() => handleSort('created_at')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Submitted <SortIcon field="created_at" /></th>
-                <th onClick={() => handleSort('status')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Status <SortIcon field="status" /></th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Report</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap sticky right-0 bg-gray-50 shadow-[-4px_0_6px_-1px_rgba(0,0,0,0.05)]">Actions</th>
+                <th onClick={() => handleSort('case_number')} className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap w-32">Case # <SortIcon field="case_number" /></th>
+                <th onClick={() => handleSort('patient')} className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Patient <SortIcon field="patient" /></th>
+                <th onClick={() => handleSort('clinic')} className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Clinic <SortIcon field="clinic" /></th>
+                <th onClick={() => handleSort('provider')} className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Provider <SortIcon field="provider" /></th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap w-20">Tests</th>
+                <th onClick={() => handleSort('created_at')} className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap w-24">Submitted <SortIcon field="created_at" /></th>
+                <th onClick={() => handleSort('status')} className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap w-40">Status <SortIcon field="status" /></th>
+                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap w-48">Report / Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredCases.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/admin/cases/${c.id}`)}>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-ally-teal" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-ally-teal" onClick={e => e.stopPropagation()}>
                     <Link to={`/admin/cases/${c.id}`} className="hover:underline">{c.case_number || '-'}</Link>
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <div className="font-medium text-gray-900">{c.patient_last_name}, {c.patient_first_name}</div>
+                  <td className="px-3 py-3 whitespace-nowrap">
+                    <div className="font-medium text-gray-900 text-sm">{c.patient_last_name}, {c.patient_first_name}</div>
                     <div className="text-xs text-gray-500">DOB: {c.patient_dob ? new Date(c.patient_dob).toLocaleDateString() : '-'}</div>
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{c.clinic?.name || '-'}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{c.clinic?.name || '-'}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                     {c.ordering_provider ? `${c.ordering_provider.first_name} ${c.ordering_provider.last_name}${c.ordering_provider.credentials ? ', ' + c.ordering_provider.credentials : ''}` : '-'}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                     {c.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || '-'}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(c.created_at).toLocaleDateString()}</td>
-                  <td className="px-4 py-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{new Date(c.created_at).toLocaleDateString()}</td>
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
                       value={c.status}
                       onChange={(e) => handleUpdateStatus(c.id, e.target.value)}
-                      className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ally-teal"
+                      className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ally-teal w-full"
                     >
                       <option value="consent_pending">Consent Pending</option>
                       <option value="consent_complete">Consent Complete</option>
                       <option value="report_ready">Report Ready</option>
                     </select>
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-right" onClick={e => e.stopPropagation()}>
-                    {c.report_file_url ? (
-                      <div className="flex items-center justify-end gap-2">
-                        <a href={c.report_file_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-green-600 hover:underline text-sm">
-                          <Download className="w-4 h-4" />Download
-                        </a>
-                        <label className="inline-flex items-center gap-1 text-gray-500 hover:text-ally-teal text-sm cursor-pointer">
-                          <Upload className="w-4 h-4" />
-                          <input type="file" accept=".pdf" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleUploadReport(c, e.target.files[0]) }} />
+                  <td className="px-3 py-3 whitespace-nowrap text-right" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-3">
+                      {c.report_file_url ? (
+                        <>
+                          <a href={c.report_file_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-green-600 hover:underline text-xs">
+                            <Download className="w-3.5 h-3.5" />Report
+                          </a>
+                          <label className="inline-flex items-center gap-1 text-gray-400 hover:text-ally-teal text-xs cursor-pointer">
+                            <Upload className="w-3.5 h-3.5" />Replace
+                            <input type="file" accept=".pdf" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleUploadReport(c, e.target.files[0]) }} />
+                          </label>
+                        </>
+                      ) : (
+                        <label className="inline-flex items-center gap-1 text-ally-teal hover:underline text-xs cursor-pointer">
+                          {uploadingCase === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><FileUp className="w-3.5 h-3.5" />Upload</>}
+                          <input type="file" accept=".pdf" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleUploadReport(c, e.target.files[0]) }} disabled={uploadingCase === c.id} />
                         </label>
-                      </div>
-                    ) : (
-                      <label className="inline-flex items-center gap-1 text-ally-teal hover:underline text-sm cursor-pointer">
-                        {uploadingCase === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><FileUp className="w-4 h-4" />Upload Report</>}
-                        <input type="file" accept=".pdf" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleUploadReport(c, e.target.files[0]) }} disabled={uploadingCase === c.id} />
-                      </label>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-right sticky right-0 bg-white shadow-[-4px_0_6px_-1px_rgba(0,0,0,0.05)]" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => handleDeleteCase(c)} className="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                      )}
+                      <button onClick={() => handleDeleteCase(c)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>
+                    </div>
                   </td>
                 </tr>
               ))}
               {filteredCases.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                     {cases.length === 0 ? (<><FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" /><p>No cases yet.</p></>) : (<p>No cases match your filters.</p>)}
                   </td>
                 </tr>
@@ -7864,7 +7861,7 @@ export default function App() {
           <Route path="/consent/:token" element={<ConsentSigningPage />} />
           
           {/* Admin Routes */}
-          <Route path="/admin" element={<ProtectedRoute adminOnly><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
+          <Route path="/admin" element={<Navigate to="/admin/cases" replace />} />
           <Route path="/admin/cases" element={<ProtectedRoute adminOnly><AdminLayout><AllCasesPage /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/cases/:id" element={<ProtectedRoute adminOnly><AdminLayout><CaseDetailsPage isAdmin={true} /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/clinics" element={<ProtectedRoute adminOnly><AdminLayout><ClinicsPage /></AdminLayout></ProtectedRoute>} />
