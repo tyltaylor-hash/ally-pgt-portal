@@ -1431,18 +1431,7 @@ function generateRequisitionPDF(cycle, currentUser = null) {
   
   const testsOrdered = cycle.tests_ordered || []
   drawCheckbox(margin + 3, y, testsOrdered.includes('pgt_a'), 'PGT-A (Aneuploidy Screening)')
-  drawCheckbox(margin + 60, y, testsOrdered.includes('pgt_m'), 'PGT-M (Monogenic / Single Gene)')
   drawCheckbox(margin + 125, y, testsOrdered.includes('pgt_sr'), 'PGT-SR (Structural Rearrangement)')
-  
-  y += 7
-  doc.setTextColor(100, 100, 100)
-  doc.setFontSize(6)
-  doc.text('SAMPLE TYPE', margin + 3, y)
-  y += 4
-  
-  drawCheckbox(margin + 3, y, cycle.sample_type === 'd5_d6_d7_trophectoderm', 'D5/D6/D7 Trophectoderm Biopsy')
-  drawCheckbox(margin + 65, y, cycle.sample_type === 'd3_blastomere', 'D3 Blastomere Biopsy')
-  drawCheckbox(margin + 115, y, cycle.sample_type === 'rebiopsy', 'Rebiopsy')
   
   y += 7
   doc.setTextColor(100, 100, 100)
@@ -1462,9 +1451,24 @@ function generateRequisitionPDF(cycle, currentUser = null) {
   const cycleSectionStart = y
   y += 3
   
-  // Diagnosis
+  // Diagnosis - use indication with human-readable label
+  const indicationLabels = {
+    advanced_maternal_age: 'Advanced maternal age (≥35)',
+    recurrent_pregnancy_loss: 'Recurrent pregnancy loss',
+    previous_failed_ivf: 'Previous failed IVF cycles',
+    male_factor: 'Male factor',
+    unexplained_infertility: 'Unexplained infertility',
+    previous_aneuploid_conception: 'Previous aneuploid conception',
+    repetitive_implantation_failure: 'Repetitive implantation failure',
+    elective_pgt_a: 'Elective PGT-A',
+    pgt_sr: 'PGT-SR (Structural Rearrangement)',
+    other: 'Other'
+  }
+  const diagnosisValue = cycle.indication
+    ? (indicationLabels[cycle.indication] || cycle.indication)
+    : (cycle.reason_for_testing || '')
   y = drawFieldRow([
-    { label: 'DIAGNOSIS / INDICATION FOR TESTING', value: cycle.reason_for_testing || '', width: 155 }
+    { label: 'DIAGNOSIS / INDICATION FOR TESTING', value: diagnosisValue, width: 155 }
   ], y)
   
   // Male Factor
@@ -1494,23 +1498,28 @@ function generateRequisitionPDF(cycle, currentUser = null) {
   y += 5
   
   const halfWidth = contentWidth / 2 - 5
-  
+  const submittedDateTime = cycle.created_at ? new Date(cycle.created_at).toLocaleString() : ''
+
   // Left box - Ordering Physician
   doc.setDrawColor(200, 200, 200)
-  doc.rect(margin + 2, y, halfWidth, 25, 'S')
+  doc.rect(margin + 2, y, halfWidth, 30, 'S')
   doc.setTextColor(...navyBlue)
   doc.setFontSize(7)
   doc.setFont('helvetica', 'bold')
   doc.text('ORDERING PHYSICIAN', margin + 5, y + 4)
-  
+
+  doc.setTextColor(...navyBlue)
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'bold')
+  doc.text(providerName, margin + 5, y + 10)
+
   doc.setDrawColor(60, 60, 60)
   doc.line(margin + 5, y + 14, margin + halfWidth - 5, y + 14)
   doc.setTextColor(100, 100, 100)
   doc.setFontSize(6)
   doc.setFont('helvetica', 'normal')
   doc.text('Signature', margin + 5, y + 17)
-  
-  // Digital signature badge
+
   doc.setFillColor(232, 245, 243)
   doc.roundedRect(margin + 5, y + 19, 35, 4.5, 0.5, 0.5, 'F')
   doc.setDrawColor(...teal)
@@ -1519,44 +1528,53 @@ function generateRequisitionPDF(cycle, currentUser = null) {
   doc.setFontSize(5.5)
   doc.setFont('helvetica', 'bold')
   doc.text('✓ DIGITALLY SIGNED', margin + 7, y + 22)
-  
   doc.setTextColor(80, 80, 80)
   doc.setFontSize(6)
   doc.setFont('helvetica', 'normal')
-  doc.text('Date: ' + formatDate(cycle.created_at), margin + 50, y + 22)
-  
+  doc.text(submittedDateTime, margin + 5, y + 28)
+
   // Right box - Submitted By
-  const submittedByName = cycle.created_by_user 
-    ? `${cycle.created_by_user.first_name || ''} ${cycle.created_by_user.last_name || ''}`.trim()
-    : currentUser
-      ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()
-      : ''
-    : ''
+  const submittedByName = cycle.form_completed_by
+    ? cycle.form_completed_by
+    : cycle.created_by_user
+      ? `${cycle.created_by_user.first_name || ''} ${cycle.created_by_user.last_name || ''}`.trim()
+      : currentUser
+        ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()
+        : ''
+
   doc.setDrawColor(200, 200, 200)
-  doc.rect(margin + halfWidth + 8, y, halfWidth, 25, 'S')
+  doc.rect(margin + halfWidth + 8, y, halfWidth, 30, 'S')
   doc.setTextColor(...navyBlue)
   doc.setFontSize(7)
   doc.setFont('helvetica', 'bold')
   doc.text('SUBMITTED BY', margin + halfWidth + 11, y + 4)
-  
+
   doc.setTextColor(...navyBlue)
-  doc.setFontSize(8)
+  doc.setFontSize(9)
   doc.setFont('helvetica', 'bold')
   doc.text(submittedByName, margin + halfWidth + 11, y + 10)
-  
+
   doc.setDrawColor(60, 60, 60)
   doc.line(margin + halfWidth + 11, y + 14, margin + contentWidth - 5, y + 14)
   doc.setTextColor(100, 100, 100)
   doc.setFontSize(6)
   doc.setFont('helvetica', 'normal')
   doc.text('Signature', margin + halfWidth + 11, y + 17)
-  
+
+  doc.setFillColor(232, 245, 243)
+  doc.roundedRect(margin + halfWidth + 11, y + 19, 35, 4.5, 0.5, 0.5, 'F')
+  doc.setDrawColor(...teal)
+  doc.roundedRect(margin + halfWidth + 11, y + 19, 35, 4.5, 0.5, 0.5, 'S')
+  doc.setTextColor(...teal)
+  doc.setFontSize(5.5)
+  doc.setFont('helvetica', 'bold')
+  doc.text('✓ DIGITALLY SIGNED', margin + halfWidth + 13, y + 22)
   doc.setTextColor(80, 80, 80)
   doc.setFontSize(6)
   doc.setFont('helvetica', 'normal')
-  doc.text('Date: ' + formatDate(cycle.created_at), margin + halfWidth + 11, y + 22)
-  
-  y += 27
+  doc.text(submittedDateTime, margin + halfWidth + 11, y + 28)
+
+  y += 32
   doc.setDrawColor(200, 200, 200)
   doc.rect(margin, sigSectionStart, contentWidth, y - sigSectionStart + 1, 'S')
   
@@ -2887,15 +2905,11 @@ function PatientFolderModal({ caseData, onClose, supabase }) {
     <div class="checkbox-row">
       <div class="checkbox-item">
         <span class="checkbox ${fullCase.tests_ordered?.includes('pgt_a') ? 'checked' : ''}"></span>
-        <span>PGT-A</span>
-      </div>
-      <div class="checkbox-item">
-        <span class="checkbox ${fullCase.tests_ordered?.includes('pgt_m') ? 'checked' : ''}"></span>
-        <span>PGT-M</span>
+        <span>PGT-A (Aneuploidy Screening)</span>
       </div>
       <div class="checkbox-item">
         <span class="checkbox ${fullCase.tests_ordered?.includes('pgt_sr') ? 'checked' : ''}"></span>
-        <span>PGT-SR</span>
+        <span>PGT-SR (Structural Rearrangement)</span>
       </div>
       <div class="checkbox-item" style="margin-left: auto;">
         <span class="checkbox ${fullCase.mask_sex_results ? 'checked' : ''}"></span>
@@ -2908,13 +2922,37 @@ function PatientFolderModal({ caseData, onClose, supabase }) {
   <div class="section">
     <div class="section-title">Cycle Information</div>
     <div class="row">
+      <div class="field" style="flex:2;">
+        <div class="field-label">Diagnosis / Indication for Testing:</div>
+        <div class="field-value">${(() => {
+          const labels = {
+            advanced_maternal_age: 'Advanced maternal age (≥35)',
+            recurrent_pregnancy_loss: 'Recurrent pregnancy loss',
+            previous_failed_ivf: 'Previous failed IVF cycles',
+            male_factor: 'Male factor',
+            unexplained_infertility: 'Unexplained infertility',
+            previous_aneuploid_conception: 'Previous aneuploid conception',
+            repetitive_implantation_failure: 'Repetitive implantation failure',
+            elective_pgt_a: 'Elective PGT-A',
+            pgt_sr: 'PGT-SR (Structural Rearrangement)',
+            other: 'Other'
+          }
+          return fullCase.indication ? (labels[fullCase.indication] || fullCase.indication) : (fullCase.reason_for_testing || '')
+        })()}</div>
+      </div>
+    </div>
+    <div class="row">
       <div class="field">
-        <div class="field-label">Diagnosis:</div>
-        <div class="field-value"></div>
+        <div class="field-label">Male Factor Infertility:</div>
+        <div class="field-value">${fullCase.male_factor_infertility ? 'Yes' : 'No'}</div>
       </div>
       <div class="field">
-        <div class="field-label">Sample Type:</div>
-        <div class="field-value">D5/6/7 Trophectoderm</div>
+        <div class="field-label">Egg Donor:</div>
+        <div class="field-value">${fullCase.is_egg_donor ? 'Yes' : 'No'}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Sperm Donor:</div>
+        <div class="field-value">${fullCase.is_sperm_donor ? 'Yes' : 'No'}</div>
       </div>
     </div>
   </div>
@@ -2923,22 +2961,20 @@ function PatientFolderModal({ caseData, onClose, supabase }) {
   <div class="signature-section">
     <div class="sig-row">
       <div class="sig-field">
-        <div class="field-label">Ordering Physician:</div>
-        <div class="field-value">${fullCase.provider ? fullCase.provider.first_name + ' ' + fullCase.provider.last_name : ''}</div>
+        <div class="field-label" style="font-weight:bold;color:#1a2e4a;font-size:9px;">ORDERING PHYSICIAN</div>
+        <div class="field-value" style="font-weight:bold;font-size:13px;margin:4px 0;">${fullCase.provider ? fullCase.provider.first_name + ' ' + fullCase.provider.last_name : ''}</div>
+        <div style="border-top:1px solid #555;margin:6px 0 3px;"></div>
+        <div style="font-size:8px;color:#888;">Signature</div>
+        <div style="display:inline-block;background:#e8f5f3;border:1px solid #1a9b85;border-radius:3px;padding:2px 8px;margin-top:4px;font-size:8px;font-weight:bold;color:#1a9b85;">✓ DIGITALLY SIGNED</div>
+        <div style="font-size:8px;color:#666;margin-top:3px;">${new Date(fullCase.created_at).toLocaleString()}</div>
       </div>
       <div class="sig-field">
-        <div class="field-label">Physician Signature:</div>
-        <div class="field-value"><span class="digital-sig">[Digitally Signed]</span></div>
-      </div>
-    </div>
-    <div class="sig-row">
-      <div class="sig-field">
-        <div class="field-label">Form Completed By (print name):</div>
-        <div class="field-value"></div>
-      </div>
-      <div class="sig-field">
-        <div class="field-label">Date:</div>
-        <div class="field-value">${new Date(fullCase.created_at).toLocaleDateString()}</div>
+        <div class="field-label" style="font-weight:bold;color:#1a2e4a;font-size:9px;">SUBMITTED BY</div>
+        <div class="field-value" style="font-weight:bold;font-size:13px;margin:4px 0;">${fullCase.form_completed_by || ''}</div>
+        <div style="border-top:1px solid #555;margin:6px 0 3px;"></div>
+        <div style="font-size:8px;color:#888;">Signature</div>
+        <div style="display:inline-block;background:#e8f5f3;border:1px solid #1a9b85;border-radius:3px;padding:2px 8px;margin-top:4px;font-size:8px;font-weight:bold;color:#1a9b85;">✓ DIGITALLY SIGNED</div>
+        <div style="font-size:8px;color:#666;margin-top:3px;">${new Date(fullCase.created_at).toLocaleString()}</div>
       </div>
     </div>
   </div>
