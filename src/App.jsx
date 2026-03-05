@@ -120,7 +120,7 @@ function AuthProvider({ children }) {
   async function fetchUserData(authId) {
     const { data } = await supabase
       .from('users')
-      .select('*, clinic:clinics(id, name, address_line1, address_line2, city, state, zip_code, phone, email)')
+      .select('*, clinic:clinics(id, name)')
       .eq('auth_id', authId)
       .single()
     setUserData(data)
@@ -146,7 +146,7 @@ function AuthProvider({ children }) {
     // Fetch full user data with clinic
     const { data } = await supabase
       .from('users')
-      .select('*, clinic:clinics(id, name, address_line1, address_line2, city, state, zip_code, phone, email)')
+      .select('*, clinic:clinics(id, name)')
       .eq('id', targetUser.id)
       .single()
     
@@ -2339,7 +2339,19 @@ function OrderSuppliesModal({ onClose }) {
     e.preventDefault()
     setSubmitting(true)
 
-    const clinicAddress = getClinicAddress()
+    // Fetch full clinic address at order time
+    const { data: clinicData } = await supabase
+      .from('clinics')
+      .select('name, address_line1, address_line2, city, state, zip_code')
+      .eq('id', userData.clinic_id)
+      .single()
+
+    const clinicAddress = clinicData ? [
+      clinicData.name,
+      clinicData.address_line1,
+      clinicData.address_line2,
+      `${clinicData.city || ''}, ${clinicData.state || ''} ${clinicData.zip_code || ''}`.trim()
+    ].filter(Boolean).join('\n') : 'No address on file'
 
     // Save order to database
     const { data: newOrder } = await supabase.from('kit_orders').insert({
@@ -2540,12 +2552,12 @@ function OrderSuppliesModal({ onClose }) {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Shipping Address</label>
-            <p className="text-xs text-gray-500 mb-2">Pre-filled from your clinic's address on file. Edit if shipping to a different address.</p>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Shipping Address</label>
             <textarea
-              value={orderForm.shipping_address || getClinicAddress()}
+              value={orderForm.shipping_address}
               onChange={(e) => setOrderForm(f => ({ ...f, shipping_address: e.target.value }))}
-              rows={4}
+              rows={3}
+              placeholder="Leave blank to use clinic address on file"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             />
           </div>
@@ -5167,7 +5179,19 @@ function OrderSuppliesPage() {
     e.preventDefault()
     setSubmitting(true)
 
-    const clinicAddress = getClinicAddress()
+    // Fetch full clinic address at order time
+    const { data: clinicData } = await supabase
+      .from('clinics')
+      .select('name, address_line1, address_line2, city, state, zip_code')
+      .eq('id', userData.clinic_id)
+      .single()
+
+    const clinicAddress = clinicData ? [
+      clinicData.name,
+      clinicData.address_line1,
+      clinicData.address_line2,
+      `${clinicData.city || ''}, ${clinicData.state || ''} ${clinicData.zip_code || ''}`.trim()
+    ].filter(Boolean).join('\n') : 'No address on file'
 
     // Save order to database
     const { data: newOrder } = await supabase.from('kit_orders').insert({
@@ -5371,12 +5395,12 @@ function OrderSuppliesPage() {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Shipping Address</label>
-            <p className="text-xs text-gray-500 mb-2">Pre-filled from your clinic's address on file. Edit if shipping to a different address.</p>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Shipping Address</label>
             <textarea
-              value={orderForm.shipping_address || getClinicAddress()}
+              value={orderForm.shipping_address}
               onChange={(e) => setOrderForm(f => ({ ...f, shipping_address: e.target.value }))}
-              rows={4}
+              rows={3}
+              placeholder="Leave blank to use clinic address on file"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             />
           </div>
