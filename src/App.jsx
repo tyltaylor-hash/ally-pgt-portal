@@ -1532,6 +1532,7 @@ function generateRequisitionPDF(cycle, currentUser = null) {
     : currentUser
       ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()
       : ''
+    : ''
   doc.setDrawColor(200, 200, 200)
   doc.rect(margin + halfWidth + 8, y, halfWidth, 25, 'S')
   doc.setTextColor(...navyBlue)
@@ -3082,6 +3083,7 @@ function PatientFolderModal({ caseData, onClose, supabase }) {
 // ============================================================================
 function AllCasesPage() {
   const { supabase } = useAuth()
+  const navigate = useNavigate()
   const [cases, setCases] = useState([])
   const [clinics, setClinics] = useState([])
   const [loading, setLoading] = useState(true)
@@ -3089,6 +3091,17 @@ function AllCasesPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [clinicFilter, setClinicFilter] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState('created_at')
+  const [sortDir, setSortDir] = useState('desc')
+
+  function handleSort(field) {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortField(field); setSortDir('asc') }
+  }
+  function SortIcon({ field }) {
+    if (sortField !== field) return <span className="ml-1 text-gray-300">↕</span>
+    return <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
+  }
 
   useEffect(() => {
     fetchData()
@@ -3196,6 +3209,15 @@ function AllCasesPage() {
       c.patient_last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.case_number?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesStatus && matchesClinic && matchesSearch
+  }).sort((a, b) => {
+    let aVal, bVal
+    if (sortField === 'case_number') { aVal = a.case_number || ''; bVal = b.case_number || '' }
+    else if (sortField === 'patient') { aVal = `${a.patient_last_name} ${a.patient_first_name}`; bVal = `${b.patient_last_name} ${b.patient_first_name}` }
+    else if (sortField === 'clinic') { aVal = a.clinic?.name || ''; bVal = b.clinic?.name || '' }
+    else if (sortField === 'provider') { aVal = a.ordering_provider?.last_name || ''; bVal = b.ordering_provider?.last_name || '' }
+    else if (sortField === 'status') { aVal = a.status || ''; bVal = b.status || '' }
+    else { aVal = a.created_at || ''; bVal = b.created_at || '' }
+    return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
   })
 
   if (loading) {
@@ -3249,42 +3271,36 @@ function AllCasesPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Case #</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clinic</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tests</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Report</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th onClick={() => handleSort('case_number')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Case # <SortIcon field="case_number" /></th>
+                <th onClick={() => handleSort('patient')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Patient <SortIcon field="patient" /></th>
+                <th onClick={() => handleSort('clinic')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Clinic <SortIcon field="clinic" /></th>
+                <th onClick={() => handleSort('provider')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Provider <SortIcon field="provider" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Tests</th>
+                <th onClick={() => handleSort('created_at')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Submitted <SortIcon field="created_at" /></th>
+                <th onClick={() => handleSort('status')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Status <SortIcon field="status" /></th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Report</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap sticky right-0 bg-gray-50 shadow-[-4px_0_6px_-1px_rgba(0,0,0,0.05)]">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredCases.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-ally-teal">
-                    <Link to={`/admin/cases/${c.id}`} className="hover:underline">
-                      {c.case_number || '-'}
-                    </Link>
+                <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/admin/cases/${c.id}`)}>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-ally-teal" onClick={e => e.stopPropagation()}>
+                    <Link to={`/admin/cases/${c.id}`} className="hover:underline">{c.case_number || '-'}</Link>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="font-medium text-gray-900">{c.patient_last_name}, {c.patient_first_name}</div>
                     <div className="text-xs text-gray-500">DOB: {c.patient_dob ? new Date(c.patient_dob).toLocaleDateString() : '-'}</div>
                   </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{c.clinic?.name || '-'}</td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {c.clinic?.name || '-'}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {c.ordering_provider ? `${c.ordering_provider.first_name} ${c.ordering_provider.last_name}, ${c.ordering_provider.credentials || ''}`.trim() : '-'}
+                    {c.ordering_provider ? `${c.ordering_provider.first_name} ${c.ordering_provider.last_name}${c.ordering_provider.credentials ? ', ' + c.ordering_provider.credentials : ''}` : '-'}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                     {c.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || '-'}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(c.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(c.created_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
                       value={c.status}
                       onChange={(e) => handleUpdateStatus(c.id, e.target.value)}
@@ -3295,77 +3311,33 @@ function AllCasesPage() {
                       <option value="report_ready">Report Ready</option>
                     </select>
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-right">
+                  <td className="px-4 py-4 whitespace-nowrap text-right" onClick={e => e.stopPropagation()}>
                     {c.report_file_url ? (
                       <div className="flex items-center justify-end gap-2">
-                        <a 
-                          href={c.report_file_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-green-600 hover:underline text-sm"
-                        >
-                          <Download className="w-4 h-4" />
-                          Download
+                        <a href={c.report_file_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-green-600 hover:underline text-sm">
+                          <Download className="w-4 h-4" />Download
                         </a>
                         <label className="inline-flex items-center gap-1 text-gray-500 hover:text-ally-teal text-sm cursor-pointer">
                           <Upload className="w-4 h-4" />
-                          <input
-                            type="file"
-                            accept=".pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                              if (e.target.files?.[0]) {
-                                handleUploadReport(c, e.target.files[0])
-                              }
-                            }}
-                          />
+                          <input type="file" accept=".pdf" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleUploadReport(c, e.target.files[0]) }} />
                         </label>
                       </div>
                     ) : (
                       <label className="inline-flex items-center gap-1 text-ally-teal hover:underline text-sm cursor-pointer">
-                        {uploadingCase === c.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <>
-                            <FileUp className="w-4 h-4" />
-                            Upload Report
-                          </>
-                        )}
-                        <input
-                          type="file"
-                          accept=".pdf"
-                          className="hidden"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) {
-                              handleUploadReport(c, e.target.files[0])
-                            }
-                          }}
-                          disabled={uploadingCase === c.id}
-                        />
+                        {uploadingCase === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><FileUp className="w-4 h-4" />Upload Report</>}
+                        <input type="file" accept=".pdf" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleUploadReport(c, e.target.files[0]) }} disabled={uploadingCase === c.id} />
                       </label>
                     )}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-right">
-                    <button
-                      onClick={() => handleDeleteCase(c)}
-                      className="text-red-600 hover:text-red-800 text-sm"
-                    >
-                      Delete
-                    </button>
+                  <td className="px-4 py-4 whitespace-nowrap text-right sticky right-0 bg-white shadow-[-4px_0_6px_-1px_rgba(0,0,0,0.05)]" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => handleDeleteCase(c)} className="text-red-600 hover:text-red-800 text-sm">Delete</button>
                   </td>
                 </tr>
               ))}
               {filteredCases.length === 0 && (
                 <tr>
                   <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
-                    {cases.length === 0 ? (
-                      <>
-                        <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                        <p>No cases yet.</p>
-                      </>
-                    ) : (
-                      <p>No cases match your filters.</p>
-                    )}
+                    {cases.length === 0 ? (<><FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" /><p>No cases yet.</p></>) : (<p>No cases match your filters.</p>)}
                   </td>
                 </tr>
               )}
@@ -3750,12 +3722,6 @@ function CaseDetailsPage({ isAdmin = false }) {
             </div>
           </div>
 
-          {/* Consent Status */}
-          <div className="bg-white rounded-lg border">
-            <div className="px-6 py-4 border-b">
-              <h2 className="font-semibold">Consent Status</h2>
-            </div>
-
           {/* Documents */}
           <div className="bg-white rounded-lg border">
             <div className="px-6 py-4 border-b">
@@ -3771,7 +3737,7 @@ function CaseDetailsPage({ isAdmin = false }) {
                   </div>
                 </div>
                 <button
-                  onClick={() => generateRequisitionPDF(caseData)}
+                  onClick={() => generateRequisitionPDF(caseData, userData)}
                   className="inline-flex items-center gap-1 text-ally-teal hover:underline text-sm"
                 >
                   <Download className="w-4 h-4" />
@@ -4302,7 +4268,11 @@ function NewRequisitionPage() {
     if (formData.egg_donor_age && formData.egg_donor_age !== 'unknown') {
       caseData.egg_donor_age = parseInt(formData.egg_donor_age)
     }
-    if (formData.sperm_source === 'donor') caseData.is_sperm_donor = true
+    if (formData.sperm_source === 'donor') {
+      caseData.is_sperm_donor = true
+    } else {
+      caseData.is_sperm_donor = false
+    }
     // Store sperm donor age only if it's a numeric value (not 'unknown')
     if (formData.sperm_donor_age && formData.sperm_donor_age !== 'unknown') {
       caseData.sperm_donor_age = parseInt(formData.sperm_donor_age)
