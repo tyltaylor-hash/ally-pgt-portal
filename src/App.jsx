@@ -1161,6 +1161,484 @@ function ClinicDashboard() {
 // ============================================================================
 // PATIENT CYCLES MODAL
 // ============================================================================
+
+// ============================================================================
+// SHARED PDF GENERATION
+// ============================================================================
+function generateConsentPDF(cycle, signerType, consent) {
+  const doc = new jsPDF()
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 15
+  const contentWidth = pageWidth - (margin * 2)
+  
+  const signerName = signerType === 'patient' 
+    ? `${cycle.patient_first_name} ${cycle.patient_last_name}`
+    : `${cycle.partner_first_name} ${cycle.partner_last_name}`
+  
+  const signerEmail = signerType === 'patient' ? cycle.patient_email : cycle.partner_email
+  
+  // Get consent content - use stored version if available, otherwise current
+  const content = consent.consent_content || getConsentContent()
+  
+  // Colors
+  const navyBlue = [30, 58, 95] // #1e3a5f
+  const teal = [13, 148, 136] // #0d9488
+  const warningYellow = [254, 243, 199] // #fef3c7
+  const warningBorder = [245, 158, 11] // #f59e0b
+  const lightGray = [249, 250, 251] // #f9fafb
+  
+  let currentPage = 1
+  const totalPages = 9
+  
+  // Helper function to add header
+  function addHeader() {
+    doc.setFillColor(...navyBlue)
+    doc.rect(0, 0, pageWidth, 3, 'F')
+    
+    doc.setTextColor(...navyBlue)
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Ally Genetics', margin, 12)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'italic')
+    doc.setTextColor(...teal)
+    doc.text('Better Partnerships. Better Results.', margin, 16)
+    
+    doc.setFillColor(...navyBlue)
+    doc.rect(55, 8, pageWidth - 55 - margin, 10, 'F')
+  }
+  
+  // Helper function to add footer
+  function addFooter() {
+    // Doc ID and page number
+    doc.setFontSize(7)
+    doc.setTextColor(136, 136, 136)
+    doc.text('DOC104-v40480652', margin, pageHeight - 18)
+    doc.text(`Page ${currentPage} of ${totalPages}`, pageWidth - margin, pageHeight - 18, { align: 'right' })
+    
+    // Footer bar
+    doc.setFillColor(...navyBlue)
+    doc.rect(0, pageHeight - 14, pageWidth, 14, 'F')
+    doc.setFontSize(6)
+    doc.setTextColor(255, 255, 255)
+    doc.text('phone: (616) 465-2400  |  fax: (616) 616-5887', margin, pageHeight - 8)
+    doc.text('email: lab@allygenetics.com  |  web: www.allygenetics.com', pageWidth / 2, pageHeight - 8, { align: 'center' })
+    doc.text('1001 Parchment Dr SE, Grand Rapids, MI 49546', pageWidth - margin, pageHeight - 8, { align: 'right' })
+  }
+  
+  // Helper function to add section title
+  function addSectionTitle(title, y) {
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...navyBlue)
+    doc.text(title, margin, y)
+    return y + 6
+  }
+  
+  // Helper function to add paragraph text with word wrap
+  function addParagraph(text, y, fontSize = 8) {
+    doc.setFontSize(fontSize)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
+    const lines = doc.splitTextToSize(text, contentWidth)
+    doc.text(lines, margin, y)
+    return y + (lines.length * (fontSize * 0.45))
+  }
+  
+  // Helper function for new page
+  function newPage() {
+    doc.addPage()
+    currentPage++
+    addHeader()
+  }
+  
+  // ==================== PAGE 1 ====================
+  addHeader()
+  let y = 25
+  
+  // Consent info bar
+  doc.setFillColor(232, 245, 243)
+  doc.setDrawColor(...teal)
+  doc.rect(margin, y, contentWidth, 10, 'FD')
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...navyBlue)
+  doc.text('Consent Sent To:', margin + 2, y + 4)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...teal)
+  doc.text(signerEmail || 'N/A', margin + 28, y + 4)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...navyBlue)
+  doc.text('Signer:', margin + 80, y + 4)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...teal)
+  doc.text(`${signerName} (${signerType.charAt(0).toUpperCase() + signerType.slice(1)})`, margin + 93, y + 4)
+  y += 18
+  
+  // Main title
+  doc.setFontSize(12)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...navyBlue)
+  doc.text('Patient Informed Consent for Preimplantation Genetic Testing for Aneuploidy (PGT-A)', margin, y)
+  y += 10
+  
+  // Introduction
+  y = addSectionTitle('Introduction', y)
+  y = addParagraph(content.sections.introduction, y)
+  y += 4
+  
+  // Genetic Counseling
+  y = addSectionTitle('Genetic Counseling', y)
+  y = addParagraph(content.sections.geneticCounseling, y)
+  y += 4
+  
+  // Chromosomal Abnormalities
+  y = addSectionTitle('Chromosomal Abnormalities', y)
+  y = addParagraph(content.sections.chromosomalAbnormalities, y)
+  y += 4
+  
+  // Benefits of PGT-A
+  y = addSectionTitle('Benefits of PGT-A', y)
+  y = addParagraph(content.sections.benefits, y)
+  
+  addFooter()
+  
+  // ==================== PAGE 2 ====================
+  newPage()
+  y = 25
+  
+  // Embryo Biopsy Related Risks
+  y = addSectionTitle('Embryo Biopsy Related Risks', y)
+  y = addParagraph(content.sections.embryoBiopsyRisks, y)
+  y += 2
+  doc.setFontSize(8)
+  content.sections.embryoBiopsyRisksList.forEach(risk => {
+    y = addParagraph('• ' + risk, y)
+  })
+  y += 4
+  
+  // Fertility Center Related Risks
+  y = addSectionTitle('Fertility Center Related Risks', y)
+  y = addParagraph('There are also risks associated with the clinical process of IVF including:', y)
+  y += 2
+  content.sections.fertilityCenterRisks.forEach(risk => {
+    y = addParagraph('• ' + risk, y)
+  })
+  y += 4
+  
+  // Technical and Analytic Risks
+  y = addSectionTitle('Technical and Analytic Risks', y)
+  y = addParagraph(content.sections.technicalRisks, y)
+  y += 4
+  
+  // No Diagnosis
+  y = addSectionTitle('No Diagnosis', y)
+  y = addParagraph(content.sections.noDiagnosis, y)
+  
+  addFooter()
+  
+  // ==================== PAGE 3 ====================
+  newPage()
+  y = 25
+  
+  // Misdiagnosis
+  y = addSectionTitle('Misdiagnosis', y)
+  y = addParagraph(content.sections.misdiagnosis, y)
+  y += 4
+  
+  // Technical Limits of Detection
+  y = addSectionTitle('Technical Limits of Detection', y)
+  y = addParagraph(content.sections.technicalLimits + ' Ally Genetics PGT-A does not detect the following abnormalities which include but are not limited to:', y)
+  y += 2
+  // First 4 items on page 3
+  for (let i = 0; i < 4 && i < content.sections.technicalLimitsList.length; i++) {
+    y = addParagraph('• ' + content.sections.technicalLimitsList[i], y)
+  }
+  
+  addFooter()
+  
+  // ==================== PAGE 4 ====================
+  newPage()
+  y = 25
+  
+  // Remaining technical limits items
+  for (let i = 4; i < content.sections.technicalLimitsList.length; i++) {
+    y = addParagraph('• ' + content.sections.technicalLimitsList[i], y)
+  }
+  y += 4
+  
+  // Follow-Up Recommendation
+  y = addSectionTitle('Follow-Up Recommendation for Prenatal Diagnosis', y)
+  y = addParagraph(content.sections.followUpRecommendation, y)
+  y += 4
+  
+  // Test Results and Interpretation
+  y = addSectionTitle('Test Results and Interpretation', y)
+  y = addParagraph(content.sections.testResults.normal, y)
+  y += 2
+  y = addParagraph(content.sections.testResults.abnormal, y)
+  y = addParagraph('• ' + content.sections.testResults.trisomy, y)
+  y = addParagraph('• ' + content.sections.testResults.monosomy, y)
+  y = addParagraph('• ' + content.sections.testResults.complexAbnormal, y)
+  y += 2
+  y = addParagraph(content.sections.testResults.noDiagnosis, y)
+  y = addParagraph('• ' + content.sections.testResults.insufficientDNA, y)
+  y = addParagraph('• ' + content.sections.testResults.inconclusive, y)
+  
+  addFooter()
+  
+  // ==================== PAGE 5 ====================
+  newPage()
+  y = 25
+  
+  // Mosaic Results
+  y = addSectionTitle('Mosaic Results', y)
+  y = addParagraph(content.sections.mosaicResults, y)
+  
+  addFooter()
+  
+  // ==================== PAGE 6 ====================
+  newPage()
+  y = 25
+  
+  // Alternatives to PGT-A
+  y = addSectionTitle('Alternatives to PGT-A', y)
+  y = addParagraph(content.sections.alternatives, y)
+  y += 4
+  
+  // Costs
+  y = addSectionTitle('Costs', y)
+  y = addParagraph(content.sections.costs, y)
+  y += 4
+  
+  // Confidentiality and HIPAA
+  y = addSectionTitle('Confidentiality and HIPAA', y)
+  y = addParagraph(content.sections.confidentiality, y)
+  y += 4
+  
+  // Retention of Samples
+  y = addSectionTitle('Retention of Samples', y)
+  y = addParagraph(content.sections.retentionOfSamples, y)
+  
+  addFooter()
+  
+  // ==================== PAGE 7 ====================
+  newPage()
+  y = 25
+  
+  // By signing below attestations
+  y = addSectionTitle('By signing below, I attest to the following:', y)
+  content.sections.attestations.forEach((attestation, index) => {
+    y = addParagraph(attestation, y)
+    if (index < content.sections.attestations.length - 1) y += 2
+  })
+  
+  addFooter()
+  
+  // ==================== PAGE 8 ====================
+  newPage()
+  y = 25
+  
+  // Warning Box 1: PGT-A Accuracy
+  doc.setFillColor(...warningYellow)
+  doc.setDrawColor(...warningBorder)
+  doc.setLineWidth(0.5)
+  doc.rect(margin, y, contentWidth, 22, 'FD')
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(146, 64, 14)
+  doc.text('⚠ ' + content.warningBoxes.pgtAccuracy.title, margin + 3, y + 5)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(120, 53, 15)
+  doc.setFontSize(6.5)
+  const warning1Text = doc.splitTextToSize(content.warningBoxes.pgtAccuracy.text, contentWidth - 6)
+  doc.text(warning1Text, margin + 3, y + 10)
+  // Checkbox
+  doc.setFillColor(...teal)
+  doc.rect(margin + 3, y + 17, 3, 3, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(6)
+  doc.text('✓', margin + 3.7, y + 19.5)
+  doc.setTextColor(31, 41, 55)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6)
+  doc.text(content.warningBoxes.pgtAccuracy.checkbox.substring(0, 120), margin + 8, y + 19.5)
+  y += 28
+  
+  // Warning Box 2: Sex Selection
+  doc.setFillColor(...warningYellow)
+  doc.rect(margin, y, contentWidth, 22, 'FD')
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(146, 64, 14)
+  doc.text('⚠ ' + content.warningBoxes.noSexSelection.title, margin + 3, y + 5)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(120, 53, 15)
+  doc.setFontSize(6.5)
+  const warning2Text = doc.splitTextToSize(content.warningBoxes.noSexSelection.text, contentWidth - 6)
+  doc.text(warning2Text, margin + 3, y + 10)
+  doc.setFillColor(...teal)
+  doc.rect(margin + 3, y + 17, 3, 3, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(6)
+  doc.text('✓', margin + 3.7, y + 19.5)
+  doc.setTextColor(31, 41, 55)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6)
+  doc.text(content.warningBoxes.noSexSelection.checkbox.substring(0, 110), margin + 8, y + 19.5)
+  y += 28
+  
+  // Warning Box 3: Liability Waiver
+  doc.setFillColor(...warningYellow)
+  doc.rect(margin, y, contentWidth, 24, 'FD')
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(146, 64, 14)
+  doc.text('⚠ ' + content.warningBoxes.liabilityWaiver.title, margin + 3, y + 5)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(120, 53, 15)
+  doc.setFontSize(6.5)
+  const warning3Text = doc.splitTextToSize(content.warningBoxes.liabilityWaiver.text, contentWidth - 6)
+  doc.text(warning3Text, margin + 3, y + 10)
+  doc.setFillColor(...teal)
+  doc.rect(margin + 3, y + 19, 3, 3, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(6)
+  doc.text('✓', margin + 3.7, y + 21.5)
+  doc.setTextColor(31, 41, 55)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6)
+  doc.text(content.warningBoxes.liabilityWaiver.checkbox.substring(0, 95), margin + 8, y + 21.5)
+  y += 30
+  
+  // Required Agreements box
+  doc.setFillColor(...lightGray)
+  doc.setDrawColor(229, 231, 235)
+  doc.rect(margin, y, contentWidth, 28, 'FD')
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...navyBlue)
+  doc.text('Required Agreements', margin + 3, y + 5)
+  y += 8
+  content.requiredAgreements.forEach((text, i) => {
+    doc.setFillColor(...teal)
+    doc.rect(margin + 3, y + (i * 5), 2.5, 2.5, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(5)
+    doc.text('✓', margin + 3.5, y + (i * 5) + 2)
+    doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6.5)
+    doc.text(text, margin + 8, y + (i * 5) + 2)
+  })
+  y += 26
+  
+  // Attestation box
+  doc.setFillColor(248, 250, 252)
+  doc.setDrawColor(226, 232, 240)
+  doc.rect(margin, y, contentWidth, 30, 'FD')
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...navyBlue)
+  doc.text('My signature below indicates that:', margin + 3, y + 5)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(0, 0, 0)
+  doc.setFontSize(6.5)
+  content.signatureAttestations.forEach((text, i) => {
+    doc.text(`${i + 1}. ${text}`, margin + 3, y + 10 + (i * 5))
+  })
+  
+  addFooter()
+  
+  // ==================== PAGE 9 - SIGNATURE ====================
+  newPage()
+  y = 25
+  
+  // Signature Section
+  doc.setFillColor(...navyBlue)
+  doc.rect(margin, y, contentWidth, 8, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'bold')
+  doc.text(`ELECTRONIC SIGNATURE - ${signerType.toUpperCase()}`, margin + 3, y + 5.5)
+  y += 12
+  
+  // Signature content box
+  doc.setDrawColor(...navyBlue)
+  doc.setLineWidth(0.5)
+  doc.rect(margin, y, contentWidth, 70, 'D')
+  
+  // Row 1: Name and Role
+  doc.setFontSize(6)
+  doc.setTextColor(102, 102, 102)
+  doc.setFont('helvetica', 'normal')
+  doc.text('NAME (PRINT)', margin + 5, y + 8)
+  doc.text('ROLE', margin + 100, y + 8)
+  
+  doc.setFontSize(10)
+  doc.setTextColor(...teal)
+  doc.text(signerName, margin + 5, y + 15)
+  doc.text(signerType.charAt(0).toUpperCase() + signerType.slice(1), margin + 100, y + 15)
+  
+  doc.setDrawColor(51, 51, 51)
+  doc.setLineWidth(0.3)
+  doc.line(margin + 5, y + 17, margin + 90, y + 17)
+  doc.line(margin + 100, y + 17, margin + 160, y + 17)
+  
+  // Row 2: Signature and Date
+  doc.setFontSize(6)
+  doc.setTextColor(102, 102, 102)
+  doc.text('SIGNATURE', margin + 5, y + 28)
+  doc.text('DATE & TIME SIGNED', margin + 100, y + 28)
+  
+  doc.setFontSize(14)
+  doc.setTextColor(...teal)
+  doc.setFont('helvetica', 'italic')
+  if (consent.signature_type === 'typed' && consent.signature_data) {
+    doc.text(consent.signature_data, margin + 5, y + 38)
+  } else {
+    doc.text(signerName, margin + 5, y + 38)
+  }
+  
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  const signedDate = consent.signed_at ? new Date(consent.signed_at).toLocaleString() : 'Pending'
+  doc.text(signedDate, margin + 100, y + 38)
+  
+  doc.setDrawColor(51, 51, 51)
+  doc.line(margin + 5, y + 40, margin + 90, y + 40)
+  doc.line(margin + 100, y + 40, margin + 160, y + 40)
+  
+  // Electronically Signed badge
+  if (consent.status === 'signed') {
+    doc.setFillColor(232, 245, 243)
+    doc.setDrawColor(...teal)
+    doc.rect(margin + 5, y + 44, 35, 6, 'FD')
+    doc.setFontSize(6)
+    doc.setTextColor(...teal)
+    doc.setFont('helvetica', 'bold')
+    doc.text('✓ ELECTRONICALLY SIGNED', margin + 7, y + 48)
+  }
+  
+  // Verification details
+  doc.setDrawColor(221, 221, 221)
+  doc.line(margin + 5, y + 54, margin + contentWidth - 5, y + 54)
+  doc.setFontSize(6)
+  doc.setTextColor(102, 102, 102)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Verification Details:', margin + 5, y + 59)
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Consent Sent To: ${signerEmail || 'N/A'}  |  IP Address: ${consent.ip_address || 'N/A'}`, margin + 5, y + 64)
+  doc.text(`Document ID: CON-${cycle.case_number}-${signerType.toUpperCase()}`, margin + 5, y + 68)
+  
+  addFooter()
+  
+  // Save
+  const fileName = `Consent_${cycle.patient_last_name}_${cycle.patient_first_name}_${signerType.charAt(0).toUpperCase() + signerType.slice(1)}.pdf`
+  doc.save(fileName)
+}
+
 function PatientCyclesModal({ patient, onClose, supabase }) {
   const [downloading, setDownloading] = useState(null)
 
@@ -1468,16 +1946,6 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     y += 7
     doc.setTextColor(100, 100, 100)
     doc.setFontSize(6)
-    doc.text('SAMPLE TYPE', margin + 3, y)
-    y += 4
-    
-    drawCheckbox(margin + 3, y, cycle.sample_type === 'd5_d6_d7_trophectoderm', 'D5/D6/D7 Trophectoderm Biopsy')
-    drawCheckbox(margin + 65, y, cycle.sample_type === 'd3_blastomere', 'D3 Blastomere Biopsy')
-    drawCheckbox(margin + 115, y, cycle.sample_type === 'rebiopsy', 'Rebiopsy')
-    
-    y += 7
-    doc.setTextColor(100, 100, 100)
-    doc.setFontSize(6)
     doc.text('REPORTING OPTIONS', margin + 3, y)
     y += 4
     
@@ -1493,9 +1961,22 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     const cycleSectionStart = y
     y += 3
     
-    // Diagnosis
+    // Diagnosis - use indication field with human-readable label
+    const indicationLabels = {
+      advanced_maternal_age: 'Advanced maternal age (≥35)',
+      recurrent_pregnancy_loss: 'Recurrent pregnancy loss',
+      previous_failed_ivf: 'Previous failed IVF cycles',
+      male_factor: 'Male factor',
+      unexplained_infertility: 'Unexplained infertility',
+      previous_aneuploid_conception: 'Previous aneuploid conception',
+      repetitive_implantation_failure: 'Repetitive implantation failure',
+      elective_pgt_a: 'Elective PGT-A',
+      pgt_sr: 'PGT-SR (Structural Rearrangement)',
+      other: 'Other'
+    }
+    const diagnosisValue = cycle.indication ? (indicationLabels[cycle.indication] || cycle.indication) : (cycle.reason_for_testing || '')
     y = drawFieldRow([
-      { label: 'DIAGNOSIS / INDICATION FOR TESTING', value: cycle.reason_for_testing || '', width: 155 }
+      { label: 'DIAGNOSIS / INDICATION FOR TESTING', value: diagnosisValue, width: 155 }
     ], y)
     
     // Male Factor
@@ -1525,14 +2006,21 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     y += 5
     
     const halfWidth = contentWidth / 2 - 5
+    const submittedDateTime = cycle.created_at ? new Date(cycle.created_at).toLocaleString() : ''
     
     // Left box - Ordering Physician
     doc.setDrawColor(200, 200, 200)
-    doc.rect(margin + 2, y, halfWidth, 25, 'S')
+    doc.rect(margin + 2, y, halfWidth, 30, 'S')
     doc.setTextColor(...navyBlue)
     doc.setFontSize(7)
     doc.setFont('helvetica', 'bold')
     doc.text('ORDERING PHYSICIAN', margin + 5, y + 4)
+    
+    // Physician name
+    doc.setTextColor(...navyBlue)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.text(providerName, margin + 5, y + 10)
     
     doc.setDrawColor(60, 60, 60)
     doc.line(margin + 5, y + 14, margin + halfWidth - 5, y + 14)
@@ -1550,25 +2038,25 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.setFontSize(5.5)
     doc.setFont('helvetica', 'bold')
     doc.text('✓ DIGITALLY SIGNED', margin + 7, y + 22)
-    
     doc.setTextColor(80, 80, 80)
     doc.setFontSize(6)
     doc.setFont('helvetica', 'normal')
-    doc.text('Date: ' + formatDate(cycle.created_at), margin + 50, y + 22)
+    doc.text(submittedDateTime, margin + 5, y + 28)
     
     // Right box - Submitted By
     const submittedByName = cycle.created_by_user 
       ? `${cycle.created_by_user.first_name || ''} ${cycle.created_by_user.last_name || ''}`.trim()
       : ''
     doc.setDrawColor(200, 200, 200)
-    doc.rect(margin + halfWidth + 8, y, halfWidth, 25, 'S')
+    doc.rect(margin + halfWidth + 8, y, halfWidth, 30, 'S')
     doc.setTextColor(...navyBlue)
     doc.setFontSize(7)
     doc.setFont('helvetica', 'bold')
     doc.text('SUBMITTED BY', margin + halfWidth + 11, y + 4)
     
+    // Submitter name
     doc.setTextColor(...navyBlue)
-    doc.setFontSize(8)
+    doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
     doc.text(submittedByName, margin + halfWidth + 11, y + 10)
     
@@ -1579,12 +2067,21 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.setFont('helvetica', 'normal')
     doc.text('Signature', margin + halfWidth + 11, y + 17)
     
+    // Digitally signed badge
+    doc.setFillColor(232, 245, 243)
+    doc.roundedRect(margin + halfWidth + 11, y + 19, 35, 4.5, 0.5, 0.5, 'F')
+    doc.setDrawColor(...teal)
+    doc.roundedRect(margin + halfWidth + 11, y + 19, 35, 4.5, 0.5, 0.5, 'S')
+    doc.setTextColor(...teal)
+    doc.setFontSize(5.5)
+    doc.setFont('helvetica', 'bold')
+    doc.text('✓ DIGITALLY SIGNED', margin + halfWidth + 13, y + 22)
     doc.setTextColor(80, 80, 80)
     doc.setFontSize(6)
     doc.setFont('helvetica', 'normal')
-    doc.text('Date: ' + formatDate(cycle.created_at), margin + halfWidth + 11, y + 22)
+    doc.text(submittedDateTime, margin + halfWidth + 11, y + 28)
     
-    y += 27
+    y += 32
     doc.setDrawColor(200, 200, 200)
     doc.rect(margin, sigSectionStart, contentWidth, y - sigSectionStart + 1, 'S')
     
@@ -1615,479 +2112,6 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     doc.save(`Requisition_${cycle.patient_last_name}_${cycle.patient_first_name}.pdf`)
   }
 
-  function generateConsentPDF(cycle, signerType, consent) {
-    const doc = new jsPDF()
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
-    const margin = 15
-    const contentWidth = pageWidth - (margin * 2)
-    
-    const signerName = signerType === 'patient' 
-      ? `${cycle.patient_first_name} ${cycle.patient_last_name}`
-      : `${cycle.partner_first_name} ${cycle.partner_last_name}`
-    
-    const signerEmail = signerType === 'patient' ? cycle.patient_email : cycle.partner_email
-    
-    // Get consent content - use stored version if available, otherwise current
-    const content = consent.consent_content || getConsentContent()
-    
-    // Colors
-    const navyBlue = [30, 58, 95] // #1e3a5f
-    const teal = [13, 148, 136] // #0d9488
-    const warningYellow = [254, 243, 199] // #fef3c7
-    const warningBorder = [245, 158, 11] // #f59e0b
-    const lightGray = [249, 250, 251] // #f9fafb
-    
-    let currentPage = 1
-    const totalPages = 9
-    
-    // Helper function to add header
-    function addHeader() {
-      doc.setFillColor(...navyBlue)
-      doc.rect(0, 0, pageWidth, 3, 'F')
-      
-      doc.setTextColor(...navyBlue)
-      doc.setFontSize(16)
-      doc.setFont('helvetica', 'bold')
-      doc.text('Ally Genetics', margin, 12)
-      doc.setFontSize(7)
-      doc.setFont('helvetica', 'italic')
-      doc.setTextColor(...teal)
-      doc.text('Better Partnerships. Better Results.', margin, 16)
-      
-      doc.setFillColor(...navyBlue)
-      doc.rect(55, 8, pageWidth - 55 - margin, 10, 'F')
-    }
-    
-    // Helper function to add footer
-    function addFooter() {
-      // Doc ID and page number
-      doc.setFontSize(7)
-      doc.setTextColor(136, 136, 136)
-      doc.text('DOC104-v40480652', margin, pageHeight - 18)
-      doc.text(`Page ${currentPage} of ${totalPages}`, pageWidth - margin, pageHeight - 18, { align: 'right' })
-      
-      // Footer bar
-      doc.setFillColor(...navyBlue)
-      doc.rect(0, pageHeight - 14, pageWidth, 14, 'F')
-      doc.setFontSize(6)
-      doc.setTextColor(255, 255, 255)
-      doc.text('phone: (616) 465-2400  |  fax: (616) 616-5887', margin, pageHeight - 8)
-      doc.text('email: lab@allygenetics.com  |  web: www.allygenetics.com', pageWidth / 2, pageHeight - 8, { align: 'center' })
-      doc.text('1001 Parchment Dr SE, Grand Rapids, MI 49546', pageWidth - margin, pageHeight - 8, { align: 'right' })
-    }
-    
-    // Helper function to add section title
-    function addSectionTitle(title, y) {
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...navyBlue)
-      doc.text(title, margin, y)
-      return y + 6
-    }
-    
-    // Helper function to add paragraph text with word wrap
-    function addParagraph(text, y, fontSize = 8) {
-      doc.setFontSize(fontSize)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(0, 0, 0)
-      const lines = doc.splitTextToSize(text, contentWidth)
-      doc.text(lines, margin, y)
-      return y + (lines.length * (fontSize * 0.45))
-    }
-    
-    // Helper function for new page
-    function newPage() {
-      doc.addPage()
-      currentPage++
-      addHeader()
-    }
-    
-    // ==================== PAGE 1 ====================
-    addHeader()
-    let y = 25
-    
-    // Consent info bar
-    doc.setFillColor(232, 245, 243)
-    doc.setDrawColor(...teal)
-    doc.rect(margin, y, contentWidth, 10, 'FD')
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...navyBlue)
-    doc.text('Consent Sent To:', margin + 2, y + 4)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(...teal)
-    doc.text(signerEmail || 'N/A', margin + 28, y + 4)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...navyBlue)
-    doc.text('Signer:', margin + 80, y + 4)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(...teal)
-    doc.text(`${signerName} (${signerType.charAt(0).toUpperCase() + signerType.slice(1)})`, margin + 93, y + 4)
-    y += 18
-    
-    // Main title
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...navyBlue)
-    doc.text('Patient Informed Consent for Preimplantation Genetic Testing for Aneuploidy (PGT-A)', margin, y)
-    y += 10
-    
-    // Introduction
-    y = addSectionTitle('Introduction', y)
-    y = addParagraph(content.sections.introduction, y)
-    y += 4
-    
-    // Genetic Counseling
-    y = addSectionTitle('Genetic Counseling', y)
-    y = addParagraph(content.sections.geneticCounseling, y)
-    y += 4
-    
-    // Chromosomal Abnormalities
-    y = addSectionTitle('Chromosomal Abnormalities', y)
-    y = addParagraph(content.sections.chromosomalAbnormalities, y)
-    y += 4
-    
-    // Benefits of PGT-A
-    y = addSectionTitle('Benefits of PGT-A', y)
-    y = addParagraph(content.sections.benefits, y)
-    
-    addFooter()
-    
-    // ==================== PAGE 2 ====================
-    newPage()
-    y = 25
-    
-    // Embryo Biopsy Related Risks
-    y = addSectionTitle('Embryo Biopsy Related Risks', y)
-    y = addParagraph(content.sections.embryoBiopsyRisks, y)
-    y += 2
-    doc.setFontSize(8)
-    content.sections.embryoBiopsyRisksList.forEach(risk => {
-      y = addParagraph('• ' + risk, y)
-    })
-    y += 4
-    
-    // Fertility Center Related Risks
-    y = addSectionTitle('Fertility Center Related Risks', y)
-    y = addParagraph('There are also risks associated with the clinical process of IVF including:', y)
-    y += 2
-    content.sections.fertilityCenterRisks.forEach(risk => {
-      y = addParagraph('• ' + risk, y)
-    })
-    y += 4
-    
-    // Technical and Analytic Risks
-    y = addSectionTitle('Technical and Analytic Risks', y)
-    y = addParagraph(content.sections.technicalRisks, y)
-    y += 4
-    
-    // No Diagnosis
-    y = addSectionTitle('No Diagnosis', y)
-    y = addParagraph(content.sections.noDiagnosis, y)
-    
-    addFooter()
-    
-    // ==================== PAGE 3 ====================
-    newPage()
-    y = 25
-    
-    // Misdiagnosis
-    y = addSectionTitle('Misdiagnosis', y)
-    y = addParagraph(content.sections.misdiagnosis, y)
-    y += 4
-    
-    // Technical Limits of Detection
-    y = addSectionTitle('Technical Limits of Detection', y)
-    y = addParagraph(content.sections.technicalLimits + ' Ally Genetics PGT-A does not detect the following abnormalities which include but are not limited to:', y)
-    y += 2
-    // First 4 items on page 3
-    for (let i = 0; i < 4 && i < content.sections.technicalLimitsList.length; i++) {
-      y = addParagraph('• ' + content.sections.technicalLimitsList[i], y)
-    }
-    
-    addFooter()
-    
-    // ==================== PAGE 4 ====================
-    newPage()
-    y = 25
-    
-    // Remaining technical limits items
-    for (let i = 4; i < content.sections.technicalLimitsList.length; i++) {
-      y = addParagraph('• ' + content.sections.technicalLimitsList[i], y)
-    }
-    y += 4
-    
-    // Follow-Up Recommendation
-    y = addSectionTitle('Follow-Up Recommendation for Prenatal Diagnosis', y)
-    y = addParagraph(content.sections.followUpRecommendation, y)
-    y += 4
-    
-    // Test Results and Interpretation
-    y = addSectionTitle('Test Results and Interpretation', y)
-    y = addParagraph(content.sections.testResults.normal, y)
-    y += 2
-    y = addParagraph(content.sections.testResults.abnormal, y)
-    y = addParagraph('• ' + content.sections.testResults.trisomy, y)
-    y = addParagraph('• ' + content.sections.testResults.monosomy, y)
-    y = addParagraph('• ' + content.sections.testResults.complexAbnormal, y)
-    y += 2
-    y = addParagraph(content.sections.testResults.noDiagnosis, y)
-    y = addParagraph('• ' + content.sections.testResults.insufficientDNA, y)
-    y = addParagraph('• ' + content.sections.testResults.inconclusive, y)
-    
-    addFooter()
-    
-    // ==================== PAGE 5 ====================
-    newPage()
-    y = 25
-    
-    // Mosaic Results
-    y = addSectionTitle('Mosaic Results', y)
-    y = addParagraph(content.sections.mosaicResults, y)
-    
-    addFooter()
-    
-    // ==================== PAGE 6 ====================
-    newPage()
-    y = 25
-    
-    // Alternatives to PGT-A
-    y = addSectionTitle('Alternatives to PGT-A', y)
-    y = addParagraph(content.sections.alternatives, y)
-    y += 4
-    
-    // Costs
-    y = addSectionTitle('Costs', y)
-    y = addParagraph(content.sections.costs, y)
-    y += 4
-    
-    // Confidentiality and HIPAA
-    y = addSectionTitle('Confidentiality and HIPAA', y)
-    y = addParagraph(content.sections.confidentiality, y)
-    y += 4
-    
-    // Retention of Samples
-    y = addSectionTitle('Retention of Samples', y)
-    y = addParagraph(content.sections.retentionOfSamples, y)
-    
-    addFooter()
-    
-    // ==================== PAGE 7 ====================
-    newPage()
-    y = 25
-    
-    // By signing below attestations
-    y = addSectionTitle('By signing below, I attest to the following:', y)
-    content.sections.attestations.forEach((attestation, index) => {
-      y = addParagraph(attestation, y)
-      if (index < content.sections.attestations.length - 1) y += 2
-    })
-    
-    addFooter()
-    
-    // ==================== PAGE 8 ====================
-    newPage()
-    y = 25
-    
-    // Warning Box 1: PGT-A Accuracy
-    doc.setFillColor(...warningYellow)
-    doc.setDrawColor(...warningBorder)
-    doc.setLineWidth(0.5)
-    doc.rect(margin, y, contentWidth, 22, 'FD')
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(146, 64, 14)
-    doc.text('⚠ ' + content.warningBoxes.pgtAccuracy.title, margin + 3, y + 5)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(120, 53, 15)
-    doc.setFontSize(6.5)
-    const warning1Text = doc.splitTextToSize(content.warningBoxes.pgtAccuracy.text, contentWidth - 6)
-    doc.text(warning1Text, margin + 3, y + 10)
-    // Checkbox
-    doc.setFillColor(...teal)
-    doc.rect(margin + 3, y + 17, 3, 3, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(6)
-    doc.text('✓', margin + 3.7, y + 19.5)
-    doc.setTextColor(31, 41, 55)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(6)
-    doc.text(content.warningBoxes.pgtAccuracy.checkbox.substring(0, 120), margin + 8, y + 19.5)
-    y += 28
-    
-    // Warning Box 2: Sex Selection
-    doc.setFillColor(...warningYellow)
-    doc.rect(margin, y, contentWidth, 22, 'FD')
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(146, 64, 14)
-    doc.text('⚠ ' + content.warningBoxes.noSexSelection.title, margin + 3, y + 5)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(120, 53, 15)
-    doc.setFontSize(6.5)
-    const warning2Text = doc.splitTextToSize(content.warningBoxes.noSexSelection.text, contentWidth - 6)
-    doc.text(warning2Text, margin + 3, y + 10)
-    doc.setFillColor(...teal)
-    doc.rect(margin + 3, y + 17, 3, 3, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(6)
-    doc.text('✓', margin + 3.7, y + 19.5)
-    doc.setTextColor(31, 41, 55)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(6)
-    doc.text(content.warningBoxes.noSexSelection.checkbox.substring(0, 110), margin + 8, y + 19.5)
-    y += 28
-    
-    // Warning Box 3: Liability Waiver
-    doc.setFillColor(...warningYellow)
-    doc.rect(margin, y, contentWidth, 24, 'FD')
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(146, 64, 14)
-    doc.text('⚠ ' + content.warningBoxes.liabilityWaiver.title, margin + 3, y + 5)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(120, 53, 15)
-    doc.setFontSize(6.5)
-    const warning3Text = doc.splitTextToSize(content.warningBoxes.liabilityWaiver.text, contentWidth - 6)
-    doc.text(warning3Text, margin + 3, y + 10)
-    doc.setFillColor(...teal)
-    doc.rect(margin + 3, y + 19, 3, 3, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(6)
-    doc.text('✓', margin + 3.7, y + 21.5)
-    doc.setTextColor(31, 41, 55)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(6)
-    doc.text(content.warningBoxes.liabilityWaiver.checkbox.substring(0, 95), margin + 8, y + 21.5)
-    y += 30
-    
-    // Required Agreements box
-    doc.setFillColor(...lightGray)
-    doc.setDrawColor(229, 231, 235)
-    doc.rect(margin, y, contentWidth, 28, 'FD')
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...navyBlue)
-    doc.text('Required Agreements', margin + 3, y + 5)
-    y += 8
-    content.requiredAgreements.forEach((text, i) => {
-      doc.setFillColor(...teal)
-      doc.rect(margin + 3, y + (i * 5), 2.5, 2.5, 'F')
-      doc.setTextColor(255, 255, 255)
-      doc.setFontSize(5)
-      doc.text('✓', margin + 3.5, y + (i * 5) + 2)
-      doc.setTextColor(0, 0, 0)
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(6.5)
-      doc.text(text, margin + 8, y + (i * 5) + 2)
-    })
-    y += 26
-    
-    // Attestation box
-    doc.setFillColor(248, 250, 252)
-    doc.setDrawColor(226, 232, 240)
-    doc.rect(margin, y, contentWidth, 30, 'FD')
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...navyBlue)
-    doc.text('My signature below indicates that:', margin + 3, y + 5)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(0, 0, 0)
-    doc.setFontSize(6.5)
-    content.signatureAttestations.forEach((text, i) => {
-      doc.text(`${i + 1}. ${text}`, margin + 3, y + 10 + (i * 5))
-    })
-    
-    addFooter()
-    
-    // ==================== PAGE 9 - SIGNATURE ====================
-    newPage()
-    y = 25
-    
-    // Signature Section
-    doc.setFillColor(...navyBlue)
-    doc.rect(margin, y, contentWidth, 8, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.text(`ELECTRONIC SIGNATURE - ${signerType.toUpperCase()}`, margin + 3, y + 5.5)
-    y += 12
-    
-    // Signature content box
-    doc.setDrawColor(...navyBlue)
-    doc.setLineWidth(0.5)
-    doc.rect(margin, y, contentWidth, 70, 'D')
-    
-    // Row 1: Name and Role
-    doc.setFontSize(6)
-    doc.setTextColor(102, 102, 102)
-    doc.setFont('helvetica', 'normal')
-    doc.text('NAME (PRINT)', margin + 5, y + 8)
-    doc.text('ROLE', margin + 100, y + 8)
-    
-    doc.setFontSize(10)
-    doc.setTextColor(...teal)
-    doc.text(signerName, margin + 5, y + 15)
-    doc.text(signerType.charAt(0).toUpperCase() + signerType.slice(1), margin + 100, y + 15)
-    
-    doc.setDrawColor(51, 51, 51)
-    doc.setLineWidth(0.3)
-    doc.line(margin + 5, y + 17, margin + 90, y + 17)
-    doc.line(margin + 100, y + 17, margin + 160, y + 17)
-    
-    // Row 2: Signature and Date
-    doc.setFontSize(6)
-    doc.setTextColor(102, 102, 102)
-    doc.text('SIGNATURE', margin + 5, y + 28)
-    doc.text('DATE & TIME SIGNED', margin + 100, y + 28)
-    
-    doc.setFontSize(14)
-    doc.setTextColor(...teal)
-    doc.setFont('helvetica', 'italic')
-    if (consent.signature_type === 'typed' && consent.signature_data) {
-      doc.text(consent.signature_data, margin + 5, y + 38)
-    } else {
-      doc.text(signerName, margin + 5, y + 38)
-    }
-    
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    const signedDate = consent.signed_at ? new Date(consent.signed_at).toLocaleString() : 'Pending'
-    doc.text(signedDate, margin + 100, y + 38)
-    
-    doc.setDrawColor(51, 51, 51)
-    doc.line(margin + 5, y + 40, margin + 90, y + 40)
-    doc.line(margin + 100, y + 40, margin + 160, y + 40)
-    
-    // Electronically Signed badge
-    if (consent.status === 'signed') {
-      doc.setFillColor(232, 245, 243)
-      doc.setDrawColor(...teal)
-      doc.rect(margin + 5, y + 44, 35, 6, 'FD')
-      doc.setFontSize(6)
-      doc.setTextColor(...teal)
-      doc.setFont('helvetica', 'bold')
-      doc.text('✓ ELECTRONICALLY SIGNED', margin + 7, y + 48)
-    }
-    
-    // Verification details
-    doc.setDrawColor(221, 221, 221)
-    doc.line(margin + 5, y + 54, margin + contentWidth - 5, y + 54)
-    doc.setFontSize(6)
-    doc.setTextColor(102, 102, 102)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Verification Details:', margin + 5, y + 59)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`Consent Sent To: ${signerEmail || 'N/A'}  |  IP Address: ${consent.ip_address || 'N/A'}`, margin + 5, y + 64)
-    doc.text(`Document ID: CON-${cycle.case_number}-${signerType.toUpperCase()}`, margin + 5, y + 68)
-    
-    addFooter()
-    
-    // Save
-    const fileName = `Consent_${cycle.patient_last_name}_${cycle.patient_first_name}_${signerType.charAt(0).toUpperCase() + signerType.slice(1)}.pdf`
-    doc.save(fileName)
-  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onMouseDown={onClose}>
@@ -3074,6 +3098,7 @@ function PatientFolderModal({ caseData, onClose, supabase }) {
 // ============================================================================
 function AllCasesPage() {
   const { supabase } = useAuth()
+  const navigate = useNavigate()
   const [cases, setCases] = useState([])
   const [clinics, setClinics] = useState([])
   const [loading, setLoading] = useState(true)
@@ -3081,6 +3106,22 @@ function AllCasesPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [clinicFilter, setClinicFilter] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState('created_at')
+  const [sortDir, setSortDir] = useState('desc')
+
+  function handleSort(field) {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDir('asc')
+    }
+  }
+
+  function SortIcon({ field }) {
+    if (sortField !== field) return <span className="ml-1 text-gray-300">↕</span>
+    return <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
+  }
 
   useEffect(() => {
     fetchData()
@@ -3188,6 +3229,15 @@ function AllCasesPage() {
       c.patient_last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.case_number?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesStatus && matchesClinic && matchesSearch
+  }).sort((a, b) => {
+    let aVal, bVal
+    if (sortField === 'case_number') { aVal = a.case_number || ''; bVal = b.case_number || '' }
+    else if (sortField === 'patient') { aVal = `${a.patient_last_name} ${a.patient_first_name}`; bVal = `${b.patient_last_name} ${b.patient_first_name}` }
+    else if (sortField === 'clinic') { aVal = a.clinic?.name || ''; bVal = b.clinic?.name || '' }
+    else if (sortField === 'provider') { aVal = a.ordering_provider?.last_name || ''; bVal = b.ordering_provider?.last_name || '' }
+    else if (sortField === 'status') { aVal = a.status || ''; bVal = b.status || '' }
+    else { aVal = a.created_at || ''; bVal = b.created_at || '' }
+    return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
   })
 
   if (loading) {
@@ -3241,21 +3291,21 @@ function AllCasesPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Case #</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clinic</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tests</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Report</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th onClick={() => handleSort('case_number')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Case # <SortIcon field="case_number" /></th>
+                <th onClick={() => handleSort('patient')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Patient <SortIcon field="patient" /></th>
+                <th onClick={() => handleSort('clinic')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Clinic <SortIcon field="clinic" /></th>
+                <th onClick={() => handleSort('provider')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Provider <SortIcon field="provider" /></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Tests</th>
+                <th onClick={() => handleSort('created_at')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Submitted <SortIcon field="created_at" /></th>
+                <th onClick={() => handleSort('status')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Status <SortIcon field="status" /></th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Report</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredCases.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-ally-teal">
+                <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/admin/cases/${c.id}`)}>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-ally-teal" onClick={e => e.stopPropagation()}>
                     <Link to={`/admin/cases/${c.id}`} className="hover:underline">
                       {c.case_number || '-'}
                     </Link>
@@ -3268,7 +3318,7 @@ function AllCasesPage() {
                     {c.clinic?.name || '-'}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {c.ordering_provider ? `${c.ordering_provider.first_name} ${c.ordering_provider.last_name}, ${c.ordering_provider.credentials || ''}`.trim() : '-'}
+                    {c.ordering_provider ? `${c.ordering_provider.first_name} ${c.ordering_provider.last_name}${c.ordering_provider.credentials ? ', ' + c.ordering_provider.credentials : ''}` : '-'}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                     {c.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || '-'}
@@ -3276,7 +3326,7 @@ function AllCasesPage() {
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(c.created_at).toLocaleDateString()}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
                       value={c.status}
                       onChange={(e) => handleUpdateStatus(c.id, e.target.value)}
@@ -3287,7 +3337,7 @@ function AllCasesPage() {
                       <option value="report_ready">Report Ready</option>
                     </select>
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-right">
+                  <td className="px-4 py-4 whitespace-nowrap text-right" onClick={e => e.stopPropagation()}>
                     {c.report_file_url ? (
                       <div className="flex items-center justify-end gap-2">
                         <a 
@@ -3306,9 +3356,7 @@ function AllCasesPage() {
                             accept=".pdf"
                             className="hidden"
                             onChange={(e) => {
-                              if (e.target.files?.[0]) {
-                                handleUploadReport(c, e.target.files[0])
-                              }
+                              if (e.target.files?.[0]) handleUploadReport(c, e.target.files[0])
                             }}
                           />
                         </label>
@@ -3328,16 +3376,14 @@ function AllCasesPage() {
                           accept=".pdf"
                           className="hidden"
                           onChange={(e) => {
-                            if (e.target.files?.[0]) {
-                              handleUploadReport(c, e.target.files[0])
-                            }
+                            if (e.target.files?.[0]) handleUploadReport(c, e.target.files[0])
                           }}
                           disabled={uploadingCase === c.id}
                         />
                       </label>
                     )}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-right">
+                  <td className="px-4 py-4 whitespace-nowrap text-right" onClick={e => e.stopPropagation()}>
                     <button
                       onClick={() => handleDeleteCase(c)}
                       className="text-red-600 hover:text-red-800 text-sm"
@@ -3418,133 +3464,8 @@ function CaseDetailsPage({ isAdmin = false }) {
   async function handleDownloadConsent(signerType) {
     const consent = consents.find(c => c.signer_type === signerType)
     if (!consent || consent.status !== 'signed') return
-
-    const signerName = signerType === 'patient'
-      ? `${caseData.patient_first_name} ${caseData.patient_last_name}`
-      : `${caseData.partner_first_name} ${caseData.partner_last_name}`
-    const signerEmail = signerType === 'patient' ? caseData.patient_email : caseData.partner_email
-
-    const doc = new jsPDF()
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
-    const margin = 15
-    const contentWidth = pageWidth - margin * 2
-    const navyBlue = [30, 58, 95]
-    const teal = [13, 148, 136]
-
-    // Header
-    doc.setFillColor(...navyBlue)
-    doc.rect(0, 0, pageWidth, 3, 'F')
-    doc.setTextColor(...navyBlue)
-    doc.setFontSize(16)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Ally Genetics', margin, 12)
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'italic')
-    doc.setTextColor(...teal)
-    doc.text('Better Partnerships. Better Results.', margin, 16)
-    doc.setFillColor(...navyBlue)
-    doc.rect(55, 8, pageWidth - 55 - margin, 10, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.text('PGT Informed Consent - Signed Copy', 58, 14)
-
-    let y = 25
-    // Consent info bar
-    doc.setFillColor(232, 245, 243)
-    doc.setDrawColor(...teal)
-    doc.rect(margin, y, contentWidth, 10, 'FD')
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...navyBlue)
-    doc.text('Consent Sent To:', margin + 2, y + 4)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(...teal)
-    doc.text(signerEmail || 'N/A', margin + 28, y + 4)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...navyBlue)
-    doc.text('Signer:', margin + 80, y + 4)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(...teal)
-    doc.text(`${signerName} (${signerType.charAt(0).toUpperCase() + signerType.slice(1)})`, margin + 93, y + 4)
-    y += 18
-
-    // Signature section header
-    doc.setFillColor(...navyBlue)
-    doc.rect(margin, y, contentWidth, 8, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.text(`ELECTRONIC SIGNATURE - ${signerType.toUpperCase()}`, margin + 3, y + 5.5)
-    y += 12
-
-    // Signature box
-    doc.setDrawColor(...navyBlue)
-    doc.setLineWidth(0.5)
-    doc.rect(margin, y, contentWidth, 70, 'D')
-
-    doc.setFontSize(6)
-    doc.setTextColor(102, 102, 102)
-    doc.setFont('helvetica', 'normal')
-    doc.text('NAME (PRINT)', margin + 5, y + 8)
-    doc.text('ROLE', margin + 100, y + 8)
-    doc.setFontSize(10)
-    doc.setTextColor(...teal)
-    doc.text(signerName, margin + 5, y + 15)
-    doc.text(signerType.charAt(0).toUpperCase() + signerType.slice(1), margin + 100, y + 15)
-    doc.setDrawColor(51, 51, 51)
-    doc.setLineWidth(0.3)
-    doc.line(margin + 5, y + 17, margin + 90, y + 17)
-    doc.line(margin + 100, y + 17, margin + 160, y + 17)
-
-    doc.setFontSize(6)
-    doc.setTextColor(102, 102, 102)
-    doc.text('SIGNATURE', margin + 5, y + 28)
-    doc.text('DATE & TIME SIGNED', margin + 100, y + 28)
-    doc.setFontSize(14)
-    doc.setTextColor(...teal)
-    doc.setFont('helvetica', 'italic')
-    if (consent.signature_type === 'typed' && consent.signature_data) {
-      doc.text(consent.signature_data, margin + 5, y + 38)
-    } else {
-      doc.text(signerName, margin + 5, y + 38)
-    }
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.text(consent.signed_at ? new Date(consent.signed_at).toLocaleString() : '', margin + 100, y + 38)
-    doc.setDrawColor(51, 51, 51)
-    doc.line(margin + 5, y + 40, margin + 90, y + 40)
-    doc.line(margin + 100, y + 40, margin + 160, y + 40)
-
-    doc.setFillColor(232, 245, 243)
-    doc.setDrawColor(...teal)
-    doc.rect(margin + 5, y + 44, 35, 6, 'FD')
-    doc.setFontSize(6)
-    doc.setTextColor(...teal)
-    doc.setFont('helvetica', 'bold')
-    doc.text('✓ ELECTRONICALLY SIGNED', margin + 7, y + 48)
-
-    doc.setDrawColor(221, 221, 221)
-    doc.line(margin + 5, y + 54, margin + contentWidth - 5, y + 54)
-    doc.setFontSize(6)
-    doc.setTextColor(102, 102, 102)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Verification Details:', margin + 5, y + 59)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`Consent Sent To: ${signerEmail || 'N/A'}  |  IP Address: ${consent.ip_address || 'N/A'}`, margin + 5, y + 64)
-    doc.text(`Document ID: CON-${caseData.case_number}-${signerType.toUpperCase()}`, margin + 5, y + 68)
-
-    // Footer
-    doc.setFillColor(...navyBlue)
-    doc.rect(0, pageHeight - 14, pageWidth, 14, 'F')
-    doc.setFontSize(6)
-    doc.setTextColor(255, 255, 255)
-    doc.text('phone: (616) 465-2400  |  fax: (616) 616-5887', margin, pageHeight - 8)
-    doc.text('email: lab@allygenetics.com  |  web: www.allygenetics.com', pageWidth / 2, pageHeight - 8, { align: 'center' })
-    doc.text('1001 Parchment Dr SE, Grand Rapids, MI 49546', pageWidth - margin, pageHeight - 8, { align: 'right' })
-
-    doc.save(`Consent_${caseData.patient_last_name}_${caseData.patient_first_name}_${signerType.charAt(0).toUpperCase() + signerType.slice(1)}.pdf`)
+    // Use the full consent PDF generator (same as clinic download)
+    generateConsentPDF(caseData, signerType, consent)
   }
 
   async function handleUploadReport(file) {
@@ -4078,6 +3999,10 @@ function NewRequisitionPage() {
     patient_dob: '',
     patient_email: '',
     patient_phone: '',
+    patient_address: '',
+    patient_city: '',
+    patient_state: '',
+    patient_zip: '',
     patient_sex: 'female',
     is_egg_donor: false,
     egg_donor_age: '',
@@ -4245,6 +4170,10 @@ function NewRequisitionPage() {
     if (userData.id) caseData.created_by = userData.id
     caseData.requires_partner_consent = isPartnerRequired
     if (formData.patient_phone) caseData.patient_phone = formData.patient_phone
+    if (formData.patient_address) caseData.patient_address = formData.patient_address
+    if (formData.patient_city) caseData.patient_city = formData.patient_city
+    if (formData.patient_state) caseData.patient_state = formData.patient_state
+    if (formData.patient_zip) caseData.patient_zip = formData.patient_zip
     if (formData.patient_sex) caseData.patient_sex = formData.patient_sex
     if (formData.partner_first_name) caseData.partner_first_name = formData.partner_first_name
     if (formData.partner_last_name) caseData.partner_last_name = formData.partner_last_name
@@ -4583,6 +4512,49 @@ function NewRequisitionPage() {
                 type="tel"
                 name="patient_phone"
                 value={formData.patient_phone}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              />
+            </div>
+            <div className="md:col-span-2 lg:col-span-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+              <input
+                type="text"
+                name="patient_address"
+                value={formData.patient_address}
+                onChange={handleChange}
+                placeholder="Street address"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+              <input
+                type="text"
+                name="patient_city"
+                value={formData.patient_city}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+              <input
+                type="text"
+                name="patient_state"
+                value={formData.patient_state}
+                onChange={handleChange}
+                placeholder="e.g. MI"
+                maxLength={2}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ZIP</label>
+              <input
+                type="text"
+                name="patient_zip"
+                value={formData.patient_zip}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
               />
