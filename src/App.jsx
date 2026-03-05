@@ -1163,8 +1163,428 @@ function ClinicDashboard() {
 // ============================================================================
 
 // ============================================================================
-// SHARED PDF GENERATION
+// SHARED PDF GENERATION FUNCTIONS
 // ============================================================================
+function generateRequisitionPDF(cycle) {
+  const doc = new jsPDF()
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 12
+  const contentWidth = pageWidth - (margin * 2)
+  let y = margin
+  
+  // Helper function to format date
+  const formatDate = (dateStr) => {
+    if (!dateStr) return ''
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+    } catch {
+      return dateStr
+    }
+  }
+  
+  // Helper to capitalize sex
+  const formatSex = (sex) => {
+    if (!sex) return ''
+    return sex.charAt(0).toUpperCase() + sex.slice(1)
+  }
+  
+  // State abbreviation helper
+  const getStateAbbrev = (state) => {
+    if (!state) return ''
+    if (state.length === 2) return state.toUpperCase()
+    const states = {
+      'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR', 'california': 'CA',
+      'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE', 'florida': 'FL', 'georgia': 'GA',
+      'hawaii': 'HI', 'idaho': 'ID', 'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA',
+      'kansas': 'KS', 'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+      'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS', 'missouri': 'MO',
+      'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ',
+      'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH',
+      'oklahoma': 'OK', 'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+      'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT', 'vermont': 'VT',
+      'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY'
+    }
+    return states[state.toLowerCase()] || state
+  }
+  
+  // Colors
+  const navyBlue = [30, 58, 95]
+  const teal = [13, 148, 136]
+  const lightBg = [240, 244, 248]
+  const warningYellow = [254, 243, 199]
+  const warningBorder = [180, 83, 9]
+  
+  // ===== HEADER =====
+  doc.setFillColor(...navyBlue)
+  doc.rect(0, 0, pageWidth, 2.5, 'F')
+  
+  y = 10
+  // Left - Company name
+  doc.setTextColor(...navyBlue)
+  doc.setFontSize(18)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Ally Genetics', margin, y)
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'italic')
+  doc.setTextColor(...teal)
+  doc.text('Better Partnerships. Better Results.', margin, y + 4)
+  
+  // Center - Form title
+  doc.setTextColor(...navyBlue)
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'bold')
+  doc.text('PGT Test Requisition Form', pageWidth / 2, y + 2, { align: 'center' })
+  
+  // Right - Contact info
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...navyBlue)
+  doc.text('Ally Genetics Laboratory', pageWidth - margin, y - 4, { align: 'right' })
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(80, 80, 80)
+  doc.text('1001 Parchment Dr SE', pageWidth - margin, y - 0.5, { align: 'right' })
+  doc.text('Grand Rapids, MI 49546', pageWidth - margin, y + 2.5, { align: 'right' })
+  doc.text('Phone: (616) 465-2400', pageWidth - margin, y + 5.5, { align: 'right' })
+  doc.text('Email: lab@allygenetics.com', pageWidth - margin, y + 8.5, { align: 'right' })
+  
+  y = 22
+  doc.setFillColor(...navyBlue)
+  doc.rect(0, y, pageWidth, 0.8, 'F')
+  
+  // ===== NOTICE BAR =====
+  y += 4
+  doc.setFillColor(...lightBg)
+  doc.roundedRect(margin, y, contentWidth, 7, 1, 1, 'F')
+  doc.setDrawColor(...navyBlue)
+  doc.roundedRect(margin, y, contentWidth, 7, 1, 1, 'S')
+  doc.setTextColor(...navyBlue)
+  doc.setFontSize(6.5)
+  doc.setFont('helvetica', 'bold')
+  doc.text('PLEASE COMPLETE ALL SECTIONS • INCOMPLETE FORMS MAY DELAY PROCESSING', pageWidth / 2, y + 4.5, { align: 'center' })
+  
+  // ===== SECTION HELPER =====
+  const drawSectionHeader = (title, startY) => {
+    doc.setFillColor(...navyBlue)
+    doc.rect(margin, startY, contentWidth, 6, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.text(title, margin + 3, startY + 4.2)
+    return startY + 6
+  }
+  
+  const drawFieldRow = (fields, fieldY, startX = margin + 3) => {
+    let x = startX
+    doc.setFontSize(6)
+    fields.forEach(field => {
+      // Label
+      doc.setTextColor(100, 100, 100)
+      doc.setFont('helvetica', 'normal')
+      doc.text(field.label, x, fieldY)
+      // Value
+      doc.setTextColor(...navyBlue)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      const valueY = fieldY + 4
+      doc.text(field.value || '', x, valueY)
+      // Underline
+      doc.setDrawColor(60, 60, 60)
+      doc.line(x, valueY + 1, x + field.width - 5, valueY + 1)
+      doc.setFontSize(6)
+      x += field.width
+    })
+    return fieldY + 9
+  }
+  
+  const drawCheckbox = (x, checkY, checked, label) => {
+    doc.setDrawColor(60, 60, 60)
+    doc.setLineWidth(0.3)
+    doc.rect(x, checkY - 2.5, 3.5, 3.5, 'S')
+    if (checked) {
+      doc.setFillColor(...teal)
+      doc.rect(x + 0.5, checkY - 2, 2.5, 2.5, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(6)
+      doc.text('✓', x + 0.8, checkY + 0.3)
+    }
+    doc.setTextColor(40, 40, 40)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'normal')
+    doc.text(label, x + 5, checkY)
+    doc.setLineWidth(0.2)
+  }
+  
+  // ===== PATIENT INFORMATION =====
+  y += 10
+  y = drawSectionHeader('PATIENT INFORMATION', y)
+  
+  // Section border
+  const patientSectionStart = y
+  y += 3
+  
+  // Row 1: Names and DOB
+  y = drawFieldRow([
+    { label: 'FIRST NAME', value: cycle.patient_first_name || '', width: 45 },
+    { label: 'LAST NAME', value: cycle.patient_last_name || '', width: 45 },
+    { label: 'DATE OF BIRTH', value: formatDate(cycle.patient_dob), width: 35 },
+    { label: 'SEX', value: formatSex(cycle.patient_sex), width: 25 }
+  ], y)
+  
+  // Row 2: Address
+  y = drawFieldRow([
+    { label: 'ADDRESS', value: cycle.patient_address || '', width: 80 },
+    { label: 'CITY', value: cycle.patient_city || '', width: 40 },
+    { label: 'STATE', value: getStateAbbrev(cycle.patient_state), width: 15 },
+    { label: 'ZIP', value: cycle.patient_zip || '', width: 20 }
+  ], y)
+  
+  // Row 3: Contact
+  y = drawFieldRow([
+    { label: 'PHONE', value: cycle.patient_phone || '', width: 50 },
+    { label: 'EMAIL', value: cycle.patient_email || '', width: 100 }
+  ], y)
+  
+  // Draw section border
+  doc.setDrawColor(200, 200, 200)
+  doc.rect(margin, patientSectionStart, contentWidth, y - patientSectionStart + 1, 'S')
+  
+  // ===== PARTNER INFORMATION =====
+  y += 4
+  y = drawSectionHeader('PARTNER INFORMATION', y)
+  const partnerSectionStart = y
+  y += 3
+  
+  if (cycle.partner_first_name || cycle.no_partner === false) {
+    y = drawFieldRow([
+      { label: 'FIRST NAME', value: cycle.partner_first_name || '', width: 45 },
+      { label: 'LAST NAME', value: cycle.partner_last_name || '', width: 45 },
+      { label: 'DATE OF BIRTH', value: formatDate(cycle.partner_dob), width: 35 },
+      { label: 'SEX', value: formatSex(cycle.partner_sex), width: 25 }
+    ], y)
+    
+    y = drawFieldRow([
+      { label: 'PHONE', value: cycle.partner_phone || '', width: 50 },
+      { label: 'EMAIL', value: cycle.partner_email || '', width: 100 }
+    ], y)
+  } else {
+    doc.setTextColor(100, 100, 100)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'italic')
+    doc.text('No partner / Single parent', margin + 5, y + 3)
+    y += 8
+  }
+  
+  doc.setDrawColor(200, 200, 200)
+  doc.rect(margin, partnerSectionStart, contentWidth, y - partnerSectionStart + 1, 'S')
+  
+  // ===== IVF CENTER INFORMATION =====
+  y += 4
+  y = drawSectionHeader('IVF CENTER / CLINIC INFORMATION', y)
+  const clinicSectionStart = y
+  y += 3
+  
+  const clinicName = cycle.clinic?.name || ''
+  const clinicPhone = cycle.clinic?.phone || ''
+  const clinicAddress = cycle.clinic?.address || ''
+  const clinicCity = cycle.clinic?.city || ''
+  const clinicState = getStateAbbrev(cycle.clinic?.state)
+  const clinicZip = cycle.clinic?.zip || ''
+  
+  y = drawFieldRow([
+    { label: 'CLINIC NAME', value: clinicName, width: 100 },
+    { label: 'PHONE', value: clinicPhone, width: 50 }
+  ], y)
+  
+  y = drawFieldRow([
+    { label: 'ADDRESS', value: clinicAddress, width: 80 },
+    { label: 'CITY', value: clinicCity, width: 40 },
+    { label: 'STATE', value: clinicState, width: 15 },
+    { label: 'ZIP', value: clinicZip, width: 20 }
+  ], y)
+  
+  // Ordering Physician
+  const providerName = cycle.ordering_provider 
+    ? `${cycle.ordering_provider.first_name || ''} ${cycle.ordering_provider.last_name || ''}${cycle.ordering_provider.credentials ? ', ' + cycle.ordering_provider.credentials : ''}`
+    : ''
+  
+  y = drawFieldRow([
+    { label: 'ORDERING PHYSICIAN', value: providerName, width: 70 },
+    { label: 'NPI', value: cycle.ordering_provider?.npi || '', width: 40 },
+    { label: 'PHYSICIAN EMAIL', value: cycle.ordering_provider?.email || '', width: 50 }
+  ], y)
+  
+  doc.setDrawColor(200, 200, 200)
+  doc.rect(margin, clinicSectionStart, contentWidth, y - clinicSectionStart + 1, 'S')
+  
+  // ===== TEST INFORMATION =====
+  y += 4
+  y = drawSectionHeader('TEST INFORMATION', y)
+  const testSectionStart = y
+  y += 4
+  
+  // Tests Ordered
+  doc.setTextColor(100, 100, 100)
+  doc.setFontSize(6)
+  doc.setFont('helvetica', 'normal')
+  doc.text('TESTS ORDERED', margin + 3, y)
+  y += 4
+  
+  const testsOrdered = cycle.tests_ordered || []
+  drawCheckbox(margin + 3, y, testsOrdered.includes('pgt_a'), 'PGT-A (Aneuploidy Screening)')
+  drawCheckbox(margin + 60, y, testsOrdered.includes('pgt_m'), 'PGT-M (Monogenic / Single Gene)')
+  drawCheckbox(margin + 125, y, testsOrdered.includes('pgt_sr'), 'PGT-SR (Structural Rearrangement)')
+  
+  y += 7
+  doc.setTextColor(100, 100, 100)
+  doc.setFontSize(6)
+  doc.text('SAMPLE TYPE', margin + 3, y)
+  y += 4
+  
+  drawCheckbox(margin + 3, y, cycle.sample_type === 'd5_d6_d7_trophectoderm', 'D5/D6/D7 Trophectoderm Biopsy')
+  drawCheckbox(margin + 65, y, cycle.sample_type === 'd3_blastomere', 'D3 Blastomere Biopsy')
+  drawCheckbox(margin + 115, y, cycle.sample_type === 'rebiopsy', 'Rebiopsy')
+  
+  y += 7
+  doc.setTextColor(100, 100, 100)
+  doc.setFontSize(6)
+  doc.text('REPORTING OPTIONS', margin + 3, y)
+  y += 4
+  
+  drawCheckbox(margin + 3, y, cycle.mask_sex_results === true, 'Mask Sex Results (Do not report embryo sex)')
+  
+  y += 4
+  doc.setDrawColor(200, 200, 200)
+  doc.rect(margin, testSectionStart, contentWidth, y - testSectionStart + 1, 'S')
+  
+  // ===== CYCLE INFORMATION =====
+  y += 4
+  y = drawSectionHeader('CYCLE INFORMATION', y)
+  const cycleSectionStart = y
+  y += 3
+  
+  // Diagnosis
+  y = drawFieldRow([
+    { label: 'DIAGNOSIS / INDICATION FOR TESTING', value: cycle.reason_for_testing || '', width: 155 }
+  ], y)
+  
+  // Male Factor
+  doc.setTextColor(100, 100, 100)
+  doc.setFontSize(6)
+  doc.text('MALE FACTOR INFERTILITY', margin + 3, y)
+  y += 4
+  drawCheckbox(margin + 3, y, cycle.male_factor_infertility === true, 'Yes')
+  drawCheckbox(margin + 25, y, cycle.male_factor_infertility === false, 'No')
+  
+  // Donor Gametes
+  doc.setTextColor(100, 100, 100)
+  doc.setFontSize(6)
+  doc.text('DONOR GAMETES USED', margin + 70, y - 4)
+  drawCheckbox(margin + 70, y, cycle.is_egg_donor === true, 'Egg Donor')
+  drawCheckbox(margin + 105, y, cycle.is_sperm_donor === true, 'Sperm Donor')
+  drawCheckbox(margin + 145, y, !cycle.is_egg_donor && !cycle.is_sperm_donor, 'None')
+  
+  y += 4
+  doc.setDrawColor(200, 200, 200)
+  doc.rect(margin, cycleSectionStart, contentWidth, y - cycleSectionStart + 1, 'S')
+  
+  // ===== SIGNATURES =====
+  y += 4
+  y = drawSectionHeader('SIGNATURES & CONSENT', y)
+  const sigSectionStart = y
+  y += 5
+  
+  const halfWidth = contentWidth / 2 - 5
+  
+  // Left box - Ordering Physician
+  doc.setDrawColor(200, 200, 200)
+  doc.rect(margin + 2, y, halfWidth, 25, 'S')
+  doc.setTextColor(...navyBlue)
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'bold')
+  doc.text('ORDERING PHYSICIAN', margin + 5, y + 4)
+  
+  doc.setDrawColor(60, 60, 60)
+  doc.line(margin + 5, y + 14, margin + halfWidth - 5, y + 14)
+  doc.setTextColor(100, 100, 100)
+  doc.setFontSize(6)
+  doc.setFont('helvetica', 'normal')
+  doc.text('Signature', margin + 5, y + 17)
+  
+  // Digital signature badge
+  doc.setFillColor(232, 245, 243)
+  doc.roundedRect(margin + 5, y + 19, 35, 4.5, 0.5, 0.5, 'F')
+  doc.setDrawColor(...teal)
+  doc.roundedRect(margin + 5, y + 19, 35, 4.5, 0.5, 0.5, 'S')
+  doc.setTextColor(...teal)
+  doc.setFontSize(5.5)
+  doc.setFont('helvetica', 'bold')
+  doc.text('✓ DIGITALLY SIGNED', margin + 7, y + 22)
+  
+  doc.setTextColor(80, 80, 80)
+  doc.setFontSize(6)
+  doc.setFont('helvetica', 'normal')
+  doc.text('Date: ' + formatDate(cycle.created_at), margin + 50, y + 22)
+  
+  // Right box - Submitted By
+  const submittedByName = cycle.created_by_user 
+    ? `${cycle.created_by_user.first_name || ''} ${cycle.created_by_user.last_name || ''}`.trim()
+    : ''
+  doc.setDrawColor(200, 200, 200)
+  doc.rect(margin + halfWidth + 8, y, halfWidth, 25, 'S')
+  doc.setTextColor(...navyBlue)
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'bold')
+  doc.text('SUBMITTED BY', margin + halfWidth + 11, y + 4)
+  
+  doc.setTextColor(...navyBlue)
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'bold')
+  doc.text(submittedByName, margin + halfWidth + 11, y + 10)
+  
+  doc.setDrawColor(60, 60, 60)
+  doc.line(margin + halfWidth + 11, y + 14, margin + contentWidth - 5, y + 14)
+  doc.setTextColor(100, 100, 100)
+  doc.setFontSize(6)
+  doc.setFont('helvetica', 'normal')
+  doc.text('Signature', margin + halfWidth + 11, y + 17)
+  
+  doc.setTextColor(80, 80, 80)
+  doc.setFontSize(6)
+  doc.setFont('helvetica', 'normal')
+  doc.text('Date: ' + formatDate(cycle.created_at), margin + halfWidth + 11, y + 22)
+  
+  y += 27
+  doc.setDrawColor(200, 200, 200)
+  doc.rect(margin, sigSectionStart, contentWidth, y - sigSectionStart + 1, 'S')
+  
+  // ===== FOOTER NOTICE =====
+  y += 4
+  doc.setFillColor(...lightBg)
+  doc.roundedRect(margin, y, contentWidth, 12, 1, 1, 'F')
+  doc.setDrawColor(...navyBlue)
+  doc.roundedRect(margin, y, contentWidth, 12, 1, 1, 'S')
+  
+  doc.setTextColor(...navyBlue)
+  doc.setFontSize(6)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Important:', margin + 3, y + 4)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(60, 60, 60)
+  doc.text('By signing this requisition, the ordering physician certifies that informed consent has been obtained from the patient', margin + 18, y + 4)
+  doc.text('and/or their legal representative for the requested genetic testing. Results will be reported to the ordering physician and IVF center only.', margin + 3, y + 7.5)
+  doc.text('For questions, contact Ally Genetics at (616) 465-2400 or lab@allygenetics.com.', margin + 3, y + 11)
+  
+  // ===== PAGE FOOTER =====
+  doc.setFillColor(...navyBlue)
+  doc.rect(0, pageHeight - 8, pageWidth, 0.5, 'F')
+  doc.setTextColor(100, 100, 100)
+  doc.setFontSize(5.5)
+  doc.text('Ally Genetics Laboratory | 1001 Parchment Dr SE, Grand Rapids, MI 49546 | (616) 465-2400 | lab@allygenetics.com | www.allygenetics.com', pageWidth / 2, pageHeight - 4, { align: 'center' })
+  
+  doc.save(`Requisition_${cycle.patient_last_name}_${cycle.patient_first_name}.pdf`)
+}
+
 function generateConsentPDF(cycle, signerType, consent) {
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -1671,445 +2091,6 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     }
     
     setDownloading(null)
-  }
-
-  function generateRequisitionPDF(cycle) {
-    const doc = new jsPDF()
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
-    const margin = 12
-    const contentWidth = pageWidth - (margin * 2)
-    let y = margin
-    
-    // Helper function to format date
-    const formatDate = (dateStr) => {
-      if (!dateStr) return ''
-      try {
-        return new Date(dateStr).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
-      } catch {
-        return dateStr
-      }
-    }
-    
-    // Helper to capitalize sex
-    const formatSex = (sex) => {
-      if (!sex) return ''
-      return sex.charAt(0).toUpperCase() + sex.slice(1)
-    }
-    
-    // State abbreviation helper
-    const getStateAbbrev = (state) => {
-      if (!state) return ''
-      if (state.length === 2) return state.toUpperCase()
-      const states = {
-        'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR', 'california': 'CA',
-        'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE', 'florida': 'FL', 'georgia': 'GA',
-        'hawaii': 'HI', 'idaho': 'ID', 'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA',
-        'kansas': 'KS', 'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
-        'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS', 'missouri': 'MO',
-        'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ',
-        'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH',
-        'oklahoma': 'OK', 'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
-        'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT', 'vermont': 'VT',
-        'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY'
-      }
-      return states[state.toLowerCase()] || state
-    }
-    
-    // Colors
-    const navyBlue = [30, 58, 95]
-    const teal = [13, 148, 136]
-    const lightBg = [240, 244, 248]
-    const warningYellow = [254, 243, 199]
-    const warningBorder = [180, 83, 9]
-    
-    // ===== HEADER =====
-    doc.setFillColor(...navyBlue)
-    doc.rect(0, 0, pageWidth, 2.5, 'F')
-    
-    y = 10
-    // Left - Company name
-    doc.setTextColor(...navyBlue)
-    doc.setFontSize(18)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Ally Genetics', margin, y)
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'italic')
-    doc.setTextColor(...teal)
-    doc.text('Better Partnerships. Better Results.', margin, y + 4)
-    
-    // Center - Form title
-    doc.setTextColor(...navyBlue)
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'bold')
-    doc.text('PGT Test Requisition Form', pageWidth / 2, y + 2, { align: 'center' })
-    
-    // Right - Contact info
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...navyBlue)
-    doc.text('Ally Genetics Laboratory', pageWidth - margin, y - 4, { align: 'right' })
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(80, 80, 80)
-    doc.text('1001 Parchment Dr SE', pageWidth - margin, y - 0.5, { align: 'right' })
-    doc.text('Grand Rapids, MI 49546', pageWidth - margin, y + 2.5, { align: 'right' })
-    doc.text('Phone: (616) 465-2400', pageWidth - margin, y + 5.5, { align: 'right' })
-    doc.text('Email: lab@allygenetics.com', pageWidth - margin, y + 8.5, { align: 'right' })
-    
-    y = 22
-    doc.setFillColor(...navyBlue)
-    doc.rect(0, y, pageWidth, 0.8, 'F')
-    
-    // ===== NOTICE BAR =====
-    y += 4
-    doc.setFillColor(...lightBg)
-    doc.roundedRect(margin, y, contentWidth, 7, 1, 1, 'F')
-    doc.setDrawColor(...navyBlue)
-    doc.roundedRect(margin, y, contentWidth, 7, 1, 1, 'S')
-    doc.setTextColor(...navyBlue)
-    doc.setFontSize(6.5)
-    doc.setFont('helvetica', 'bold')
-    doc.text('PLEASE COMPLETE ALL SECTIONS • INCOMPLETE FORMS MAY DELAY PROCESSING', pageWidth / 2, y + 4.5, { align: 'center' })
-    
-    // ===== SECTION HELPER =====
-    const drawSectionHeader = (title, startY) => {
-      doc.setFillColor(...navyBlue)
-      doc.rect(margin, startY, contentWidth, 6, 'F')
-      doc.setTextColor(255, 255, 255)
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'bold')
-      doc.text(title, margin + 3, startY + 4.2)
-      return startY + 6
-    }
-    
-    const drawFieldRow = (fields, fieldY, startX = margin + 3) => {
-      let x = startX
-      doc.setFontSize(6)
-      fields.forEach(field => {
-        // Label
-        doc.setTextColor(100, 100, 100)
-        doc.setFont('helvetica', 'normal')
-        doc.text(field.label, x, fieldY)
-        // Value
-        doc.setTextColor(...navyBlue)
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(8)
-        const valueY = fieldY + 4
-        doc.text(field.value || '', x, valueY)
-        // Underline
-        doc.setDrawColor(60, 60, 60)
-        doc.line(x, valueY + 1, x + field.width - 5, valueY + 1)
-        doc.setFontSize(6)
-        x += field.width
-      })
-      return fieldY + 9
-    }
-    
-    const drawCheckbox = (x, checkY, checked, label) => {
-      doc.setDrawColor(60, 60, 60)
-      doc.setLineWidth(0.3)
-      doc.rect(x, checkY - 2.5, 3.5, 3.5, 'S')
-      if (checked) {
-        doc.setFillColor(...teal)
-        doc.rect(x + 0.5, checkY - 2, 2.5, 2.5, 'F')
-        doc.setTextColor(255, 255, 255)
-        doc.setFontSize(6)
-        doc.text('✓', x + 0.8, checkY + 0.3)
-      }
-      doc.setTextColor(40, 40, 40)
-      doc.setFontSize(7)
-      doc.setFont('helvetica', 'normal')
-      doc.text(label, x + 5, checkY)
-      doc.setLineWidth(0.2)
-    }
-    
-    // ===== PATIENT INFORMATION =====
-    y += 10
-    y = drawSectionHeader('PATIENT INFORMATION', y)
-    
-    // Section border
-    const patientSectionStart = y
-    y += 3
-    
-    // Row 1: Names and DOB
-    y = drawFieldRow([
-      { label: 'FIRST NAME', value: cycle.patient_first_name || '', width: 45 },
-      { label: 'LAST NAME', value: cycle.patient_last_name || '', width: 45 },
-      { label: 'DATE OF BIRTH', value: formatDate(cycle.patient_dob), width: 35 },
-      { label: 'SEX', value: formatSex(cycle.patient_sex), width: 25 }
-    ], y)
-    
-    // Row 2: Address
-    y = drawFieldRow([
-      { label: 'ADDRESS', value: cycle.patient_address || '', width: 80 },
-      { label: 'CITY', value: cycle.patient_city || '', width: 40 },
-      { label: 'STATE', value: getStateAbbrev(cycle.patient_state), width: 15 },
-      { label: 'ZIP', value: cycle.patient_zip || '', width: 20 }
-    ], y)
-    
-    // Row 3: Contact
-    y = drawFieldRow([
-      { label: 'PHONE', value: cycle.patient_phone || '', width: 50 },
-      { label: 'EMAIL', value: cycle.patient_email || '', width: 100 }
-    ], y)
-    
-    // Draw section border
-    doc.setDrawColor(200, 200, 200)
-    doc.rect(margin, patientSectionStart, contentWidth, y - patientSectionStart + 1, 'S')
-    
-    // ===== PARTNER INFORMATION =====
-    y += 4
-    y = drawSectionHeader('PARTNER INFORMATION', y)
-    const partnerSectionStart = y
-    y += 3
-    
-    if (cycle.partner_first_name || cycle.no_partner === false) {
-      y = drawFieldRow([
-        { label: 'FIRST NAME', value: cycle.partner_first_name || '', width: 45 },
-        { label: 'LAST NAME', value: cycle.partner_last_name || '', width: 45 },
-        { label: 'DATE OF BIRTH', value: formatDate(cycle.partner_dob), width: 35 },
-        { label: 'SEX', value: formatSex(cycle.partner_sex), width: 25 }
-      ], y)
-      
-      y = drawFieldRow([
-        { label: 'PHONE', value: cycle.partner_phone || '', width: 50 },
-        { label: 'EMAIL', value: cycle.partner_email || '', width: 100 }
-      ], y)
-    } else {
-      doc.setTextColor(100, 100, 100)
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'italic')
-      doc.text('No partner / Single parent', margin + 5, y + 3)
-      y += 8
-    }
-    
-    doc.setDrawColor(200, 200, 200)
-    doc.rect(margin, partnerSectionStart, contentWidth, y - partnerSectionStart + 1, 'S')
-    
-    // ===== IVF CENTER INFORMATION =====
-    y += 4
-    y = drawSectionHeader('IVF CENTER / CLINIC INFORMATION', y)
-    const clinicSectionStart = y
-    y += 3
-    
-    const clinicName = cycle.clinic?.name || ''
-    const clinicPhone = cycle.clinic?.phone || ''
-    const clinicAddress = cycle.clinic?.address || ''
-    const clinicCity = cycle.clinic?.city || ''
-    const clinicState = getStateAbbrev(cycle.clinic?.state)
-    const clinicZip = cycle.clinic?.zip || ''
-    
-    y = drawFieldRow([
-      { label: 'CLINIC NAME', value: clinicName, width: 100 },
-      { label: 'PHONE', value: clinicPhone, width: 50 }
-    ], y)
-    
-    y = drawFieldRow([
-      { label: 'ADDRESS', value: clinicAddress, width: 80 },
-      { label: 'CITY', value: clinicCity, width: 40 },
-      { label: 'STATE', value: clinicState, width: 15 },
-      { label: 'ZIP', value: clinicZip, width: 20 }
-    ], y)
-    
-    // Ordering Physician
-    const providerName = cycle.ordering_provider 
-      ? `${cycle.ordering_provider.first_name || ''} ${cycle.ordering_provider.last_name || ''}${cycle.ordering_provider.credentials ? ', ' + cycle.ordering_provider.credentials : ''}`
-      : ''
-    
-    y = drawFieldRow([
-      { label: 'ORDERING PHYSICIAN', value: providerName, width: 70 },
-      { label: 'NPI', value: cycle.ordering_provider?.npi || '', width: 40 },
-      { label: 'PHYSICIAN EMAIL', value: cycle.ordering_provider?.email || '', width: 50 }
-    ], y)
-    
-    doc.setDrawColor(200, 200, 200)
-    doc.rect(margin, clinicSectionStart, contentWidth, y - clinicSectionStart + 1, 'S')
-    
-    // ===== TEST INFORMATION =====
-    y += 4
-    y = drawSectionHeader('TEST INFORMATION', y)
-    const testSectionStart = y
-    y += 4
-    
-    // Tests Ordered
-    doc.setTextColor(100, 100, 100)
-    doc.setFontSize(6)
-    doc.setFont('helvetica', 'normal')
-    doc.text('TESTS ORDERED', margin + 3, y)
-    y += 4
-    
-    const testsOrdered = cycle.tests_ordered || []
-    drawCheckbox(margin + 3, y, testsOrdered.includes('pgt_a'), 'PGT-A (Aneuploidy Screening)')
-    drawCheckbox(margin + 60, y, testsOrdered.includes('pgt_m'), 'PGT-M (Monogenic / Single Gene)')
-    drawCheckbox(margin + 125, y, testsOrdered.includes('pgt_sr'), 'PGT-SR (Structural Rearrangement)')
-    
-    y += 7
-    doc.setTextColor(100, 100, 100)
-    doc.setFontSize(6)
-    doc.text('REPORTING OPTIONS', margin + 3, y)
-    y += 4
-    
-    drawCheckbox(margin + 3, y, cycle.mask_sex_results === true, 'Mask Sex Results (Do not report embryo sex)')
-    
-    y += 4
-    doc.setDrawColor(200, 200, 200)
-    doc.rect(margin, testSectionStart, contentWidth, y - testSectionStart + 1, 'S')
-    
-    // ===== CYCLE INFORMATION =====
-    y += 4
-    y = drawSectionHeader('CYCLE INFORMATION', y)
-    const cycleSectionStart = y
-    y += 3
-    
-    // Diagnosis - use indication field with human-readable label
-    const indicationLabels = {
-      advanced_maternal_age: 'Advanced maternal age (≥35)',
-      recurrent_pregnancy_loss: 'Recurrent pregnancy loss',
-      previous_failed_ivf: 'Previous failed IVF cycles',
-      male_factor: 'Male factor',
-      unexplained_infertility: 'Unexplained infertility',
-      previous_aneuploid_conception: 'Previous aneuploid conception',
-      repetitive_implantation_failure: 'Repetitive implantation failure',
-      elective_pgt_a: 'Elective PGT-A',
-      pgt_sr: 'PGT-SR (Structural Rearrangement)',
-      other: 'Other'
-    }
-    const diagnosisValue = cycle.indication ? (indicationLabels[cycle.indication] || cycle.indication) : (cycle.reason_for_testing || '')
-    y = drawFieldRow([
-      { label: 'DIAGNOSIS / INDICATION FOR TESTING', value: diagnosisValue, width: 155 }
-    ], y)
-    
-    // Male Factor
-    doc.setTextColor(100, 100, 100)
-    doc.setFontSize(6)
-    doc.text('MALE FACTOR INFERTILITY', margin + 3, y)
-    y += 4
-    drawCheckbox(margin + 3, y, cycle.male_factor_infertility === true, 'Yes')
-    drawCheckbox(margin + 25, y, cycle.male_factor_infertility === false, 'No')
-    
-    // Donor Gametes
-    doc.setTextColor(100, 100, 100)
-    doc.setFontSize(6)
-    doc.text('DONOR GAMETES USED', margin + 70, y - 4)
-    drawCheckbox(margin + 70, y, cycle.is_egg_donor === true, 'Egg Donor')
-    drawCheckbox(margin + 105, y, cycle.is_sperm_donor === true, 'Sperm Donor')
-    drawCheckbox(margin + 145, y, !cycle.is_egg_donor && !cycle.is_sperm_donor, 'None')
-    
-    y += 4
-    doc.setDrawColor(200, 200, 200)
-    doc.rect(margin, cycleSectionStart, contentWidth, y - cycleSectionStart + 1, 'S')
-    
-    // ===== SIGNATURES =====
-    y += 4
-    y = drawSectionHeader('SIGNATURES & CONSENT', y)
-    const sigSectionStart = y
-    y += 5
-    
-    const halfWidth = contentWidth / 2 - 5
-    const submittedDateTime = cycle.created_at ? new Date(cycle.created_at).toLocaleString() : ''
-    
-    // Left box - Ordering Physician
-    doc.setDrawColor(200, 200, 200)
-    doc.rect(margin + 2, y, halfWidth, 30, 'S')
-    doc.setTextColor(...navyBlue)
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'bold')
-    doc.text('ORDERING PHYSICIAN', margin + 5, y + 4)
-    
-    // Physician name
-    doc.setTextColor(...navyBlue)
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.text(providerName, margin + 5, y + 10)
-    
-    doc.setDrawColor(60, 60, 60)
-    doc.line(margin + 5, y + 14, margin + halfWidth - 5, y + 14)
-    doc.setTextColor(100, 100, 100)
-    doc.setFontSize(6)
-    doc.setFont('helvetica', 'normal')
-    doc.text('Signature', margin + 5, y + 17)
-    
-    // Digital signature badge
-    doc.setFillColor(232, 245, 243)
-    doc.roundedRect(margin + 5, y + 19, 35, 4.5, 0.5, 0.5, 'F')
-    doc.setDrawColor(...teal)
-    doc.roundedRect(margin + 5, y + 19, 35, 4.5, 0.5, 0.5, 'S')
-    doc.setTextColor(...teal)
-    doc.setFontSize(5.5)
-    doc.setFont('helvetica', 'bold')
-    doc.text('✓ DIGITALLY SIGNED', margin + 7, y + 22)
-    doc.setTextColor(80, 80, 80)
-    doc.setFontSize(6)
-    doc.setFont('helvetica', 'normal')
-    doc.text(submittedDateTime, margin + 5, y + 28)
-    
-    // Right box - Submitted By
-    const submittedByName = cycle.created_by_user 
-      ? `${cycle.created_by_user.first_name || ''} ${cycle.created_by_user.last_name || ''}`.trim()
-      : ''
-    doc.setDrawColor(200, 200, 200)
-    doc.rect(margin + halfWidth + 8, y, halfWidth, 30, 'S')
-    doc.setTextColor(...navyBlue)
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'bold')
-    doc.text('SUBMITTED BY', margin + halfWidth + 11, y + 4)
-    
-    // Submitter name
-    doc.setTextColor(...navyBlue)
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.text(submittedByName, margin + halfWidth + 11, y + 10)
-    
-    doc.setDrawColor(60, 60, 60)
-    doc.line(margin + halfWidth + 11, y + 14, margin + contentWidth - 5, y + 14)
-    doc.setTextColor(100, 100, 100)
-    doc.setFontSize(6)
-    doc.setFont('helvetica', 'normal')
-    doc.text('Signature', margin + halfWidth + 11, y + 17)
-    
-    // Digitally signed badge
-    doc.setFillColor(232, 245, 243)
-    doc.roundedRect(margin + halfWidth + 11, y + 19, 35, 4.5, 0.5, 0.5, 'F')
-    doc.setDrawColor(...teal)
-    doc.roundedRect(margin + halfWidth + 11, y + 19, 35, 4.5, 0.5, 0.5, 'S')
-    doc.setTextColor(...teal)
-    doc.setFontSize(5.5)
-    doc.setFont('helvetica', 'bold')
-    doc.text('✓ DIGITALLY SIGNED', margin + halfWidth + 13, y + 22)
-    doc.setTextColor(80, 80, 80)
-    doc.setFontSize(6)
-    doc.setFont('helvetica', 'normal')
-    doc.text(submittedDateTime, margin + halfWidth + 11, y + 28)
-    
-    y += 32
-    doc.setDrawColor(200, 200, 200)
-    doc.rect(margin, sigSectionStart, contentWidth, y - sigSectionStart + 1, 'S')
-    
-    // ===== FOOTER NOTICE =====
-    y += 4
-    doc.setFillColor(...lightBg)
-    doc.roundedRect(margin, y, contentWidth, 12, 1, 1, 'F')
-    doc.setDrawColor(...navyBlue)
-    doc.roundedRect(margin, y, contentWidth, 12, 1, 1, 'S')
-    
-    doc.setTextColor(...navyBlue)
-    doc.setFontSize(6)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Important:', margin + 3, y + 4)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(60, 60, 60)
-    doc.text('By signing this requisition, the ordering physician certifies that informed consent has been obtained from the patient', margin + 18, y + 4)
-    doc.text('and/or their legal representative for the requested genetic testing. Results will be reported to the ordering physician and IVF center only.', margin + 3, y + 7.5)
-    doc.text('For questions, contact Ally Genetics at (616) 465-2400 or lab@allygenetics.com.', margin + 3, y + 11)
-    
-    // ===== PAGE FOOTER =====
-    doc.setFillColor(...navyBlue)
-    doc.rect(0, pageHeight - 8, pageWidth, 0.5, 'F')
-    doc.setTextColor(100, 100, 100)
-    doc.setFontSize(5.5)
-    doc.text('Ally Genetics Laboratory | 1001 Parchment Dr SE, Grand Rapids, MI 49546 | (616) 465-2400 | lab@allygenetics.com | www.allygenetics.com', pageWidth / 2, pageHeight - 4, { align: 'center' })
-    
-    doc.save(`Requisition_${cycle.patient_last_name}_${cycle.patient_first_name}.pdf`)
   }
 
 
@@ -3098,7 +3079,6 @@ function PatientFolderModal({ caseData, onClose, supabase }) {
 // ============================================================================
 function AllCasesPage() {
   const { supabase } = useAuth()
-  const navigate = useNavigate()
   const [cases, setCases] = useState([])
   const [clinics, setClinics] = useState([])
   const [loading, setLoading] = useState(true)
@@ -3106,22 +3086,6 @@ function AllCasesPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [clinicFilter, setClinicFilter] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
-  const [sortField, setSortField] = useState('created_at')
-  const [sortDir, setSortDir] = useState('desc')
-
-  function handleSort(field) {
-    if (sortField === field) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortField(field)
-      setSortDir('asc')
-    }
-  }
-
-  function SortIcon({ field }) {
-    if (sortField !== field) return <span className="ml-1 text-gray-300">↕</span>
-    return <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
-  }
 
   useEffect(() => {
     fetchData()
@@ -3229,15 +3193,6 @@ function AllCasesPage() {
       c.patient_last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.case_number?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesStatus && matchesClinic && matchesSearch
-  }).sort((a, b) => {
-    let aVal, bVal
-    if (sortField === 'case_number') { aVal = a.case_number || ''; bVal = b.case_number || '' }
-    else if (sortField === 'patient') { aVal = `${a.patient_last_name} ${a.patient_first_name}`; bVal = `${b.patient_last_name} ${b.patient_first_name}` }
-    else if (sortField === 'clinic') { aVal = a.clinic?.name || ''; bVal = b.clinic?.name || '' }
-    else if (sortField === 'provider') { aVal = a.ordering_provider?.last_name || ''; bVal = b.ordering_provider?.last_name || '' }
-    else if (sortField === 'status') { aVal = a.status || ''; bVal = b.status || '' }
-    else { aVal = a.created_at || ''; bVal = b.created_at || '' }
-    return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
   })
 
   if (loading) {
@@ -3291,21 +3246,21 @@ function AllCasesPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th onClick={() => handleSort('case_number')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Case # <SortIcon field="case_number" /></th>
-                <th onClick={() => handleSort('patient')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Patient <SortIcon field="patient" /></th>
-                <th onClick={() => handleSort('clinic')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Clinic <SortIcon field="clinic" /></th>
-                <th onClick={() => handleSort('provider')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Provider <SortIcon field="provider" /></th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Tests</th>
-                <th onClick={() => handleSort('created_at')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Submitted <SortIcon field="created_at" /></th>
-                <th onClick={() => handleSort('status')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 whitespace-nowrap">Status <SortIcon field="status" /></th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Report</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Case #</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clinic</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tests</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Report</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredCases.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/admin/cases/${c.id}`)}>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-ally-teal" onClick={e => e.stopPropagation()}>
+                <tr key={c.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-ally-teal">
                     <Link to={`/admin/cases/${c.id}`} className="hover:underline">
                       {c.case_number || '-'}
                     </Link>
@@ -3318,7 +3273,7 @@ function AllCasesPage() {
                     {c.clinic?.name || '-'}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {c.ordering_provider ? `${c.ordering_provider.first_name} ${c.ordering_provider.last_name}${c.ordering_provider.credentials ? ', ' + c.ordering_provider.credentials : ''}` : '-'}
+                    {c.ordering_provider ? `${c.ordering_provider.first_name} ${c.ordering_provider.last_name}, ${c.ordering_provider.credentials || ''}`.trim() : '-'}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                     {c.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || '-'}
@@ -3326,7 +3281,7 @@ function AllCasesPage() {
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(c.created_at).toLocaleDateString()}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                  <td className="px-4 py-4 whitespace-nowrap">
                     <select
                       value={c.status}
                       onChange={(e) => handleUpdateStatus(c.id, e.target.value)}
@@ -3337,7 +3292,7 @@ function AllCasesPage() {
                       <option value="report_ready">Report Ready</option>
                     </select>
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-right" onClick={e => e.stopPropagation()}>
+                  <td className="px-4 py-4 whitespace-nowrap text-right">
                     {c.report_file_url ? (
                       <div className="flex items-center justify-end gap-2">
                         <a 
@@ -3356,7 +3311,9 @@ function AllCasesPage() {
                             accept=".pdf"
                             className="hidden"
                             onChange={(e) => {
-                              if (e.target.files?.[0]) handleUploadReport(c, e.target.files[0])
+                              if (e.target.files?.[0]) {
+                                handleUploadReport(c, e.target.files[0])
+                              }
                             }}
                           />
                         </label>
@@ -3376,14 +3333,16 @@ function AllCasesPage() {
                           accept=".pdf"
                           className="hidden"
                           onChange={(e) => {
-                            if (e.target.files?.[0]) handleUploadReport(c, e.target.files[0])
+                            if (e.target.files?.[0]) {
+                              handleUploadReport(c, e.target.files[0])
+                            }
                           }}
                           disabled={uploadingCase === c.id}
                         />
                       </label>
                     )}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-right" onClick={e => e.stopPropagation()}>
+                  <td className="px-4 py-4 whitespace-nowrap text-right">
                     <button
                       onClick={() => handleDeleteCase(c)}
                       className="text-red-600 hover:text-red-800 text-sm"
@@ -3464,8 +3423,133 @@ function CaseDetailsPage({ isAdmin = false }) {
   async function handleDownloadConsent(signerType) {
     const consent = consents.find(c => c.signer_type === signerType)
     if (!consent || consent.status !== 'signed') return
-    // Use the full consent PDF generator (same as clinic download)
-    generateConsentPDF(caseData, signerType, consent)
+
+    const signerName = signerType === 'patient'
+      ? `${caseData.patient_first_name} ${caseData.patient_last_name}`
+      : `${caseData.partner_first_name} ${caseData.partner_last_name}`
+    const signerEmail = signerType === 'patient' ? caseData.patient_email : caseData.partner_email
+
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 15
+    const contentWidth = pageWidth - margin * 2
+    const navyBlue = [30, 58, 95]
+    const teal = [13, 148, 136]
+
+    // Header
+    doc.setFillColor(...navyBlue)
+    doc.rect(0, 0, pageWidth, 3, 'F')
+    doc.setTextColor(...navyBlue)
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Ally Genetics', margin, 12)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'italic')
+    doc.setTextColor(...teal)
+    doc.text('Better Partnerships. Better Results.', margin, 16)
+    doc.setFillColor(...navyBlue)
+    doc.rect(55, 8, pageWidth - 55 - margin, 10, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.text('PGT Informed Consent - Signed Copy', 58, 14)
+
+    let y = 25
+    // Consent info bar
+    doc.setFillColor(232, 245, 243)
+    doc.setDrawColor(...teal)
+    doc.rect(margin, y, contentWidth, 10, 'FD')
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...navyBlue)
+    doc.text('Consent Sent To:', margin + 2, y + 4)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...teal)
+    doc.text(signerEmail || 'N/A', margin + 28, y + 4)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...navyBlue)
+    doc.text('Signer:', margin + 80, y + 4)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...teal)
+    doc.text(`${signerName} (${signerType.charAt(0).toUpperCase() + signerType.slice(1)})`, margin + 93, y + 4)
+    y += 18
+
+    // Signature section header
+    doc.setFillColor(...navyBlue)
+    doc.rect(margin, y, contentWidth, 8, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`ELECTRONIC SIGNATURE - ${signerType.toUpperCase()}`, margin + 3, y + 5.5)
+    y += 12
+
+    // Signature box
+    doc.setDrawColor(...navyBlue)
+    doc.setLineWidth(0.5)
+    doc.rect(margin, y, contentWidth, 70, 'D')
+
+    doc.setFontSize(6)
+    doc.setTextColor(102, 102, 102)
+    doc.setFont('helvetica', 'normal')
+    doc.text('NAME (PRINT)', margin + 5, y + 8)
+    doc.text('ROLE', margin + 100, y + 8)
+    doc.setFontSize(10)
+    doc.setTextColor(...teal)
+    doc.text(signerName, margin + 5, y + 15)
+    doc.text(signerType.charAt(0).toUpperCase() + signerType.slice(1), margin + 100, y + 15)
+    doc.setDrawColor(51, 51, 51)
+    doc.setLineWidth(0.3)
+    doc.line(margin + 5, y + 17, margin + 90, y + 17)
+    doc.line(margin + 100, y + 17, margin + 160, y + 17)
+
+    doc.setFontSize(6)
+    doc.setTextColor(102, 102, 102)
+    doc.text('SIGNATURE', margin + 5, y + 28)
+    doc.text('DATE & TIME SIGNED', margin + 100, y + 28)
+    doc.setFontSize(14)
+    doc.setTextColor(...teal)
+    doc.setFont('helvetica', 'italic')
+    if (consent.signature_type === 'typed' && consent.signature_data) {
+      doc.text(consent.signature_data, margin + 5, y + 38)
+    } else {
+      doc.text(signerName, margin + 5, y + 38)
+    }
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.text(consent.signed_at ? new Date(consent.signed_at).toLocaleString() : '', margin + 100, y + 38)
+    doc.setDrawColor(51, 51, 51)
+    doc.line(margin + 5, y + 40, margin + 90, y + 40)
+    doc.line(margin + 100, y + 40, margin + 160, y + 40)
+
+    doc.setFillColor(232, 245, 243)
+    doc.setDrawColor(...teal)
+    doc.rect(margin + 5, y + 44, 35, 6, 'FD')
+    doc.setFontSize(6)
+    doc.setTextColor(...teal)
+    doc.setFont('helvetica', 'bold')
+    doc.text('✓ ELECTRONICALLY SIGNED', margin + 7, y + 48)
+
+    doc.setDrawColor(221, 221, 221)
+    doc.line(margin + 5, y + 54, margin + contentWidth - 5, y + 54)
+    doc.setFontSize(6)
+    doc.setTextColor(102, 102, 102)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Verification Details:', margin + 5, y + 59)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Consent Sent To: ${signerEmail || 'N/A'}  |  IP Address: ${consent.ip_address || 'N/A'}`, margin + 5, y + 64)
+    doc.text(`Document ID: CON-${caseData.case_number}-${signerType.toUpperCase()}`, margin + 5, y + 68)
+
+    // Footer
+    doc.setFillColor(...navyBlue)
+    doc.rect(0, pageHeight - 14, pageWidth, 14, 'F')
+    doc.setFontSize(6)
+    doc.setTextColor(255, 255, 255)
+    doc.text('phone: (616) 465-2400  |  fax: (616) 616-5887', margin, pageHeight - 8)
+    doc.text('email: lab@allygenetics.com  |  web: www.allygenetics.com', pageWidth / 2, pageHeight - 8, { align: 'center' })
+    doc.text('1001 Parchment Dr SE, Grand Rapids, MI 49546', pageWidth - margin, pageHeight - 8, { align: 'right' })
+
+    doc.save(`Consent_${caseData.patient_last_name}_${caseData.patient_first_name}_${signerType.charAt(0).toUpperCase() + signerType.slice(1)}.pdf`)
   }
 
   async function handleUploadReport(file) {
@@ -3659,6 +3743,37 @@ function CaseDetailsPage({ isAdmin = false }) {
                   <p className="text-sm text-gray-500">Reason for Testing</p>
                   <p className="font-medium">{caseData.reason_for_testing || '-'}</p>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Consent Status */}
+          <div className="bg-white rounded-lg border">
+            <div className="px-6 py-4 border-b">
+              <h2 className="font-semibold">Consent Status</h2>
+            </div>
+
+          {/* Documents */}
+          <div className="bg-white rounded-lg border">
+            <div className="px-6 py-4 border-b">
+              <h2 className="font-semibold">Documents</h2>
+            </div>
+            <div className="p-6">
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <FileText className="w-5 h-5 text-ally-teal" />
+                  <div>
+                    <p className="font-medium">Requisition Form</p>
+                    <p className="text-xs text-gray-500">Submitted {new Date(caseData.created_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => generateRequisitionPDF(caseData)}
+                  className="inline-flex items-center gap-1 text-ally-teal hover:underline text-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </button>
               </div>
             </div>
           </div>
@@ -3999,10 +4114,6 @@ function NewRequisitionPage() {
     patient_dob: '',
     patient_email: '',
     patient_phone: '',
-    patient_address: '',
-    patient_city: '',
-    patient_state: '',
-    patient_zip: '',
     patient_sex: 'female',
     is_egg_donor: false,
     egg_donor_age: '',
@@ -4512,49 +4623,6 @@ function NewRequisitionPage() {
                 type="tel"
                 name="patient_phone"
                 value={formData.patient_phone}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-              />
-            </div>
-            <div className="md:col-span-2 lg:col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-              <input
-                type="text"
-                name="patient_address"
-                value={formData.patient_address}
-                onChange={handleChange}
-                placeholder="Street address"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-              <input
-                type="text"
-                name="patient_city"
-                value={formData.patient_city}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
-              <input
-                type="text"
-                name="patient_state"
-                value={formData.patient_state}
-                onChange={handleChange}
-                placeholder="e.g. MI"
-                maxLength={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ZIP</label>
-              <input
-                type="text"
-                name="patient_zip"
-                value={formData.patient_zip}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
               />
