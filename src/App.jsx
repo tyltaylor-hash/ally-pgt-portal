@@ -1165,7 +1165,7 @@ function ClinicDashboard() {
 // ============================================================================
 // SHARED PDF GENERATION FUNCTIONS
 // ============================================================================
-function generateRequisitionPDF(cycle) {
+function generateRequisitionPDF(cycle, currentUser = null) {
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
@@ -1529,7 +1529,9 @@ function generateRequisitionPDF(cycle) {
   // Right box - Submitted By
   const submittedByName = cycle.created_by_user 
     ? `${cycle.created_by_user.first_name || ''} ${cycle.created_by_user.last_name || ''}`.trim()
-    : ''
+    : currentUser
+      ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()
+      : ''
   doc.setDrawColor(200, 200, 200)
   doc.rect(margin + halfWidth + 8, y, halfWidth, 25, 'S')
   doc.setTextColor(...navyBlue)
@@ -2060,6 +2062,7 @@ function generateConsentPDF(cycle, signerType, consent) {
 }
 
 function PatientCyclesModal({ patient, onClose, supabase }) {
+  const { userData } = useAuth()
   const [downloading, setDownloading] = useState(null)
 
   async function handleDownload(cycle, docType) {
@@ -2067,7 +2070,7 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
     
     try {
       if (docType === 'requisition') {
-        generateRequisitionPDF(cycle)
+        generateRequisitionPDF(cycle, userData)
       } else if (docType === 'patient-consent') {
         const consent = cycle.patientConsent
         if (consent?.signed_at) {
