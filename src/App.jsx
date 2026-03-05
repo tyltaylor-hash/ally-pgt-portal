@@ -120,7 +120,7 @@ function AuthProvider({ children }) {
   async function fetchUserData(authId) {
     const { data } = await supabase
       .from('users')
-      .select('*, clinic:clinics(id, name)')
+      .select('*, clinic:clinics(id, name, address_line1, address_line2, city, state, zip_code, phone, email)')
       .eq('auth_id', authId)
       .single()
     setUserData(data)
@@ -146,7 +146,7 @@ function AuthProvider({ children }) {
     // Fetch full user data with clinic
     const { data } = await supabase
       .from('users')
-      .select('*, clinic:clinics(id, name)')
+      .select('*, clinic:clinics(id, name, address_line1, address_line2, city, state, zip_code, phone, email)')
       .eq('id', targetUser.id)
       .single()
     
@@ -2540,12 +2540,12 @@ function OrderSuppliesModal({ onClose }) {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Shipping Address</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Shipping Address</label>
+            <p className="text-xs text-gray-500 mb-2">Pre-filled from your clinic's address on file. Edit if shipping to a different address.</p>
             <textarea
-              value={orderForm.shipping_address}
+              value={orderForm.shipping_address || getClinicAddress()}
               onChange={(e) => setOrderForm(f => ({ ...f, shipping_address: e.target.value }))}
-              rows={3}
-              placeholder="Enter shipping address or leave blank to use clinic default address"
+              rows={4}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             />
           </div>
@@ -5371,12 +5371,12 @@ function OrderSuppliesPage() {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Shipping Address</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Shipping Address</label>
+            <p className="text-xs text-gray-500 mb-2">Pre-filled from your clinic's address on file. Edit if shipping to a different address.</p>
             <textarea
-              value={orderForm.shipping_address}
+              value={orderForm.shipping_address || getClinicAddress()}
               onChange={(e) => setOrderForm(f => ({ ...f, shipping_address: e.target.value }))}
-              rows={3}
-              placeholder="Enter shipping address or leave blank to use clinic default address"
+              rows={4}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             />
           </div>
