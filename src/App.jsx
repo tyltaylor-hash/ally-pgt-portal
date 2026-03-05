@@ -2329,9 +2329,8 @@ function OrderSuppliesModal({ onClose }) {
     if (!clinic) return 'No address on file'
     return [
       clinic.name,
-      clinic.address_line1,
-      clinic.address_line2,
-      `${clinic.city || ''}, ${clinic.state || ''} ${clinic.zip_code || ''}`.trim()
+      clinic.address,
+      `${clinic.city || ''}, ${clinic.state || ''} ${clinic.zip || ''}`.trim()
     ].filter(Boolean).join('\n')
   }
 
@@ -2342,15 +2341,14 @@ function OrderSuppliesModal({ onClose }) {
     // Fetch full clinic address at order time
     const { data: clinicData } = await supabase
       .from('clinics')
-      .select('name, address_line1, address_line2, city, state, zip_code')
+      .select('name, address, city, state, zip')
       .eq('id', userData.clinic_id)
       .single()
 
     const clinicAddress = clinicData ? [
       clinicData.name,
-      clinicData.address_line1,
-      clinicData.address_line2,
-      `${clinicData.city || ''}, ${clinicData.state || ''} ${clinicData.zip_code || ''}`.trim()
+      clinicData.address,
+      `${clinicData.city || ''}, ${clinicData.state || ''} ${clinicData.zip || ''}`.trim()
     ].filter(Boolean).join('\n') : 'No address on file'
 
     // Save order to database
@@ -5169,9 +5167,8 @@ function OrderSuppliesPage() {
     if (!clinic) return 'No address on file'
     return [
       clinic.name,
-      clinic.address_line1,
-      clinic.address_line2,
-      `${clinic.city || ''}, ${clinic.state || ''} ${clinic.zip_code || ''}`.trim()
+      clinic.address,
+      `${clinic.city || ''}, ${clinic.state || ''} ${clinic.zip || ''}`.trim()
     ].filter(Boolean).join('\n')
   }
 
@@ -5182,15 +5179,14 @@ function OrderSuppliesPage() {
     // Fetch full clinic address at order time
     const { data: clinicData } = await supabase
       .from('clinics')
-      .select('name, address_line1, address_line2, city, state, zip_code')
+      .select('name, address, city, state, zip')
       .eq('id', userData.clinic_id)
       .single()
 
     const clinicAddress = clinicData ? [
       clinicData.name,
-      clinicData.address_line1,
-      clinicData.address_line2,
-      `${clinicData.city || ''}, ${clinicData.state || ''} ${clinicData.zip_code || ''}`.trim()
+      clinicData.address,
+      `${clinicData.city || ''}, ${clinicData.state || ''} ${clinicData.zip || ''}`.trim()
     ].filter(Boolean).join('\n') : 'No address on file'
 
     // Save order to database
@@ -5701,10 +5697,10 @@ function ClinicModal({ clinic, onClose, onSave }) {
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: clinic?.name || '',
-    address_line1: clinic?.address_line1 || '',
+    address: clinic?.address || '',
     city: clinic?.city || '',
     state: clinic?.state || '',
-    zip_code: clinic?.zip_code || '',
+    zip: clinic?.zip || '',
     phone: clinic?.phone || '',
     email: clinic?.email || '',
     is_active: clinic?.is_active ?? true,
@@ -5751,8 +5747,8 @@ function ClinicModal({ clinic, onClose, onSave }) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
             <input
               type="text"
-              name="address_line1"
-              value={formData.address_line1}
+              name="address"
+              value={formData.address}
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
             />
@@ -5782,8 +5778,8 @@ function ClinicModal({ clinic, onClose, onSave }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">ZIP</label>
               <input
                 type="text"
-                name="zip_code"
-                value={formData.zip_code}
+                name="zip"
+                value={formData.zip}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal"
               />
