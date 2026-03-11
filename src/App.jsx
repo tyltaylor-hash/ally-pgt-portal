@@ -1166,9 +1166,9 @@ function ClinicDashboard() {
 // ============================================================================
 
 function generateBiopsyWorksheetPDF(cycle) {
-  const doc = new jsPDF({ orientation: 'landscape' })
-  const pageWidth = doc.internal.pageSize.getWidth()  // ~297mm
-  const pageHeight = doc.internal.pageSize.getHeight() // ~210mm
+  const doc = new jsPDF({ orientation: 'portrait' })
+  const pageWidth = doc.internal.pageSize.getWidth()  // ~210mm
+  const pageHeight = doc.internal.pageSize.getHeight() // ~297mm
   const margin = 10
   const contentWidth = pageWidth - (margin * 2)
   let y = margin
@@ -1259,10 +1259,9 @@ function generateBiopsyWorksheetPDF(cycle) {
 
   y += rowH + 2
 
-  // Row 3: Partner | Case # | Biopsy Date(s) blank
+  // Row 3: Partner | Biopsy Date(s) blank
   drawInfoBox(margin, y, col, 'Partner Name (Last, First)', partnerName)
-  drawInfoBox(margin + col, y, col, 'Case Number', cycle.case_number || '')
-  drawInfoBox(margin + col * 2, y, col, 'Biopsy Date(s)', '')
+  drawInfoBox(margin + col, y, col * 2, 'Biopsy Date(s)', '')
 
   y += rowH + 2
 
@@ -1290,8 +1289,8 @@ function generateBiopsyWorksheetPDF(cycle) {
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(20, 20, 20)
   doc.text('Rebiopsies included', cbX + 6.5, y + 6)
-  drawCheckbox(cbX + 52, y + 3.5)
-  doc.text('Additional pages', cbX + 56.5, y + 6)
+  drawCheckbox(cbX + 35, y + 3.5)
+  doc.text('Additional pages', cbX + 39.5, y + 6)
 
   y += rowH + 4
 
@@ -1304,14 +1303,14 @@ function generateBiopsyWorksheetPDF(cycle) {
 
   // ===== EMBRYO TABLE =====
   const headers = [
-    { label: 'Collection\nTube Code', w: 32 },
-    { label: 'IVF Lab\nNumber', w: 22 },
-    { label: 'Embryo\nGrade', w: 22 },
-    { label: 'Biopsy\nDay', w: 18 },
-    { label: 'Biopsy\nEmbryologist\nInitials', w: 26 },
-    { label: 'Tube Loading\nEmbryologist\nInitials', w: 26 },
-    { label: 'Cells\nVisualized\nIn Tube', w: 22 },
-    { label: 'Comments', w: contentWidth - 32 - 22 - 22 - 18 - 26 - 26 - 22 },
+    { label: 'Collection\nTube Code', w: 28 },
+    { label: 'IVF Lab\nNumber', w: 18 },
+    { label: 'Embryo\nGrade', w: 18 },
+    { label: 'Biopsy\nDay', w: 15 },
+    { label: 'Biopsy\nEmbryologist\nInitials', w: 22 },
+    { label: 'Tube Loading\nEmbryologist\nInitials', w: 22 },
+    { label: 'Cells\nVisualized\nIn Tube', w: 18 },
+    { label: 'Comments', w: contentWidth - 28 - 18 - 18 - 15 - 22 - 22 - 18 },
   ]
 
   const tableX = margin
