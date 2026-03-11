@@ -2409,11 +2409,11 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
 
               {/* Cycle Content Grid */}
               <div className="grid grid-cols-3 gap-3">
-                {/* Requisition */}
+                {/* Forms */}
                 <div className="bg-white border border-gray-200 rounded-lg p-3">
                   <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
                     <FileText className="w-3.5 h-3.5 text-ally-teal" />
-                    Requisition
+                    Forms
                   </div>
                   <div className="space-y-2">
                     <button 
