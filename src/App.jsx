@@ -1164,6 +1164,263 @@ function ClinicDashboard() {
 // ============================================================================
 // SHARED PDF GENERATION FUNCTIONS
 // ============================================================================
+
+function generateBiopsyWorksheetPDF(cycle) {
+  const doc = new jsPDF({ orientation: 'landscape' })
+  const pageWidth = doc.internal.pageSize.getWidth()  // ~297mm
+  const pageHeight = doc.internal.pageSize.getHeight() // ~210mm
+  const margin = 10
+  const contentWidth = pageWidth - (margin * 2)
+  let y = margin
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return ''
+    try { return new Date(dateStr).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) }
+    catch { return dateStr }
+  }
+
+  const navyBlue = [30, 58, 95]
+  const teal = [13, 148, 136]
+  const lightGray = [245, 247, 250]
+  const headerGray = [220, 226, 235]
+
+  // ===== HEADER STRIPE =====
+  doc.setFillColor(...navyBlue)
+  doc.rect(0, 0, pageWidth, 2.5, 'F')
+
+  y = 9
+  doc.setTextColor(...navyBlue)
+  doc.setFontSize(16)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Ally Genetics', margin, y)
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'italic')
+  doc.setTextColor(...teal)
+  doc.text('Better Partnerships. Better Results.', margin, y + 4)
+
+  doc.setTextColor(...navyBlue)
+  doc.setFontSize(12)
+  doc.setFont('helvetica', 'bold')
+  doc.text('PGT Biopsy Worksheet', pageWidth / 2, y + 1, { align: 'center' })
+
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(80, 80, 80)
+  doc.text('1001 Parchment Dr SE, Grand Rapids, MI 49546', pageWidth - margin, y - 2, { align: 'right' })
+  doc.text('Phone: (616) 465-2400  |  lab@allygenetics.com', pageWidth - margin, y + 2, { align: 'right' })
+
+  y = 20
+
+  // ===== TOP INFO SECTION (3 columns) =====
+  const col = contentWidth / 3
+  const rowH = 7
+  const fieldColor = [250, 250, 252]
+
+  const drawInfoBox = (x, boxY, w, label, value) => {
+    doc.setFillColor(...fieldColor)
+    doc.setDrawColor(180, 190, 205)
+    doc.roundedRect(x, boxY, w - 2, rowH, 1, 1, 'FD')
+    doc.setFontSize(6)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(100, 110, 125)
+    doc.text(label.toUpperCase(), x + 2, boxY + 2.5)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(20, 20, 20)
+    doc.text(value || '', x + 2, boxY + 5.8)
+  }
+
+  // Row 1: Patient | Clinic | PGT Type
+  const patientName = `${cycle.patient_last_name || ''}, ${cycle.patient_first_name || ''}`.trim().replace(/^,\s*/, '')
+  const partnerName = cycle.partner_first_name
+    ? `${cycle.partner_last_name || ''}, ${cycle.partner_first_name || ''}`.trim().replace(/^,\s*/, '')
+    : '—'
+  const clinicName = cycle.clinic?.name || ''
+  const providerName = cycle.ordering_provider
+    ? `${cycle.ordering_provider.first_name || ''} ${cycle.ordering_provider.last_name || ''}${cycle.ordering_provider.credentials ? ', ' + cycle.ordering_provider.credentials : ''}`.trim()
+    : ''
+  const pgtType = cycle.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || ''
+
+  drawInfoBox(margin, y, col, 'Patient Name (Last, First)', patientName)
+  drawInfoBox(margin + col, y, col, 'Clinic Name', clinicName)
+  drawInfoBox(margin + col * 2, y, col, 'PGT Test Type', pgtType)
+
+  y += rowH + 2
+
+  // Row 2: DOB | Provider | Donor info
+  const donorInfo = [
+    cycle.is_egg_donor ? `Egg Donor${cycle.egg_donor_age ? ' (Age: ' + cycle.egg_donor_age + ')' : ''}` : null,
+    cycle.is_sperm_donor ? `Sperm Donor${cycle.sperm_donor_age ? ' (Age: ' + cycle.sperm_donor_age + ')' : ''}` : null,
+  ].filter(Boolean).join('  |  ') || 'No donor gametes'
+
+  drawInfoBox(margin, y, col, 'Patient DOB', formatDate(cycle.patient_dob))
+  drawInfoBox(margin + col, y, col, 'Ordering Provider', providerName)
+  drawInfoBox(margin + col * 2, y, col, 'Donor Gametes', donorInfo)
+
+  y += rowH + 2
+
+  // Row 3: Partner | Case # | Biopsy Date(s) blank
+  drawInfoBox(margin, y, col, 'Partner Name (Last, First)', partnerName)
+  drawInfoBox(margin + col, y, col, 'Case Number', cycle.case_number || '')
+  drawInfoBox(margin + col * 2, y, col, 'Biopsy Date(s)', '')
+
+  y += rowH + 2
+
+  // Row 4: Partner DOB | blank | checkboxes row
+  drawInfoBox(margin, y, col, 'Partner DOB', cycle.partner_dob ? formatDate(cycle.partner_dob) : '—')
+
+  // Rebiopsies & Additional Pages checkboxes
+  const cbX = margin + col * 2
+  doc.setFillColor(255, 255, 255)
+  doc.setDrawColor(180, 190, 205)
+  doc.roundedRect(cbX, y, col - 2, rowH, 1, 1, 'FD')
+  doc.setFontSize(6)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(100, 110, 125)
+  doc.text('OPTIONS', cbX + 2, y + 2.5)
+
+  const drawCheckbox = (cx, cy) => {
+    doc.setDrawColor(80, 80, 80)
+    doc.setLineWidth(0.3)
+    doc.setFillColor(255, 255, 255)
+    doc.rect(cx, cy, 3, 3, 'FD')
+  }
+  drawCheckbox(cbX + 2, y + 3.5)
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(20, 20, 20)
+  doc.text('Rebiopsies included', cbX + 6.5, y + 6)
+  drawCheckbox(cbX + 52, y + 3.5)
+  doc.text('Additional pages', cbX + 56.5, y + 6)
+
+  y += rowH + 4
+
+  // Rebiopsy note
+  doc.setFontSize(6.5)
+  doc.setFont('helvetica', 'italic')
+  doc.setTextColor(100, 100, 100)
+  doc.text('Note: If a rebiopsy of a previously tested embryo is included, please specify the original collection tube code (e.g., rebiopsy of AABCE) in the comments column.', margin, y)
+  y += 5
+
+  // ===== EMBRYO TABLE =====
+  const headers = [
+    { label: 'Collection\nTube Code', w: 32 },
+    { label: 'IVF Lab\nNumber', w: 22 },
+    { label: 'Embryo\nGrade', w: 22 },
+    { label: 'Biopsy\nDay', w: 18 },
+    { label: 'Biopsy\nEmbryologist\nInitials', w: 26 },
+    { label: 'Tube Loading\nEmbryologist\nInitials', w: 26 },
+    { label: 'Cells\nVisualized\nIn Tube', w: 22 },
+    { label: 'Comments', w: contentWidth - 32 - 22 - 22 - 18 - 26 - 26 - 22 },
+  ]
+
+  const tableX = margin
+  const headerH = 10
+  const rowHeight = 8
+  const numRows = 11
+
+  // Header row
+  doc.setFillColor(...navyBlue)
+  doc.rect(tableX, y, contentWidth, headerH, 'F')
+
+  let colX = tableX
+  headers.forEach(h => {
+    doc.setFontSize(6)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(255, 255, 255)
+    const lines = h.label.split('\n')
+    const lineH = 2.8
+    const startY = y + headerH / 2 - (lines.length * lineH) / 2 + lineH * 0.6
+    lines.forEach((line, i) => {
+      doc.text(line, colX + h.w / 2, startY + i * lineH, { align: 'center' })
+    })
+    // Vertical divider
+    if (colX > tableX) {
+      doc.setDrawColor(255, 255, 255)
+      doc.setLineWidth(0.2)
+      doc.line(colX, y, colX, y + headerH)
+    }
+    colX += h.w
+  })
+
+  y += headerH
+
+  // Data rows
+  for (let row = 0; row < numRows; row++) {
+    const rowBg = row % 2 === 0 ? [255, 255, 255] : [245, 247, 250]
+    doc.setFillColor(...rowBg)
+    doc.rect(tableX, y, contentWidth, rowHeight, 'F')
+
+    // Row border
+    doc.setDrawColor(200, 210, 220)
+    doc.setLineWidth(0.2)
+    doc.line(tableX, y + rowHeight, tableX + contentWidth, y + rowHeight)
+
+    // "Place Sticker Here" in first col, centered
+    colX = tableX
+    doc.setFontSize(6)
+    doc.setFont('helvetica', 'italic')
+    doc.setTextColor(160, 160, 160)
+    doc.text('Place Sticker Here', colX + headers[0].w / 2, y + rowHeight / 2 + 1, { align: 'center' })
+
+    // "Y / N" in Cells Visualized column
+    let vizX = tableX
+    headers.slice(0, 6).forEach(h => { vizX += h.w })
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(80, 80, 80)
+    doc.text('Y / N', vizX + headers[6].w / 2, y + rowHeight / 2 + 1, { align: 'center' })
+
+    // Column dividers
+    colX = tableX
+    headers.forEach((h, i) => {
+      if (i > 0) {
+        doc.setDrawColor(200, 210, 220)
+        doc.setLineWidth(0.2)
+        doc.line(colX, y, colX, y + rowHeight)
+      }
+      colX += h.w
+    })
+
+    // Outer border
+    doc.setDrawColor(180, 190, 205)
+    doc.rect(tableX, y, contentWidth, rowHeight, 'S')
+
+    y += rowHeight
+  }
+
+  y += 3
+
+  // Buffer Lot line
+  doc.setFontSize(7.5)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(30, 30, 30)
+  doc.text('Buffer Lot: ___________________________', margin, y)
+  y += 6
+
+  // ===== LAB USE ONLY BOX =====
+  const labBoxH = 20
+  doc.setFillColor(240, 244, 248)
+  doc.setDrawColor(...navyBlue)
+  doc.setLineWidth(0.5)
+  doc.roundedRect(margin, y, contentWidth, labBoxH, 2, 2, 'FD')
+
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...navyBlue)
+  doc.text('FOR ALLY GENETICS LAB USE ONLY:', margin + 3, y + 5)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(30, 30, 30)
+  const labLine1 = `Date received: ____________________   Sample count: ____________   Initials: ____________`
+  const labLine2 = `Date amplified: ____________________   Initials: ____________`
+  const labLine3 = `Consent received:  Y / N     Invoice paid:  Y / N     Date Reported: ____________________`
+  doc.text(labLine1, margin + 3, y + 10)
+  doc.text(labLine2, margin + 3, y + 14)
+  doc.text(labLine3, margin + 3, y + 18)
+
+  doc.save(`BiopsyWorksheet_${cycle.patient_last_name || 'Unknown'}_${cycle.patient_first_name || ''}.pdf`)
+}
+
 function generateRequisitionPDF(cycle, currentUser = null) {
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -2178,6 +2435,16 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
                       ) : (
                         <Download className="w-3.5 h-3.5 text-ally-teal flex-shrink-0 ml-2" />
                       )}
+                    </button>
+                    <button 
+                      onClick={() => generateBiopsyWorksheetPDF(cycle)}
+                      className="w-full flex items-center justify-between p-2 bg-gray-50 hover:bg-ally-teal/10 border border-gray-200 hover:border-ally-teal rounded-md transition-all text-left group"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-gray-900 truncate">Biopsy Worksheet</div>
+                        <div className="text-[10px] text-gray-500">Pre-filled from requisition</div>
+                      </div>
+                      <Download className="w-3.5 h-3.5 text-ally-teal flex-shrink-0 ml-2" />
                     </button>
                   </div>
                 </div>
@@ -3771,7 +4038,7 @@ function CaseDetailsPage({ isAdmin = false }) {
             <div className="px-6 py-4 border-b">
               <h2 className="font-semibold">Documents</h2>
             </div>
-            <div className="p-6">
+            <div className="p-6 space-y-3">
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-3">
                   <FileText className="w-5 h-5 text-ally-teal" />
@@ -3782,6 +4049,22 @@ function CaseDetailsPage({ isAdmin = false }) {
                 </div>
                 <button
                   onClick={() => generateRequisitionPDF(caseData, userData)}
+                  className="inline-flex items-center gap-1 text-ally-teal hover:underline text-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </button>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <ClipboardList className="w-5 h-5 text-ally-teal" />
+                  <div>
+                    <p className="font-medium">Biopsy Worksheet</p>
+                    <p className="text-xs text-gray-500">Pre-filled from requisition data</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => generateBiopsyWorksheetPDF(caseData)}
                   className="inline-flex items-center gap-1 text-ally-teal hover:underline text-sm"
                 >
                   <Download className="w-4 h-4" />
@@ -4403,6 +4686,23 @@ function NewRequisitionPage() {
         console.error('Failed to send partner consent email:', emailError)
         // Continue even if email fails - admin can resend
       }
+    }
+
+    // Send biopsy worksheet email to the submitter
+    try {
+      await supabase.functions.invoke('send-biopsy-worksheet-email', {
+        body: {
+          to: userData.email,
+          submitterName: formData.form_completed_by || `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
+          patientName: `${formData.patient_first_name} ${formData.patient_last_name}`,
+          caseNumber: newCase.case_number,
+          clinicName: userData.clinic_name || '',
+          pgtType: formData.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || '',
+        }
+      })
+    } catch (emailError) {
+      console.error('Failed to send biopsy worksheet email:', emailError)
+      // Non-critical — worksheet can be downloaded from the portal
     }
 
     navigate('/clinic/cases/' + newCase.id)
