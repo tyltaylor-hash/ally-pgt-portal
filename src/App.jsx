@@ -1257,18 +1257,16 @@ function generateBiopsyWorksheetPDF(cycle) {
   drawInfoBox(margin + col, y, col, 'Ordering Provider', providerName)
   drawInfoBox(margin + col * 2, y, col, 'Donor Gametes', donorInfo)
 
-  y += rowH + 2
+  y += rowH + 3
 
-  // Row 3: Partner | Biopsy Date(s) blank
+  // Row 3: Partner Name | Partner DOB | Biopsy Date(s)
   drawInfoBox(margin, y, col, 'Partner Name (Last, First)', partnerName)
-  drawInfoBox(margin + col, y, col * 2, 'Biopsy Date(s)', '')
+  drawInfoBox(margin + col, y, col, 'Partner DOB', cycle.partner_dob ? formatDate(cycle.partner_dob) : '—')
+  drawInfoBox(margin + col * 2, y, col, 'Biopsy Date(s)', '')
 
-  y += rowH + 2
+  y += rowH + 3
 
-  // Row 4: Partner DOB | blank | checkboxes row
-  drawInfoBox(margin, y, col, 'Partner DOB', cycle.partner_dob ? formatDate(cycle.partner_dob) : '—')
-
-  // Rebiopsies & Additional Pages checkboxes
+  // Row 4: checkboxes (right column only)
   const cbX = margin + col * 2
   doc.setFillColor(255, 255, 255)
   doc.setDrawColor(180, 190, 205)
@@ -1292,14 +1290,14 @@ function generateBiopsyWorksheetPDF(cycle) {
   drawCheckbox(cbX + 35, y + 3.5)
   doc.text('Additional pages', cbX + 39.5, y + 6)
 
-  y += rowH + 4
+  y += rowH + 7
 
   // Rebiopsy note
   doc.setFontSize(6.5)
   doc.setFont('helvetica', 'italic')
   doc.setTextColor(100, 100, 100)
   doc.text('Note: If a rebiopsy of a previously tested embryo is included, please specify the original collection tube code (e.g., rebiopsy of AABCE) in the comments column.', margin, y)
-  y += 5
+  y += 8
 
   // ===== EMBRYO TABLE =====
   const headers = [
@@ -1316,7 +1314,7 @@ function generateBiopsyWorksheetPDF(cycle) {
   const tableX = margin
   const headerH = 10
   const rowHeight = 8
-  const numRows = 11
+  const numRows = 15
 
   // Header row
   doc.setFillColor(...navyBlue)
@@ -1387,14 +1385,14 @@ function generateBiopsyWorksheetPDF(cycle) {
     y += rowHeight
   }
 
-  y += 3
+  y += 8
 
   // Buffer Lot line
   doc.setFontSize(7.5)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(30, 30, 30)
   doc.text('Buffer Lot: ___________________________', margin, y)
-  y += 6
+  y += 10
 
   // ===== LAB USE ONLY BOX =====
   const labBoxH = 20
