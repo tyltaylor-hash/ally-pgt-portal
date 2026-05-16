@@ -3863,7 +3863,48 @@ function CaseDetailsPage({ isAdmin = false }) {
         })
         .eq('id', id)
 
-      alert('Report uploaded! Clinic will be notified once consents are signed.')
+      // Check if consents are already complete — if so, notify clinic immediately
+      try {
+        const { data: fullCase } = await supabase
+          .from('cases')
+          .select(`*, consents(id, signer_type, status), clinic:clinics(name)`)
+          .eq('id', id)
+          .single()
+
+        if (fullCase) {
+          const patientSigned = fullCase.consents?.find(c => c.signer_type === 'patient')?.status === 'signed'
+          const partnerSigned = !fullCase.requires_partner_consent || fullCase.consents?.find(c => c.signer_type === 'partner')?.status === 'signed'
+
+          if (patientSigned && partnerSigned) {
+            const { data: clinicUsers } = await supabase
+              .from('users')
+              .select('email')
+              .eq('clinic_id', fullCase.clinic_id)
+              .eq('is_active', true)
+
+            if (clinicUsers?.length > 0) {
+              await supabase.functions.invoke('send-report-notification', {
+                body: {
+                  emails: clinicUsers.map(u => u.email),
+                  case_number: fullCase.case_number,
+                  patient_name: `${fullCase.patient_first_name || ''} ${fullCase.patient_last_name || ''}`.trim(),
+                  clinic_name: fullCase.clinic?.name || 'Clinic',
+                  report_url: urlData.publicUrl,
+                }
+              })
+              alert('Report uploaded! Clinic has been notified.')
+            } else {
+              alert('Report uploaded! (No active clinic users to notify.)')
+            }
+          } else {
+            alert('Report uploaded! Clinic will be notified once consents are signed.')
+          }
+        }
+      } catch (notifyErr) {
+        console.error('Failed to send report notification after upload:', notifyErr)
+        alert('Report uploaded! (Notification may not have sent — check console.)')
+      }
+
       fetchCaseData()
     } catch (err) {
       alert('Error uploading report: ' + err.message)
@@ -6202,14 +6243,24 @@ function ClinicUsersModal({ clinic, onClose, onSave }) {
     if (!confirm(`Are you sure you want to delete user "${user.first_name} ${user.last_name}"?\n\nThis action cannot be undone.`)) {
       return
     }
-    
-    // Delete from users table
-    await supabase.from('users').delete().eq('id', user.id)
-    
-    // Note: We can't delete from auth.users via client - that requires admin API
-    // The user record in auth will remain but be orphaned (won't be able to access anything)
-    
-    fetchUsers()
+    setSaving(true)
+    setError(null)
+    try {
+      const { error: dbError } = await supabase.from('users').delete().eq('id', user.id)
+      if (dbError) throw dbError
+
+      if (user.auth_id) {
+        const { error: authError } = await supabase.functions.invoke('delete-user', {
+          body: { auth_id: user.auth_id }
+        })
+        if (authError) console.warn('Auth user cleanup failed (non-critical):', authError)
+      }
+
+      fetchUsers()
+    } catch (err) {
+      setError('Failed to delete user: ' + err.message)
+    }
+    setSaving(false)
   }
 
   async function toggleActive(user) {
