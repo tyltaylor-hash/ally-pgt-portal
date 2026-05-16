@@ -6246,9 +6246,17 @@ function ClinicUsersModal({ clinic, onClose, onSave }) {
     setSaving(true)
     setError(null)
     try {
+      // Nullify foreign key references in cases and kit_orders before deleting
+      await supabase.from('cases').update({ submitted_by_user_id: null }).eq('submitted_by_user_id', user.id)
+      await supabase.from('cases').update({ created_by: null }).eq('created_by', user.id)
+      await supabase.from('kit_orders').update({ ordered_by_user_id: null }).eq('ordered_by_user_id', user.id)
+      await supabase.from('biopsy_worksheets').update({ submitted_by: null }).eq('submitted_by', user.id)
+
+      // Now delete from public.users
       const { error: dbError } = await supabase.from('users').delete().eq('id', user.id)
       if (dbError) throw dbError
 
+      // Delete from auth.users via edge function
       if (user.auth_id) {
         const { error: authError } = await supabase.functions.invoke('delete-user', {
           body: { auth_id: user.auth_id }
