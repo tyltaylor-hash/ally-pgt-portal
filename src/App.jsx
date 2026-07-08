@@ -1175,7 +1175,7 @@ function generateBiopsyWorksheetPDF(cycle) {
 
   const formatDate = (dateStr) => {
     if (!dateStr) return ''
-    try { return new Date(dateStr).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) }
+    try { return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) }
     catch { return dateStr }
   }
 
@@ -1430,7 +1430,7 @@ function generateRequisitionPDF(cycle, currentUser = null) {
   const formatDate = (dateStr) => {
     if (!dateStr) return ''
     try {
-      return new Date(dateStr).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+      return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
     } catch {
       return dateStr
     }
@@ -2379,7 +2379,7 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
               {patient.last_name}, {patient.first_name}
             </h2>
             <p className="text-sm text-gray-600 mt-1">
-              DOB: {patient.dob ? new Date(patient.dob).toLocaleDateString('en-US') : 'N/A'} • {patient.doctor} • {patient.cycles.length} {patient.cycles.length === 1 ? 'Cycle' : 'Cycles'}
+              DOB: {patient.dob ? new Date(patient.dob + 'T00:00:00').toLocaleDateString('en-US') : 'N/A'} • {patient.doctor} • {patient.cycles.length} {patient.cycles.length === 1 ? 'Cycle' : 'Cycles'}
             </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
@@ -3088,7 +3088,7 @@ function PatientFolderModal({ caseData, onClose, supabase }) {
       </div>
       <div class="field">
         <div class="field-label">Patient DOB:</div>
-        <div class="field-value">${fullCase.patient_dob ? new Date(fullCase.patient_dob).toLocaleDateString() : ''}</div>
+        <div class="field-value">${fullCase.patient_dob ? new Date(fullCase.patient_dob + 'T00:00:00').toLocaleDateString() : ''}</div>
       </div>
     </div>
     <div class="row">
@@ -3118,7 +3118,7 @@ function PatientFolderModal({ caseData, onClose, supabase }) {
       </div>
       <div class="field">
         <div class="field-label">Partner DOB:</div>
-        <div class="field-value">${fullCase.partner_dob ? new Date(fullCase.partner_dob).toLocaleDateString() : ''}</div>
+        <div class="field-value">${fullCase.partner_dob ? new Date(fullCase.partner_dob + 'T00:00:00').toLocaleDateString() : ''}</div>
       </div>
     </div>
     <div class="row">
@@ -3306,7 +3306,7 @@ function PatientFolderModal({ caseData, onClose, supabase }) {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-gray-500">DOB:</span>
-              <span className="ml-2 font-medium">{caseData.patient_dob ? new Date(caseData.patient_dob).toLocaleDateString() : 'N/A'}</span>
+              <span className="ml-2 font-medium">{caseData.patient_dob ? new Date(caseData.patient_dob + 'T00:00:00').toLocaleDateString() : 'N/A'}</span>
             </div>
             <div>
               <span className="text-gray-500">Status:</span>
@@ -3598,7 +3598,7 @@ function AllCasesPage() {
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap">
                     <div className="font-medium text-gray-900 text-sm">{c.patient_last_name}, {c.patient_first_name}</div>
-                    <div className="text-xs text-gray-500">DOB: {c.patient_dob ? new Date(c.patient_dob).toLocaleDateString() : '-'}</div>
+                    <div className="text-xs text-gray-500">DOB: {c.patient_dob ? new Date(c.patient_dob + 'T00:00:00').toLocaleDateString() : '-'}</div>
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{c.clinic?.name || '-'}</td>
                   <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
@@ -4003,7 +4003,7 @@ function CaseDetailsPage({ isAdmin = false }) {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Date of Birth</p>
-                  <p className="font-medium">{caseData.patient_dob ? new Date(caseData.patient_dob).toLocaleDateString() : '-'}</p>
+                  <p className="font-medium">{caseData.patient_dob ? new Date(caseData.patient_dob + 'T00:00:00').toLocaleDateString() : '-'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Email</p>
@@ -5434,7 +5434,7 @@ function ClinicCasesPage() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="font-medium text-gray-900">{c.patient_last_name}, {c.patient_first_name}</div>
-                  <div className="text-xs text-gray-500">DOB: {c.patient_dob ? new Date(c.patient_dob).toLocaleDateString() : '-'}</div>
+                  <div className="text-xs text-gray-500">DOB: {c.patient_dob ? new Date(c.patient_dob + 'T00:00:00').toLocaleDateString() : '-'}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {c.tests_ordered?.join(', ').toUpperCase().replace('_', '-') || '-'}
@@ -7766,7 +7766,7 @@ function KitOrdersPage() {
                   </div>
                   {order.delivery_by && (
                     <p className="text-sm text-amber-700 mt-2 font-medium">
-                      Delivery By: {new Date(order.delivery_by).toLocaleDateString()}
+                      Delivery By: {new Date(order.delivery_by + 'T00:00:00').toLocaleDateString()}
                     </p>
                   )}
                 </div>
