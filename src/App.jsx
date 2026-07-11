@@ -1859,7 +1859,7 @@ function generateRequisitionPDF(cycle, currentUser = null) {
   doc.save(`Requisition_${cycle.patient_last_name}_${cycle.patient_first_name}.pdf`)
 }
 
-function generateConsentPDF(cycle, signerType, consent) {
+function generateConsentPDF(cycle, signerType, consent, returnBase64 = false) {
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
@@ -2328,8 +2328,11 @@ function generateConsentPDF(cycle, signerType, consent) {
   
   addFooter()
   
-  // Save
+  // Save or return
   const fileName = `Consent_${cycle.patient_last_name}_${cycle.patient_first_name}_${signerType.charAt(0).toUpperCase() + signerType.slice(1)}.pdf`
+  if (returnBase64) {
+    return { base64: doc.output('datauristring').split(',')[1], fileName }
+  }
   doc.save(fileName)
 }
 
@@ -6980,8 +6983,10 @@ function ConsentSigningPage() {
             case_number,
             patient_first_name,
             patient_last_name,
+            patient_email,
             partner_first_name,
             partner_last_name,
+            partner_email,
             clinic:clinic_id (name)
           )
         `)
@@ -7086,6 +7091,40 @@ function ConsentSigningPage() {
       }
 
       setSubmitting(false)
+
+      // Email the signer their own signed consent copy
+      try {
+        const signerEmail = consent.signer_email
+        const signerFirstName = consent.signer_name?.split(' ')[0] || ''
+
+        if (signerEmail) {
+          const signedConsentForPdf = {
+            ...consent,
+            status: 'signed',
+            signed_at: new Date().toISOString(),
+            signature_type: signatureType,
+            signature_data: signatureData,
+            ip_address: ipAddress,
+            consent_content: consentContent
+          }
+
+          const { base64, fileName } = generateConsentPDF(caseData, consent.signer_type, signedConsentForPdf, true)
+
+          await supabase.functions.invoke('send-signed-consent-copy', {
+            body: {
+              to: signerEmail,
+              firstName: signerFirstName,
+              signerType: consent.signer_type,
+              caseNumber: caseData.case_number,
+              pdfBase64: base64,
+              fileName: fileName
+            }
+          })
+        }
+      } catch (emailErr) {
+        console.error('Failed to email signed consent copy:', emailErr)
+        // Non-blocking — signing itself already succeeded, so don't surface this as an error to the signer
+      }
 
       // Check if all consents are now signed and report exists — if so, notify clinic
       try {
