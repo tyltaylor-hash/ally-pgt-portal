@@ -1710,7 +1710,7 @@ function generateRequisitionPDF(cycle, currentUser = null) {
     advanced_maternal_age: 'Advanced maternal age (≥35)',
     recurrent_pregnancy_loss: 'Recurrent pregnancy loss',
     previous_failed_ivf: 'Previous failed IVF cycles',
-    male_factor: 'Male factor',
+    male_factor: 'Male factor infertility',
     unexplained_infertility: 'Unexplained infertility',
     previous_aneuploid_conception: 'Previous aneuploid conception',
     repetitive_implantation_failure: 'Repetitive implantation failure',
@@ -2724,9 +2724,9 @@ function OrderSuppliesModal({ onClose }) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Complete Kits
-              <span className="text-xs text-gray-500 ml-2">(1 kit = 4 biopsy collection kits, shipped in increments of 4)</span>
+              <span className="text-xs text-gray-500 ml-2">(1 kit = 1 shipping container, 1 return label, 6 cryo packs, 4 patient sample racks, 4 tubes (400µL) collection buffer, 40 x 0.2µL collection tubes, 40 x barcode labels)</span>
             </label>
-            <p className="text-xs text-gray-500 mb-2">Includes: PCR tubes, shipping container, biopsy collection kits, FedEx label</p>
+            <p className="text-xs text-gray-500 mb-2">Includes: shipping container, return label, cryo packs, patient sample racks, collection buffer, collection tubes, barcode labels</p>
             <input
               type="number"
               min="0"
@@ -2751,7 +2751,7 @@ function OrderSuppliesModal({ onClose }) {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Biopsy Collection Kits</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Patient Sample Racks</label>
             <input
               type="number"
               min="0"
@@ -2773,7 +2773,7 @@ function OrderSuppliesModal({ onClose }) {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Collection Tubes (PCR tubes)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Collection Tubes (0.2µL)</label>
             <input
               type="number"
               min="0"
@@ -2784,7 +2784,7 @@ function OrderSuppliesModal({ onClose }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Collection Buffer</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Collection Buffer (400µL aliquots)</label>
             <input
               type="number"
               min="0"
@@ -2795,7 +2795,7 @@ function OrderSuppliesModal({ onClose }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">FedEx Labels</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">UPS Labels</label>
             <input
               type="number"
               min="0"
@@ -2806,7 +2806,7 @@ function OrderSuppliesModal({ onClose }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Ice Packs</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Cryo Packs</label>
             <input
               type="number"
               min="0"
@@ -3206,7 +3206,7 @@ function PatientFolderModal({ caseData, onClose, supabase }) {
             advanced_maternal_age: 'Advanced maternal age (≥35)',
             recurrent_pregnancy_loss: 'Recurrent pregnancy loss',
             previous_failed_ivf: 'Previous failed IVF cycles',
-            male_factor: 'Male factor',
+            male_factor: 'Male factor infertility',
             unexplained_infertility: 'Unexplained infertility',
             previous_aneuploid_conception: 'Previous aneuploid conception',
             repetitive_implantation_failure: 'Repetitive implantation failure',
@@ -4802,7 +4802,7 @@ function NewRequisitionPage() {
                 <option value="advanced_maternal_age">Advanced maternal age (≥35)</option>
                 <option value="recurrent_pregnancy_loss">Recurrent pregnancy loss</option>
                 <option value="previous_failed_ivf">Previous failed IVF cycles</option>
-                <option value="male_factor">Male factor</option>
+                <option value="male_factor">Male factor infertility</option>
                 <option value="unexplained_infertility">Unexplained infertility</option>
                 <option value="previous_aneuploid_conception">Previous aneuploid conception</option>
                 <option value="repetitive_implantation_failure">Repetitive implantation failure</option>
@@ -4986,7 +4986,7 @@ function NewRequisitionPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sex at Birth *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sex assigned at birth (for laboratory purposes) *</label>
               <div className="flex gap-4 mt-2">
                 <label className="flex items-center gap-2">
                   <input
@@ -5191,7 +5191,7 @@ function NewRequisitionPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sex at Birth</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sex assigned at birth (for laboratory purposes)</label>
               <div className="flex gap-4 mt-2">
                 <label className="flex items-center gap-2">
                   <input
@@ -5290,7 +5290,7 @@ function NewRequisitionPage() {
                 className="mt-1 rounded border-gray-300 text-ally-teal focus:ring-ally-teal"
               />
               <span className="text-sm text-gray-700 leading-relaxed">
-                By submitting this electronic test requisition form, I certify that (i) I agree to the terms and conditions written on the Ally Genetics Informed Consent and Privacy Disclosure, (ii) I have provided the Ally Genetics Informed Consent and Privacy Disclosure to the patient/partner, and they understand and agree to have this testing performed by Ally Genetics lab, (iii) the informed consent obtained from the patient meets the requirements of applicable law, (iv) and I am the authorized physician or an individual authorized by the physician to submit this test order.
+                I am the authorized physician or individual authorized by the physician to submit this test order.
               </span>
             </label>
             <div className="text-sm text-gray-600">
@@ -5639,9 +5639,9 @@ function OrderSuppliesPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Complete Kits
-              <span className="text-xs text-gray-500 ml-2">(1 kit = 4 biopsy collection kits, shipped in increments of 4)</span>
+              <span className="text-xs text-gray-500 ml-2">(1 kit = 1 shipping container, 1 return label, 6 cryo packs, 4 patient sample racks, 4 tubes (400µL) collection buffer, 40 x 0.2µL collection tubes, 40 x barcode labels)</span>
             </label>
-            <p className="text-xs text-gray-500 mb-2">Includes: PCR tubes, shipping container, biopsy collection kits, FedEx label</p>
+            <p className="text-xs text-gray-500 mb-2">Includes: shipping container, return label, cryo packs, patient sample racks, collection buffer, collection tubes, barcode labels</p>
             <input
               type="number"
               min="0"
@@ -5666,7 +5666,7 @@ function OrderSuppliesPage() {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Biopsy Collection Kits</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Patient Sample Racks</label>
             <input
               type="number"
               min="0"
@@ -5688,7 +5688,7 @@ function OrderSuppliesPage() {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Collection Tubes (PCR tubes)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Collection Tubes (0.2µL)</label>
             <input
               type="number"
               min="0"
@@ -5699,7 +5699,7 @@ function OrderSuppliesPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Collection Buffer</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Collection Buffer (400µL aliquots)</label>
             <input
               type="number"
               min="0"
@@ -5710,7 +5710,7 @@ function OrderSuppliesPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">FedEx Labels</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">UPS Labels</label>
             <input
               type="number"
               min="0"
@@ -5721,7 +5721,7 @@ function OrderSuppliesPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Ice Packs</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Cryo Packs</label>
             <input
               type="number"
               min="0"
@@ -6828,7 +6828,7 @@ function getConsentContent() {
     sections: {
       introduction: 'Preimplantation Genetic Testing for Aneuploidy (PGT-A) is a test performed on a small sample of cells from an in vitro fertilization (IVF) embryo to screen for numerical chromosomal abnormalities prior to transfer. The purpose of PGT-A is to help IVF physicians and patients decide which embryos to transfer. This consent form reviews the benefits and limitations PGT-A. Prior to initiating testing, Ally Genetics must receive a signed copy of this form. If at any time you have questions about this consent form, please email lab@allygenetics.com to schedule a consultation.',
       
-      geneticCounseling: 'Ally Genetics recommends that you consult with a genetic counselor before consenting to this test and a genetic counselor or your healthcare provider about your results. For a list of independent medical genetic counselors who may be available in your area, visit the National Society of Genetic Counselors website at www.nsgc.org. Additionally, an appointment with an Ally Genetics affiliated genetic counselor can be scheduled through our website allygenetics.com. Please note that a minimum lead time of 10 business days prior to your biopsy date is required.',
+      geneticCounseling: 'Ally Genetics recommends that you consult with a genetic counselor before consenting to this test and a genetic counselor or your healthcare provider about your results. For a list of independent medical genetic counselors who may be available in your area, visit the National Society of Genetic Counselors website at www.nsgc.org. Additionally, an appointment with an Ally Genetics affiliated genetic counselor can be scheduled by emailing lab@allygenetics.com. Please note that a minimum lead time of 10 business days prior to your biopsy date is required.',
       
       chromosomalAbnormalities: 'There are a total of 46 chromosomes (23 pairs) in each human cell. Half of these chromosomes are inherited from the egg and the other half from the sperm. For normal growth and development, a person must inherit the correct number of chromosomes from each reproductive parent: one each of the 22 autosomes (numbered 1–22) and a sex chromosome (X or Y). Aneuploidy refers to a type of chromosome abnormality where there are more or fewer than the normal 46 chromosomes present. The extra or missing chromosome(s) can come from the egg or the sperm, however, most come from the egg and the chance of aneuploid embryos increases with maternal age. Most aneuploid embryos do not implant and fail to achieve pregnancy; however, those that do may result in miscarriage. In the general population, 20% of all clinical pregnancies miscarry and about half are chromosomally abnormal. Additionally, some pregnancies with chromosomal abnormalities will result in the birth of a child with multiple serious health complications. A common example is Down syndrome, in which there is an extra copy of chromosome 21 (trisomy 21).',
       
@@ -6902,22 +6902,22 @@ function getConsentContent() {
     
     warningBoxes: {
       pgtNoPregnancyIncrease: {
-        title: 'IMPORTANT: Please Read and Acknowledge',
-        text: 'The use of PGT to select a euploid embryo has not been demonstrated to improve pregnancy rates over the transfer of multiple untested embryos.',
-        checkbox: 'I acknowledge and accept that the use of PGT to select a euploid embryo has not been demonstrated to improve pregnancy rates over the transfer of multiple untested embryos'
+        title: 'Please read and acknowledge',
+        text: 'PGT-A may help identify embryos with the expected number of chromosomes. However, PGT-A has not been shown to improve pregnancy or live-birth rates for all patients undergoing IVF. Individual outcomes vary based on factors such as age, embryo number and embryo quality.',
+        checkbox: 'I acknowledge that PGT-A does not guarantee pregnancy or live birth and has not been shown to improve outcomes for all patients.'
       },
       pgtAccuracy: {
-        title: 'IMPORTANT: Please Read and Acknowledge',
+        title: 'Please read and acknowledge',
         text: 'I understand that PGT-A is not 100% accurate. The biopsied cells may not be representative of the entire embryo, which means a chromosomally normal embryo could be misclassified as abnormal, potentially leading to the discard of a viable embryo.',
         checkbox: 'I acknowledge and understand that PGT-A is not 100% accurate, that the biopsied cells may not represent the entire embryo, and that viable embryos could potentially be misclassified and discarded'
       },
       noSexSelection: {
-        title: 'IMPORTANT: Please Read and Acknowledge',
-        text: 'Ally Genetics does not perform PGT for sex selection or family balancing purposes. While PGT-A testing may identify sex chromosomes, sex chromosome discrepancies are possible (incorrect gender prediction). Ally Genetics makes no guarantee regarding the determination of sex from the sample.',
-        checkbox: 'I acknowledge and understand that Ally Genetics does not perform sex selection or family balancing, and makes no guarantee on sex determination from PGT-A testing'
+        title: 'Please read and acknowledge',
+        text: 'Ally Genetics does not recommend, direct, or facilitate embryo selection for nonmedical sex selection or family-balancing purposes. PGT-A generally provides an accurate prediction of an embryo’s chromosomal sex; however, no laboratory test is 100% accurate, and rare discrepancies may occur.',
+        checkbox: 'I acknowledge that Ally Genetics does not recommend, direct, or facilitate embryo selection for nonmedical sex selection or family balancing, and that chromosomal sex predictions from PGT-A are not guaranteed.'
       },
       liabilityWaiver: {
-        title: 'IMPORTANT: Please Read and Acknowledge',
+        title: 'Please read and acknowledge',
         text: 'By signing this consent, I agree not to hold Ally Genetics, its employees, directors, and authorized agents legally responsible for any misdiagnosis, including but not limited to false positive findings, false negative findings, gender misidentifications, or any other errors arising from the inherent limitations of PGT-A testing. I understand that PGT-A is a screening tool with known limitations and is not a guarantee of embryo health or pregnancy outcome.',
         checkbox: 'I acknowledge and agree that I will not hold Ally Genetics legally responsible for any misdiagnosis or testing errors, and I understand that PGT-A results do not guarantee a healthy pregnancy or baby'
       }
@@ -7273,7 +7273,7 @@ function ConsentSigningPage() {
 
               <p className="mb-4"><strong>Genetic Counseling</strong></p>
               <p className="mb-4">
-                Ally Genetics recommends that you consult with a genetic counselor before consenting to this test and a genetic counselor or your healthcare provider about your results. For a list of independent medical genetic counselors who may be available in your area, visit the National Society of Genetic Counselors website at www.nsgc.org. Additionally, an appointment with an Ally Genetics affiliated genetic counselor can be scheduled through our website allygenetics.com. Please note that a minimum lead time of 10 business days prior to your biopsy date is required.
+                Ally Genetics recommends that you consult with a genetic counselor before consenting to this test and a genetic counselor or your healthcare provider about your results. For a list of independent medical genetic counselors who may be available in your area, visit the National Society of Genetic Counselors website at www.nsgc.org. Additionally, an appointment with an Ally Genetics affiliated genetic counselor can be scheduled by emailing lab@allygenetics.com. Please note that a minimum lead time of 10 business days prior to your biopsy date is required.
               </p>
 
               <p className="mb-4"><strong>Chromosomal Abnormalities</strong></p>
@@ -7304,7 +7304,7 @@ function ConsentSigningPage() {
 
               <p className="mb-4"><strong>Misdiagnosis:</strong></p>
               <p className="mb-4">
-                No genetic testing is 100% accurate and PGT-A is no different. Because only a small number of cells are biopsied from the outer layer of the embryo, the sample may not be representative of the entire embryo's chromosomal makeup. A false negative result will indicate an embryo has a normal number of chromosomes when there is actually a chromosomal abnormality. <strong>A false positive result will indicate an embryo has an abnormal chromosome copy number when it is actually normal, potentially leading to the discard of viable embryos.</strong> One recognized source of misdiagnosis is embryo mosaicism; a phenomenon in which the cells biopsied and analyzed are not genetically representative of the remainder of the embryo.
+                No genetic testing is 100% accurate and PGT-A is no different. Because only a small number of cells are biopsied from the outer layer of the embryo, the sample may not be representative of the entire embryo's chromosomal makeup. A false negative result will indicate an embryo has a normal number of chromosomes when there is actually a chromosomal abnormality. A false positive result will indicate an embryo has an abnormal chromosome copy number when it is actually normal, potentially leading to the discard of viable embryos. One recognized source of misdiagnosis is embryo mosaicism; a phenomenon in which the cells biopsied and analyzed are not genetically representative of the remainder of the embryo.
               </p>
 
               <p className="mb-4"><strong>Technical Limits of Detection</strong></p>
@@ -7339,9 +7339,9 @@ function ConsentSigningPage() {
             <div className="flex items-start gap-3 mb-4">
               <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
               <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">IMPORTANT: Please Read and Acknowledge</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Please read and acknowledge</h3>
                 <p className="text-gray-800 font-semibold">
-                  The use of PGT to select a euploid embryo has not been demonstrated to improve pregnancy rates over the transfer of multiple untested embryos.
+                  PGT-A may help identify embryos with the expected number of chromosomes. However, PGT-A has not been shown to improve pregnancy or live-birth rates for all patients undergoing IVF. Individual outcomes vary based on factors such as age, embryo number and embryo quality.
                 </p>
               </div>
             </div>
@@ -7353,7 +7353,7 @@ function ConsentSigningPage() {
                 className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
               />
               <span className="text-sm font-semibold text-gray-900">
-                ✓ I acknowledge and accept that the use of PGT to select a euploid embryo has not been demonstrated to improve pregnancy rates over the transfer of multiple untested embryos
+                ✓ I acknowledge that PGT-A does not guarantee pregnancy or live birth and has not been shown to improve outcomes for all patients.
               </span>
             </label>
           </div>
@@ -7363,7 +7363,7 @@ function ConsentSigningPage() {
             <div className="flex items-start gap-3 mb-4">
               <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
               <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">IMPORTANT: Please Read and Acknowledge</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Please read and acknowledge</h3>
                 <p className="text-gray-800 font-semibold">
                   I understand that PGT-A is not 100% accurate. The biopsied cells may not be representative of the entire embryo, 
                   which means a chromosomally normal embryo could be misclassified as abnormal, potentially leading to the discard of a viable embryo.
@@ -7388,11 +7388,9 @@ function ConsentSigningPage() {
             <div className="flex items-start gap-3 mb-4">
               <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
               <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">IMPORTANT: Please Read and Acknowledge</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Please read and acknowledge</h3>
                 <p className="text-gray-800 font-semibold">
-                  Ally Genetics does not perform PGT for sex selection or family balancing purposes. 
-                  While PGT-A testing may identify sex chromosomes, sex chromosome discrepancies are possible (incorrect gender prediction). 
-                  Ally Genetics makes no guarantee regarding the determination of sex from the sample.
+                  Ally Genetics does not recommend, direct, or facilitate embryo selection for nonmedical sex selection or family-balancing purposes. PGT-A generally provides an accurate prediction of an embryo’s chromosomal sex; however, no laboratory test is 100% accurate, and rare discrepancies may occur.
                 </p>
               </div>
             </div>
@@ -7404,7 +7402,7 @@ function ConsentSigningPage() {
                 className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
               />
               <span className="text-sm font-semibold text-gray-900">
-                ✓ I acknowledge and understand that Ally Genetics does not perform sex selection or family balancing, and makes no guarantee on sex determination from PGT-A testing
+                ✓ I acknowledge that Ally Genetics does not recommend, direct, or facilitate embryo selection for nonmedical sex selection or family balancing, and that chromosomal sex predictions from PGT-A are not guaranteed.
               </span>
             </label>
           </div>
@@ -7414,7 +7412,7 @@ function ConsentSigningPage() {
             <div className="flex items-start gap-3 mb-4">
               <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
               <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">IMPORTANT: Please Read and Acknowledge</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Please read and acknowledge</h3>
                 <p className="text-gray-800 font-semibold">
                   By signing this consent, I agree not to hold Ally Genetics, its employees, directors, and authorized agents 
                   legally responsible for any misdiagnosis, including but not limited to false positive findings, false negative findings, 
@@ -7785,7 +7783,7 @@ function KitOrdersPage() {
                       <p className="text-gray-900">Complete Kits: <span className="font-medium">{order.items.complete_kits}</span></p>
                     )}
                     {order.items?.biopsy_collection_kits > 0 && (
-                      <p className="text-gray-900">Biopsy Collection Kits: <span className="font-medium">{order.items.biopsy_collection_kits}</span></p>
+                      <p className="text-gray-900">Patient Sample Racks: <span className="font-medium">{order.items.biopsy_collection_kits}</span></p>
                     )}
                     {order.items?.shipping_containers > 0 && (
                       <p className="text-gray-900">Shipping Containers: <span className="font-medium">{order.items.shipping_containers}</span></p>
@@ -7794,13 +7792,13 @@ function KitOrdersPage() {
                       <p className="text-gray-900">Collection Tubes: <span className="font-medium">{order.items.collection_tubes}</span></p>
                     )}
                     {order.items?.collection_buffer > 0 && (
-                      <p className="text-gray-900">Collection Buffer: <span className="font-medium">{order.items.collection_buffer}</span></p>
+                      <p className="text-gray-900">Collection Buffer (400µL aliquots): <span className="font-medium">{order.items.collection_buffer}</span></p>
                     )}
                     {order.items?.fedex_labels > 0 && (
-                      <p className="text-gray-900">FedEx Labels: <span className="font-medium">{order.items.fedex_labels}</span></p>
+                      <p className="text-gray-900">UPS Labels: <span className="font-medium">{order.items.fedex_labels}</span></p>
                     )}
                     {order.items?.ice_packs > 0 && (
-                      <p className="text-gray-900">Ice Packs: <span className="font-medium">{order.items.ice_packs}</span></p>
+                      <p className="text-gray-900">Cryo Packs: <span className="font-medium">{order.items.ice_packs}</span></p>
                     )}
                   </div>
                   {order.delivery_by && (
