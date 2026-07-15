@@ -6965,6 +6965,11 @@ function ConsentSigningPage() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
 
+  // Single source of truth for consent language — used both for what the signer
+  // reads/checks on this page AND what gets embedded in the signed PDF/DB record,
+  // so the two can never drift out of sync again.
+  const consentContent = getConsentContent()
+
   useEffect(() => {
     if (token) {
       loadConsent()
@@ -7058,9 +7063,6 @@ function ConsentSigningPage() {
         ipAddress = 'unknown'
       }
 
-      // Get the current consent content to store what they signed
-      const consentContent = getConsentContent()
-
       // Update consent record
       const { error: updateError } = await supabase
         .from('consents')
@@ -7070,6 +7072,7 @@ function ConsentSigningPage() {
           signature_type: signatureType,
           signature_data: signatureData,
           ip_address: ipAddress,
+          consent_content: consentContent,
           metadata: {
             checkboxes: checkboxes,
             keyAcknowledgments: {
@@ -7261,76 +7264,96 @@ function ConsentSigningPage() {
 
         {/* Consent Form */}
         <form onSubmit={handleSubmit}>
-          {/* Consent Text */}
+          {/* Consent Text — rendered directly from getConsentContent(), the same object
+              that generates the PDF, so the signer always reads the complete, real
+              consent language rather than a shortened summary. */}
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Consent for Preimplantation Genetic Testing for Aneuploidy (PGT-A)</h2>
             <div className="prose prose-sm max-w-none text-gray-700 max-h-96 overflow-y-auto border border-gray-200 rounded p-4">
-              
+
               <p className="mb-4"><strong>Introduction</strong></p>
-              <p className="mb-4">
-                Preimplantation Genetic Testing for Aneuploidy (PGT-A) is a test performed on a small sample of cells from an in vitro fertilization (IVF) embryo to screen for numerical chromosomal abnormalities prior to transfer. The purpose of PGT-A is to help IVF physicians and patients decide which embryos to transfer. This consent form reviews the benefits and limitations of PGT-A. Prior to initiating testing, Ally Genetics must receive a signed copy of this form.
-              </p>
+              <p className="mb-4">{consentContent.sections.introduction}</p>
 
               <p className="mb-4"><strong>Genetic Counseling</strong></p>
-              <p className="mb-4">
-                Ally Genetics recommends that you consult with a genetic counselor before consenting to this test and a genetic counselor or your healthcare provider about your results. For a list of independent medical genetic counselors who may be available in your area, visit the National Society of Genetic Counselors website at www.nsgc.org. Additionally, an appointment with an Ally Genetics affiliated genetic counselor can be scheduled by emailing lab@allygenetics.com. Please note that a minimum lead time of 10 business days prior to your biopsy date is required.
-              </p>
+              <p className="mb-4">{consentContent.sections.geneticCounseling}</p>
 
               <p className="mb-4"><strong>Chromosomal Abnormalities</strong></p>
-              <p className="mb-4">
-                There are a total of 46 chromosomes (23 pairs) in each human cell. Half of these chromosomes are inherited from the egg and the other half from the sperm. For normal growth and development, a person must inherit the correct number of chromosomes from each reproductive parent: one each of the 22 autosomes (numbered 1–22) and a sex chromosome (X or Y). Aneuploidy refers to a type of chromosome abnormality where there are more or fewer than the normal 46 chromosomes present. The extra or missing chromosome(s) can come from the egg or the sperm, however, most come from the egg and the chance of aneuploid embryos increases with maternal age. Most aneuploid embryos do not implant and fail to achieve pregnancy; however, those that do may result in miscarriage. In the general population, 20% of all clinical pregnancies miscarry and about half are chromosomally abnormal.
-              </p>
+              <p className="mb-4">{consentContent.sections.chromosomalAbnormalities}</p>
 
               <p className="mb-4"><strong>Benefits of PGT-A</strong></p>
-              <p className="mb-4">
-                Chromosomally abnormal embryos may not differ in overall microscopic appearance from chromosomally normal embryos, thus making it difficult to identify which embryo(s) have the best chance of resulting in successful implantation and pregnancy. Chromosomal abnormalities are one of the most common reasons for implantation failure and miscarriages that occur within the first 12 weeks of pregnancy. PGT-A can help identify which of your embryos are most likely to be chromosomally normal (euploid). By implanting a euploid embryo, the possibility of a successful implantation rises, the risk of a miscarriage decreases, and the chances of delivering a healthy chromosomally normal baby increase.
-              </p>
+              <p className="mb-4">{consentContent.sections.benefits}</p>
 
               <p className="mb-4"><strong>Embryo Biopsy Related Risks</strong></p>
-              <p className="mb-4">
-                Although in vitro fertilization (IVF) has been used successfully in millions of pregnancies worldwide with no documented increase in risk for congenital malformations or developmental disorders, the PGT-A process requires an embryo biopsy, and this biopsy process is not without risk. Biopsies are typically performed 5-7 days following fertilization. Such biopsies involve the removal of approximately 5-10 cells from the outer cell layer of the embryo, leaving the inner cell mass, which will become the developing baby, intact.
-              </p>
-              <p className="mb-4">Your IVF physician has recommended PGT-A because they believe that the benefits of PGT-A are likely to outweigh the risks, which include the following:</p>
+              <p className="mb-4">{consentContent.sections.embryoBiopsyRisks}</p>
               <ul className="mb-4 list-disc pl-6">
-                <li>An embryo may be damaged during the biopsy.</li>
-                <li>It may not be possible to obtain cells from the embryo for testing or the cells obtained may not be of sufficient quality to yield results.</li>
-                <li>Although data has shown that embryo biopsy has no adverse impact on growth or medical outcomes, the technique is still relatively new and the potential for unknown consequences to a live born baby cannot be excluded.</li>
+                {consentContent.sections.embryoBiopsyRisksList.map((risk, i) => (
+                  <li key={i}>{risk}</li>
+                ))}
+              </ul>
+
+              <p className="mb-4"><strong>Fertility Center Related Risks</strong></p>
+              <p className="mb-4">There are also risks associated with the clinical process of IVF including:</p>
+              <ul className="mb-4 list-disc pl-6">
+                {consentContent.sections.fertilityCenterRisks.map((risk, i) => (
+                  <li key={i}>{risk}</li>
+                ))}
               </ul>
 
               <p className="mb-4"><strong>Technical and Analytic Risks</strong></p>
-              <p className="mb-4">
-                Ally Genetics employs unique coding of collection tubes, molecular labeling of amplified DNA, and stringent sample tracking and control procedures to minimize the risk of technical errors; however, errors may still occur that result in no diagnosis or a misdiagnosis.
-              </p>
+              <p className="mb-4">{consentContent.sections.technicalRisks}</p>
 
-              <p className="mb-4"><strong>Misdiagnosis:</strong></p>
-              <p className="mb-4">
-                No genetic testing is 100% accurate and PGT-A is no different. Because only a small number of cells are biopsied from the outer layer of the embryo, the sample may not be representative of the entire embryo's chromosomal makeup. A false negative result will indicate an embryo has a normal number of chromosomes when there is actually a chromosomal abnormality. A false positive result will indicate an embryo has an abnormal chromosome copy number when it is actually normal, potentially leading to the discard of viable embryos. One recognized source of misdiagnosis is embryo mosaicism; a phenomenon in which the cells biopsied and analyzed are not genetically representative of the remainder of the embryo.
-              </p>
+              <p className="mb-4"><strong>No Diagnosis</strong></p>
+              <p className="mb-4">{consentContent.sections.noDiagnosis}</p>
+
+              <p className="mb-4"><strong>Misdiagnosis</strong></p>
+              <p className="mb-4">{consentContent.sections.misdiagnosis}</p>
 
               <p className="mb-4"><strong>Technical Limits of Detection</strong></p>
-              <p className="mb-4">
-                Ally Genetics uses Next Generation Sequencing (NGS) to evaluate the amount of chromosomal material present across the entire genome. This test cannot detect chromosomal abnormalities without an imbalance in genetic material. Ally Genetics PGT-A does not detect single gene disorders (such as Cystic Fibrosis, Spinal Muscular Atrophy, Sickle Cell Anemia), multifactorial conditions, polyploidy/haploidy, balanced chromosomal rearrangements, uniparental disomy (UPD), or small segmental changes smaller than 20Mb.
-              </p>
-
-              <p className="mb-4"><strong>Mosaic Results</strong></p>
-              <p className="mb-4">
-                Ally Genetics reports samples as mosaic when more than 40% and less than 70% of a sample biopsy's amplified DNA appears aneuploid (abnormal). Mosaic embryos contain two or more populations of cells with differing chromosome content. The outcome of transferring an embryo with a mosaic PGT-A result cannot be predicted. Due to the uncertainty surrounding PGT-A mosaic embryos, Ally Genetics does not recommend their transfer; however, the determination of which embryo(s) to transfer and/or discard should always be made with the guidance of your physician and/or a licensed genetic counselor.
-              </p>
+              <p className="mb-4">{consentContent.sections.technicalLimits} Ally Genetics PGT-A does not detect the following abnormalities which include but are not limited to:</p>
+              <ul className="mb-4 list-disc pl-6">
+                {consentContent.sections.technicalLimitsList.map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
+              </ul>
 
               <p className="mb-4"><strong>Follow-Up Recommendation for Prenatal Diagnosis</strong></p>
-              <p className="mb-4">
-                PGT-A cannot guarantee the birth of a chromosomally normal child. Due to inherent limitations, PGT-A should not be viewed as a replacement for prenatal testing and prenatal testing for ongoing pregnancies is recommended.
-              </p>
+              <p className="mb-4">{consentContent.sections.followUpRecommendation}</p>
+
+              <p className="mb-4"><strong>Test Results and Interpretation</strong></p>
+              <p className="mb-4">{consentContent.sections.testResults.normal}</p>
+              <p className="mb-4">{consentContent.sections.testResults.abnormal}</p>
+              <ul className="mb-4 list-disc pl-6">
+                <li>{consentContent.sections.testResults.trisomy}</li>
+                <li>{consentContent.sections.testResults.monosomy}</li>
+                <li>{consentContent.sections.testResults.complexAbnormal}</li>
+              </ul>
+              <p className="mb-4">{consentContent.sections.testResults.noDiagnosis}</p>
+              <ul className="mb-4 list-disc pl-6">
+                <li>{consentContent.sections.testResults.insufficientDNA}</li>
+                <li>{consentContent.sections.testResults.inconclusive}</li>
+              </ul>
+
+              <p className="mb-4"><strong>Mosaic Results</strong></p>
+              <p className="mb-4">{consentContent.sections.mosaicResults}</p>
+
+              <p className="mb-4"><strong>Alternatives to PGT-A</strong></p>
+              <p className="mb-4">{consentContent.sections.alternatives}</p>
+
+              <p className="mb-4"><strong>Costs</strong></p>
+              <p className="mb-4">{consentContent.sections.costs}</p>
 
               <p className="mb-4"><strong>Confidentiality and HIPAA</strong></p>
-              <p className="mb-4">
-                Ally Genetics keeps test results confidential and is in compliance with all Health Insurance Portability and Accountability Act (HIPAA) regulations.
-              </p>
+              <p className="mb-4">{consentContent.sections.confidentiality}</p>
 
               <p className="mb-4"><strong>Retention of Samples</strong></p>
-              <p className="mb-4">
-                PGT-A samples and/or DNA may be discarded after a time period of 60 days following results reporting. Ally Genetics may keep leftover de-identified sample DNA for ongoing research to help couples have healthy babies. Your sample material will never be used to make new embryos or future babies.
-              </p>
+              <p className="mb-4">{consentContent.sections.retentionOfSamples}</p>
+
+              <p className="mb-4"><strong>By signing below, I attest to the following:</strong></p>
+              <ul className="mb-4 list-disc pl-6">
+                {consentContent.sections.attestations.map((attestation, i) => (
+                  <li key={i}>{attestation}</li>
+                ))}
+              </ul>
             </div>
           </div>
 
@@ -7339,9 +7362,9 @@ function ConsentSigningPage() {
             <div className="flex items-start gap-3 mb-4">
               <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
               <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Please read and acknowledge</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.pgtNoPregnancyIncrease.title}</h3>
                 <p className="text-gray-800 font-semibold">
-                  PGT-A may help identify embryos with the expected number of chromosomes. However, PGT-A has not been shown to improve pregnancy or live-birth rates for all patients undergoing IVF. Individual outcomes vary based on factors such as age, embryo number and embryo quality.
+                  {consentContent.warningBoxes.pgtNoPregnancyIncrease.text}
                 </p>
               </div>
             </div>
@@ -7353,7 +7376,7 @@ function ConsentSigningPage() {
                 className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
               />
               <span className="text-sm font-semibold text-gray-900">
-                ✓ I acknowledge that PGT-A does not guarantee pregnancy or live birth and has not been shown to improve outcomes for all patients.
+                ✓ {consentContent.warningBoxes.pgtNoPregnancyIncrease.checkbox}
               </span>
             </label>
           </div>
@@ -7363,10 +7386,9 @@ function ConsentSigningPage() {
             <div className="flex items-start gap-3 mb-4">
               <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
               <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Please read and acknowledge</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.pgtAccuracy.title}</h3>
                 <p className="text-gray-800 font-semibold">
-                  I understand that PGT-A is not 100% accurate. The biopsied cells may not be representative of the entire embryo, 
-                  which means a chromosomally normal embryo could be misclassified as abnormal, potentially leading to the discard of a viable embryo.
+                  {consentContent.warningBoxes.pgtAccuracy.text}
                 </p>
               </div>
             </div>
@@ -7378,7 +7400,7 @@ function ConsentSigningPage() {
                 className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
               />
               <span className="text-sm font-semibold text-gray-900">
-                ✓ I acknowledge and understand that PGT-A is not 100% accurate, that the biopsied cells may not represent the entire embryo, and that viable embryos could potentially be misclassified and discarded
+                ✓ {consentContent.warningBoxes.pgtAccuracy.checkbox}
               </span>
             </label>
           </div>
@@ -7388,9 +7410,9 @@ function ConsentSigningPage() {
             <div className="flex items-start gap-3 mb-4">
               <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
               <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Please read and acknowledge</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.noSexSelection.title}</h3>
                 <p className="text-gray-800 font-semibold">
-                  Ally Genetics does not recommend, direct, or facilitate embryo selection for nonmedical sex selection or family-balancing purposes. PGT-A generally provides an accurate prediction of an embryo’s chromosomal sex; however, no laboratory test is 100% accurate, and rare discrepancies may occur.
+                  {consentContent.warningBoxes.noSexSelection.text}
                 </p>
               </div>
             </div>
@@ -7402,7 +7424,7 @@ function ConsentSigningPage() {
                 className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
               />
               <span className="text-sm font-semibold text-gray-900">
-                ✓ I acknowledge that Ally Genetics does not recommend, direct, or facilitate embryo selection for nonmedical sex selection or family balancing, and that chromosomal sex predictions from PGT-A are not guaranteed.
+                ✓ {consentContent.warningBoxes.noSexSelection.checkbox}
               </span>
             </label>
           </div>
@@ -7412,12 +7434,9 @@ function ConsentSigningPage() {
             <div className="flex items-start gap-3 mb-4">
               <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
               <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Please read and acknowledge</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.liabilityWaiver.title}</h3>
                 <p className="text-gray-800 font-semibold">
-                  By signing this consent, I agree not to hold Ally Genetics, its employees, directors, and authorized agents 
-                  legally responsible for any misdiagnosis, including but not limited to false positive findings, false negative findings, 
-                  gender misidentifications, or any other errors arising from the inherent limitations of PGT-A testing. 
-                  I understand that PGT-A is a screening tool with known limitations and is not a guarantee of embryo health or pregnancy outcome.
+                  {consentContent.warningBoxes.liabilityWaiver.text}
                 </p>
               </div>
             </div>
@@ -7429,7 +7448,7 @@ function ConsentSigningPage() {
                 className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
               />
               <span className="text-sm font-semibold text-gray-900">
-                ✓ I acknowledge and agree that I will not hold Ally Genetics legally responsible for any misdiagnosis or testing errors, and I understand that PGT-A results do not guarantee a healthy pregnancy or baby
+                ✓ {consentContent.warningBoxes.liabilityWaiver.checkbox}
               </span>
             </label>
           </div>
@@ -7446,10 +7465,10 @@ function ConsentSigningPage() {
                   className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
                 />
                 <span className="text-sm text-gray-700">
-                  I have read and understood this consent form in its entirety
+                  {consentContent.requiredAgreements[0]}
                 </span>
               </label>
-              
+
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -7458,10 +7477,10 @@ function ConsentSigningPage() {
                   className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
                 />
                 <span className="text-sm text-gray-700">
-                  I consent to the use of electronic signatures and electronic records for this consent form
+                  {consentContent.requiredAgreements[1]}
                 </span>
               </label>
-              
+
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -7470,10 +7489,10 @@ function ConsentSigningPage() {
                   className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
                 />
                 <span className="text-sm text-gray-700">
-                  I agree to all terms stated in this consent form and voluntarily consent to Preimplantation Genetic Testing
+                  {consentContent.requiredAgreements[2]}
                 </span>
               </label>
-              
+
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -7482,10 +7501,21 @@ function ConsentSigningPage() {
                   className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
                 />
                 <span className="text-sm text-gray-700">
-                  I understand that Ally Genetics does not accept insurance and that payment in full must be received prior to the release of results
+                  {consentContent.requiredAgreements[3]}
                 </span>
               </label>
             </div>
+          </div>
+
+          {/* My Signature Below Indicates — same attestation list embedded in the PDF's
+              signature page, now shown here too so nothing is signed "sight unseen." */}
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">My signature below indicates that:</h2>
+            <ol className="space-y-2 list-decimal pl-5 text-sm text-gray-700">
+              {consentContent.signatureAttestations.map((text, i) => (
+                <li key={i}>{text}</li>
+              ))}
+            </ol>
           </div>
 
           {/* Signature Section */}
