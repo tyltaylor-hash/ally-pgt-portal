@@ -8215,16 +8215,19 @@ function ResetPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
+  const [verified, setVerified] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [codeEmail, setCodeEmail] = useState('')
+  const [code, setCode] = useState('')
   const navigate = useNavigate()
   const { supabase } = useAuth()
 
   useEffect(() => {
-    // Handle the recovery token from the email link.
-    // Supabase sends recovery links in one of two formats depending on
-    // project/template settings: an access_token/refresh_token pair in the
-    // URL hash (older format), or a token_hash in the query string (newer
-    // PKCE/OTP format). Handle both, and surface an error if neither is
-    // present or if establishing the session fails.
+    // If the user arrived via a still-intact link (rare, since email
+    // security scanners tend to burn single-use link tokens before a real
+    // user clicks), auto-verify it. Otherwise the user falls through to
+    // the manual 6-digit code form below, which is immune to link
+    // scanners since it's never a clickable URL.
     const hashParams = new URLSearchParams(window.location.hash.substring(1))
     const accessToken = hashParams.get('access_token')
     const refreshToken = hashParams.get('refresh_token')
@@ -8235,7 +8238,7 @@ function ResetPasswordPage() {
         access_token: accessToken,
         refresh_token: refreshToken
       }).then(({ error }) => {
-        if (error) setError('This reset link has expired or already been used. Please request a new one.')
+        if (!error) setVerified(true)
       })
       return
     }
@@ -8246,13 +8249,30 @@ function ResetPasswordPage() {
 
     if (tokenHash && queryType === 'recovery') {
       supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' }).then(({ error }) => {
-        if (error) setError('This reset link has expired or already been used. Please request a new one.')
+        if (!error) setVerified(true)
       })
-      return
     }
-
-    setError('This reset link is invalid or missing required information. Please request a new one.')
   }, [])
+
+  async function handleVerifyCode(e) {
+    e.preventDefault()
+    setError(null)
+    setVerifying(true)
+
+    const { error } = await supabase.auth.verifyOtp({
+      email: codeEmail,
+      token: code,
+      type: 'recovery'
+    })
+
+    if (error) {
+      setError(error.message || 'That code is invalid or has expired. Please request a new one.')
+      setVerifying(false)
+    } else {
+      setVerified(true)
+      setVerifying(false)
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -8322,53 +8342,92 @@ function ResetPasswordPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">
-                {error}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800 mb-4">
+              {error}
+            </div>
+          )}
+
+          {!verified ? (
+            <form onSubmit={handleVerifyCode} className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Enter your email and the 6-digit code from the password reset email.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={codeEmail}
+                  onChange={(e) => setCodeEmail(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal focus:border-transparent"
+                  placeholder="you@example.com"
+                  required
+                />
               </div>
-            )}
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal focus:border-transparent"
-                placeholder="Enter new password"
-                required
-                minLength={6}
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">6-digit code</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal focus:border-transparent"
+                  placeholder="123456"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={verifying}
+                className="w-full bg-ally-teal text-white py-2 px-4 rounded-md hover:bg-ally-teal-dark transition-colors disabled:opacity-50 flex items-center justify-center"
+              >
+                {verifying && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Verify Code
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal focus:border-transparent"
+                  placeholder="Enter new password"
+                  required
+                  minLength={6}
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal focus:border-transparent"
-                placeholder="Confirm new password"
-                required
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-ally-teal focus:border-transparent"
+                  placeholder="Confirm new password"
+                  required
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-ally-teal text-white py-2 px-4 rounded-md hover:bg-ally-teal-dark transition-colors disabled:opacity-50 flex items-center justify-center"
-            >
-              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Update Password
-            </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-ally-teal text-white py-2 px-4 rounded-md hover:bg-ally-teal-dark transition-colors disabled:opacity-50 flex items-center justify-center"
+              >
+                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Update Password
+              </button>
+            </form>
+          )}
 
-            <div className="text-center">
-              <Link to="/login" className="text-sm text-gray-600 hover:text-ally-teal">
-                Back to sign in
-              </Link>
-            </div>
-          </form>
+          <div className="text-center mt-4">
+            <Link to="/login" className="text-sm text-gray-600 hover:text-ally-teal">
+              Back to sign in
+            </Link>
+          </div>
         </div>
       </div>
     </div>
