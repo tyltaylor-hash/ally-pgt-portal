@@ -8219,17 +8219,39 @@ function ResetPasswordPage() {
   const { supabase } = useAuth()
 
   useEffect(() => {
-    // Handle the recovery token from the email link
+    // Handle the recovery token from the email link.
+    // Supabase sends recovery links in one of two formats depending on
+    // project/template settings: an access_token/refresh_token pair in the
+    // URL hash (older format), or a token_hash in the query string (newer
+    // PKCE/OTP format). Handle both, and surface an error if neither is
+    // present or if establishing the session fails.
     const hashParams = new URLSearchParams(window.location.hash.substring(1))
     const accessToken = hashParams.get('access_token')
-    const type = hashParams.get('type')
-    
-    if (accessToken && type === 'recovery') {
+    const refreshToken = hashParams.get('refresh_token')
+    const hashType = hashParams.get('type')
+
+    if (accessToken && refreshToken && hashType === 'recovery') {
       supabase.auth.setSession({
         access_token: accessToken,
-        refresh_token: hashParams.get('refresh_token') || ''
+        refresh_token: refreshToken
+      }).then(({ error }) => {
+        if (error) setError('This reset link has expired or already been used. Please request a new one.')
       })
+      return
     }
+
+    const queryParams = new URLSearchParams(window.location.search)
+    const tokenHash = queryParams.get('token_hash')
+    const queryType = queryParams.get('type')
+
+    if (tokenHash && queryType === 'recovery') {
+      supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' }).then(({ error }) => {
+        if (error) setError('This reset link has expired or already been used. Please request a new one.')
+      })
+      return
+    }
+
+    setError('This reset link is invalid or missing required information. Please request a new one.')
   }, [])
 
   async function handleSubmit(e) {
