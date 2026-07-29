@@ -4822,19 +4822,15 @@ function NewRequisitionPage() {
     }
 
     // Send biopsy worksheet email to the submitter
-    const biopsyWorksheetPayload = {
-      submitterName: formData.form_completed_by || `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
-      patientName: `${formData.patient_first_name} ${formData.patient_last_name}`,
-      caseNumber: newCase.case_number,
-      clinicName: userData.clinic_name || '',
-      pgtType: formData.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || '',
-    }
-
     try {
       await supabase.functions.invoke('send-biopsy-worksheet-email', {
         body: {
           to: userData.email,
-          ...biopsyWorksheetPayload,
+          submitterName: formData.form_completed_by || `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
+          patientName: `${formData.patient_first_name} ${formData.patient_last_name}`,
+          caseNumber: newCase.case_number,
+          clinicName: userData.clinic_name || '',
+          pgtType: formData.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || '',
         }
       })
     } catch (emailError) {
@@ -4842,17 +4838,22 @@ function NewRequisitionPage() {
       // Non-critical — worksheet can be downloaded from the portal
     }
 
-    // Notify the lab team of every new requisition (patient name, center, test type)
-    try {
-      await supabase.functions.invoke('send-biopsy-worksheet-email', {
-        body: {
-          to: 'lab@allygenetics.com',
-          ...biopsyWorksheetPayload,
-        }
-      })
-    } catch (emailError) {
-      console.error('Failed to send lab notification email:', emailError)
-      // Non-critical — requisition still saved and visible in the portal
+    // Notify the lab whenever a PGT-SR case is submitted
+    if (formData.tests_ordered.includes('pgt_sr')) {
+      try {
+        await supabase.functions.invoke('send-pgtsr-notification', {
+          body: {
+            to: 'lab@allygenetics.com',
+            patient_name: `${formData.patient_first_name} ${formData.patient_last_name}`,
+            clinic_name: userData.clinic_name || userData.clinic?.name || 'Unknown Clinic',
+            test_type: formData.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || '',
+            case_number: newCase.case_number,
+          }
+        })
+      } catch (emailError) {
+        console.error('Failed to send PGT-SR lab notification email:', emailError)
+        // Non-critical — case is still saved and visible in the portal
+      }
     }
 
     navigate('/clinic/cases/' + newCase.id)
