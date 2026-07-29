@@ -4112,6 +4112,33 @@ function CaseDetailsPage({ isAdmin = false }) {
                   Download
                 </button>
               </div>
+              {caseData.karyotype_file_path && (
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <FileText className="w-5 h-5 text-ally-teal" />
+                    <div>
+                      <p className="font-medium">Karyotype</p>
+                      <p className="text-xs text-gray-500">Uploaded with requisition</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const { data, error } = await supabase.storage
+                        .from('case-files')
+                        .createSignedUrl(caseData.karyotype_file_path, 60)
+                      if (error) {
+                        alert('Failed to generate download link: ' + error.message)
+                        return
+                      }
+                      window.open(data.signedUrl, '_blank')
+                    }}
+                    className="inline-flex items-center gap-1 text-ally-teal hover:underline text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
