@@ -1242,26 +1242,26 @@ function generateBiopsyWorksheetPDF(cycle) {
   const pgtType = cycle.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || ''
 
   drawInfoBox(margin, y, col, 'Patient Name (Last, First)', patientName)
-  drawInfoBox(margin + col, y, col, 'Clinic Name', clinicName)
+  drawInfoBox(margin + col, y, col, 'Patient DOB', formatDate(cycle.patient_dob))
   drawInfoBox(margin + col * 2, y, col, 'PGT Test Type', pgtType)
 
   y += rowH + 2
 
-  // Row 2: DOB | Provider | Donor info
+  // Row 2: Partner Name | Partner DOB | Donor Gametes
   const donorInfo = [
     cycle.is_egg_donor ? `Egg Donor${cycle.egg_donor_age ? ' (Age: ' + cycle.egg_donor_age + ')' : ''}` : null,
     cycle.is_sperm_donor ? `Sperm Donor${cycle.sperm_donor_age ? ' (Age: ' + cycle.sperm_donor_age + ')' : ''}` : null,
   ].filter(Boolean).join('  |  ') || 'No donor gametes'
 
-  drawInfoBox(margin, y, col, 'Patient DOB', formatDate(cycle.patient_dob))
-  drawInfoBox(margin + col, y, col, 'Ordering Provider', providerName)
+  drawInfoBox(margin, y, col, 'Partner Name (Last, First)', partnerName)
+  drawInfoBox(margin + col, y, col, 'Partner DOB', cycle.partner_dob ? formatDate(cycle.partner_dob) : '—')
   drawInfoBox(margin + col * 2, y, col, 'Donor Gametes', donorInfo)
 
   y += rowH + 3
 
-  // Row 3: Partner Name | Partner DOB | Biopsy Date(s)
-  drawInfoBox(margin, y, col, 'Partner Name (Last, First)', partnerName)
-  drawInfoBox(margin + col, y, col, 'Partner DOB', cycle.partner_dob ? formatDate(cycle.partner_dob) : '—')
+  // Row 3: Clinic Name | Ordering Provider | Biopsy Date(s)
+  drawInfoBox(margin, y, col, 'Clinic Name', clinicName)
+  drawInfoBox(margin + col, y, col, 'Ordering Provider', providerName)
   drawInfoBox(margin + col * 2, y, col, 'Biopsy Date(s)', '')
 
   y += rowH + 3
