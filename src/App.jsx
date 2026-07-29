@@ -7119,25 +7119,12 @@ function ConsentSigningPage() {
 
   async function loadConsent() {
     try {
-      // Fetch consent record by token
+      // Fetch consent record by token via a security-definer RPC function.
+      // This lets an unauthenticated patient (using only their one-time token)
+      // read their own consent + case info without granting anonymous access
+      // to the consents/cases tables directly.
       const { data: consentData, error: consentError } = await supabase
-        .from('consents')
-        .select(`
-          *,
-          case:case_id (
-            id,
-            case_number,
-            patient_first_name,
-            patient_last_name,
-            patient_email,
-            partner_first_name,
-            partner_last_name,
-            partner_email,
-            clinic:clinic_id (name)
-          )
-        `)
-        .eq('consent_token', token)
-        .single()
+        .rpc('get_consent_by_token', { p_token: token })
 
       if (consentError || !consentData) {
         setError('Invalid or expired consent link')
@@ -7204,33 +7191,33 @@ function ConsentSigningPage() {
         ipAddress = 'unknown'
       }
 
-      // Update consent record
-      const { error: updateError } = await supabase
-        .from('consents')
-        .update({
-          status: 'signed',
+      // Sign the consent via a security-definer RPC function. This performs
+      // the update, checks whether all required consents are now signed,
+      // updates the case status, and returns clinic notification info — all
+      // server-side, without needing the anonymous patient to have direct
+      // write access to the consents/cases/users tables.
+      const { data: signResult, error: signError } = await supabase.rpc('sign_consent', {
+        p_token: token,
+        p_signature_type: signatureType,
+        p_signature_data: signatureData,
+        p_ip_address: ipAddress,
+        p_metadata: {
+          checkboxes: checkboxes,
+          keyAcknowledgments: {
+            pgtNoPregnancyIncrease: checkboxes.keyPointPregnancy,
+            pgtAccuracy: checkboxes.keyPoint1,
+            noSexSelection: checkboxes.keyPoint2,
+            liabilityWaiver: checkboxes.keyPoint3,
+            insurancePayment: checkboxes.insurancePayment
+          },
+          user_agent: navigator.userAgent,
           signed_at: new Date().toISOString(),
-          signature_type: signatureType,
-          signature_data: signatureData,
-          ip_address: ipAddress,
-          metadata: {
-            checkboxes: checkboxes,
-            keyAcknowledgments: {
-              pgtNoPregnancyIncrease: checkboxes.keyPointPregnancy,
-              pgtAccuracy: checkboxes.keyPoint1,
-              noSexSelection: checkboxes.keyPoint2,
-              liabilityWaiver: checkboxes.keyPoint3,
-              insurancePayment: checkboxes.insurancePayment
-            },
-            user_agent: navigator.userAgent,
-            signed_at: new Date().toISOString(),
-            ip_address: ipAddress
-          }
-        })
-        .eq('consent_token', token)
+          ip_address: ipAddress
+        }
+      })
 
-      if (updateError) {
-        throw updateError
+      if (signError) {
+        throw signError
       }
 
       setSubmitting(false)
@@ -7269,49 +7256,20 @@ function ConsentSigningPage() {
         // Non-blocking — signing itself already succeeded, so don't surface this as an error to the signer
       }
 
-      // Check if all consents are now signed and report exists — if so, notify clinic
+      // If the sign_consent function determined the report is ready and all
+      // required consents are now signed, it returns the clinic emails to
+      // notify — case status updates were already handled server-side.
       try {
-        // Fetch the full case with all consents
-        const { data: fullCase } = await supabase
-          .from('cases')
-          .select(`*, consents(id, signer_type, status), clinic:clinics(name)`)
-          .eq('id', consent.case_id)
-          .single()
-
-        if (fullCase) {
-          const patientSigned = fullCase.consents?.find(c => c.signer_type === 'patient')?.status === 'signed'
-          const partnerSigned = !fullCase.requires_partner_consent || fullCase.consents?.find(c => c.signer_type === 'partner')?.status === 'signed'
-
-          if (patientSigned && partnerSigned) {
-            // All consents signed — auto-update case status
-            if (fullCase.status === 'consent_pending') {
-              await supabase
-                .from('cases')
-                .update({ status: 'consent_complete' })
-                .eq('id', fullCase.id)
+        if (signResult?.notify_emails?.length > 0 && signResult?.report_file_url) {
+          await supabase.functions.invoke('send-report-notification', {
+            body: {
+              emails: signResult.notify_emails,
+              case_number: signResult.case_number,
+              patient_name: signResult.patient_name,
+              clinic_name: signResult.clinic_name || 'Clinic',
+              report_url: signResult.report_file_url,
             }
-
-            // If report also exists, notify clinic users
-            if (fullCase.report_file_url) {
-              const { data: clinicUsers } = await supabase
-                .from('users')
-                .select('email')
-                .eq('clinic_id', fullCase.clinic_id)
-                .eq('is_active', true)
-
-              if (clinicUsers?.length > 0) {
-                await supabase.functions.invoke('send-report-notification', {
-                  body: {
-                    emails: clinicUsers.map(u => u.email),
-                    case_number: fullCase.case_number,
-                    patient_name: `${fullCase.patient_first_name || ''} ${fullCase.patient_last_name || ''}`.trim(),
-                    clinic_name: fullCase.clinic?.name || 'Clinic',
-                    report_url: fullCase.report_file_url,
-                  }
-                })
-              }
-            }
-          }
+          })
         }
       } catch (notifyErr) {
         console.error('Failed to send report notification after consent:', notifyErr)
