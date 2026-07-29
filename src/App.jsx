@@ -4117,7 +4117,7 @@ function CaseDetailsPage({ isAdmin = false }) {
                   <div className="flex items-center gap-3">
                     <FileText className="w-5 h-5 text-ally-teal" />
                     <div>
-                      <p className="font-medium">Karyotype</p>
+                      <p className="font-medium">Patient Karyotype</p>
                       <p className="text-xs text-gray-500">Uploaded with requisition</p>
                     </div>
                   </div>
@@ -4126,6 +4126,33 @@ function CaseDetailsPage({ isAdmin = false }) {
                       const { data, error } = await supabase.storage
                         .from('case-files')
                         .createSignedUrl(caseData.karyotype_file_path, 60)
+                      if (error) {
+                        alert('Failed to generate download link: ' + error.message)
+                        return
+                      }
+                      window.open(data.signedUrl, '_blank')
+                    }}
+                    className="inline-flex items-center gap-1 text-ally-teal hover:underline text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </button>
+                </div>
+              )}
+              {caseData.partner_karyotype_file_path && (
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <FileText className="w-5 h-5 text-ally-teal" />
+                    <div>
+                      <p className="font-medium">Partner Karyotype</p>
+                      <p className="text-xs text-gray-500">Uploaded with requisition</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const { data, error } = await supabase.storage
+                        .from('case-files')
+                        .createSignedUrl(caseData.partner_karyotype_file_path, 60)
                       if (error) {
                         alert('Failed to generate download link: ' + error.message)
                         return
@@ -4501,6 +4528,7 @@ function NewRequisitionPage() {
     form_completed_by: '',
   })
   const [karyotypeFile, setKaryotypeFile] = useState(null)
+  const [partnerKaryotypeFile, setPartnerKaryotypeFile] = useState(null)
   const [uploadingFile, setUploadingFile] = useState(false)
 
   useEffect(() => {
@@ -4540,9 +4568,10 @@ function NewRequisitionPage() {
         ? prev.tests_ordered.filter(t => t !== test)
         : [...prev.tests_ordered, test]
     }))
-    // Clear karyotype file if PGT-SR is deselected
+    // Clear karyotype files if PGT-SR is deselected
     if (test === 'pgt_sr' && formData.tests_ordered.includes('pgt_sr')) {
       setKaryotypeFile(null)
+      setPartnerKaryotypeFile(null)
     }
   }
 
@@ -4552,6 +4581,14 @@ function NewRequisitionPage() {
       return
     }
     setKaryotypeFile(file)
+  }
+
+  function handlePartnerKaryotypeUpload(file) {
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size must be less than 10MB')
+      return
+    }
+    setPartnerKaryotypeFile(file)
   }
 
   // Determine if partner info is required
@@ -4604,7 +4641,13 @@ function NewRequisitionPage() {
     }
 
     if (formData.tests_ordered.includes('pgt_sr') && !karyotypeFile) {
-      setError('Please upload the karyotype document for PGT-SR')
+      setError('Please upload the patient karyotype document for PGT-SR')
+      setLoading(false)
+      return
+    }
+
+    if (formData.tests_ordered.includes('pgt_sr') && isPartnerRequired && !partnerKaryotypeFile) {
+      setError('Please upload the partner karyotype document for PGT-SR')
       setLoading(false)
       return
     }
@@ -4627,6 +4670,27 @@ function NewRequisitionPage() {
         return
       }
       karyotype_file_path = fileName
+      setUploadingFile(false)
+    }
+
+    // Upload partner karyotype file if present
+    let partner_karyotype_file_path = null
+    if (partnerKaryotypeFile) {
+      setUploadingFile(true)
+      const partnerFileExt = partnerKaryotypeFile.name.split('.').pop()
+      const partnerFileName = `${userData.clinic_id}/${Date.now()}_partner_karyotype.${partnerFileExt}`
+
+      const { error: partnerUploadError } = await supabase.storage
+        .from('case-files')
+        .upload(partnerFileName, partnerKaryotypeFile)
+
+      if (partnerUploadError) {
+        setError('Failed to upload partner karyotype file: ' + partnerUploadError.message)
+        setLoading(false)
+        setUploadingFile(false)
+        return
+      }
+      partner_karyotype_file_path = partnerFileName
       setUploadingFile(false)
     }
 
@@ -4678,6 +4742,7 @@ function NewRequisitionPage() {
     if (formData.reason_for_testing) caseData.reason_for_testing = formData.reason_for_testing
     if (formData.form_completed_by) caseData.form_completed_by = formData.form_completed_by
     if (karyotype_file_path) caseData.karyotype_file_path = karyotype_file_path
+    if (partner_karyotype_file_path) caseData.partner_karyotype_file_path = partner_karyotype_file_path
 
     const { data: newCase, error: insertError } = await supabase
       .from('cases')
@@ -4843,7 +4908,7 @@ function NewRequisitionPage() {
             {formData.tests_ordered.includes('pgt_sr') && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Karyotype Upload * <span className="text-amber-600 font-normal">(Required for PGT-SR)</span>
+                  Patient Karyotype Upload * <span className="text-amber-600 font-normal">(Required for PGT-SR)</span>
                 </label>
                 <div 
                   className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
@@ -4872,6 +4937,55 @@ function NewRequisitionPage() {
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setKaryotypeFile(null) }}
+                        className="text-red-500 hover:text-red-700 ml-2"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-600">Click to upload or drag and drop</p>
+                      <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG, DOC (Max 10MB)</p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Partner Karyotype Upload - Required for PGT-SR when partner present */}
+            {formData.tests_ordered.includes('pgt_sr') && isPartnerRequired && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Partner Karyotype Upload * <span className="text-amber-600 font-normal">(Required for PGT-SR)</span>
+                </label>
+                <div 
+                  className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                    partnerKaryotypeFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-ally-teal hover:bg-gray-50'
+                  }`}
+                  onClick={() => document.getElementById('partnerKaryotypeInput').click()}
+                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-ally-teal', 'bg-gray-50') }}
+                  onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('border-ally-teal', 'bg-gray-50') }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    e.currentTarget.classList.remove('border-ally-teal', 'bg-gray-50')
+                    if (e.dataTransfer.files[0]) handlePartnerKaryotypeUpload(e.dataTransfer.files[0])
+                  }}
+                >
+                  <input
+                    type="file"
+                    id="partnerKaryotypeInput"
+                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                    className="hidden"
+                    onChange={(e) => e.target.files[0] && handlePartnerKaryotypeUpload(e.target.files[0])}
+                  />
+                  {partnerKaryotypeFile ? (
+                    <div className="flex items-center justify-center gap-3">
+                      <CheckCircle className="w-6 h-6 text-green-500" />
+                      <span className="font-medium text-green-700">{partnerKaryotypeFile.name}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setPartnerKaryotypeFile(null) }}
                         className="text-red-500 hover:text-red-700 ml-2"
                       >
                         <X className="w-5 h-5" />
