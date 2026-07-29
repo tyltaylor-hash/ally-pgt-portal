@@ -4822,20 +4822,37 @@ function NewRequisitionPage() {
     }
 
     // Send biopsy worksheet email to the submitter
+    const biopsyWorksheetPayload = {
+      submitterName: formData.form_completed_by || `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
+      patientName: `${formData.patient_first_name} ${formData.patient_last_name}`,
+      caseNumber: newCase.case_number,
+      clinicName: userData.clinic_name || '',
+      pgtType: formData.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || '',
+    }
+
     try {
       await supabase.functions.invoke('send-biopsy-worksheet-email', {
         body: {
           to: userData.email,
-          submitterName: formData.form_completed_by || `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
-          patientName: `${formData.patient_first_name} ${formData.patient_last_name}`,
-          caseNumber: newCase.case_number,
-          clinicName: userData.clinic_name || '',
-          pgtType: formData.tests_ordered?.map(t => t.replace('pgt_', 'PGT-').toUpperCase()).join(', ') || '',
+          ...biopsyWorksheetPayload,
         }
       })
     } catch (emailError) {
       console.error('Failed to send biopsy worksheet email:', emailError)
       // Non-critical — worksheet can be downloaded from the portal
+    }
+
+    // Notify the lab team of every new requisition (patient name, center, test type)
+    try {
+      await supabase.functions.invoke('send-biopsy-worksheet-email', {
+        body: {
+          to: 'lab@allygenetics.com',
+          ...biopsyWorksheetPayload,
+        }
+      })
+    } catch (emailError) {
+      console.error('Failed to send lab notification email:', emailError)
+      // Non-critical — requisition still saved and visible in the portal
     }
 
     navigate('/clinic/cases/' + newCase.id)
