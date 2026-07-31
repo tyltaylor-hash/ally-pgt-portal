@@ -4756,6 +4756,16 @@ function NewRequisitionPage() {
       return
     }
 
+    // Sync new case demographics to the Google Sheet Intake Queue (non-blocking)
+    try {
+      await supabase.functions.invoke('req-to-sheets', {
+        body: { case_id: newCase.id }
+      })
+    } catch (sheetSyncError) {
+      console.error('Failed to sync case to Google Sheet:', sheetSyncError)
+      // Non-critical — case is still saved and visible in the portal
+    }
+
     // Create consent for patient with unique token
     const patientConsentToken = crypto.randomUUID()
     const { data: patientConsent } = await supabase.from('consents').insert({
