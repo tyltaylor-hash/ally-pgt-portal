@@ -641,6 +641,22 @@ function StatusBadge({ status }) {
 // is considered fully released. PGT-SR consents are sent separately by an
 // admin (they are not auto-sent at requisition submission like PGT-A).
 // ============================================================================
+// Sending/resending a consent (especially PGT-SR) can create more than one
+// consents row for the same case/signer_type/consent_type (e.g. clicking
+// "Send" more than once). When that happens, always prefer a signed row over
+// a pending one so the admin UI reflects reality instead of getting stuck on
+// an old duplicate. If none are signed, fall back to the most recently
+// created row.
+function pickBestConsent(list, signerType, consentType) {
+  const matches = (list || []).filter(c =>
+    c.signer_type === signerType && (consentType === 'pgta' ? (c.consent_type || 'pgta') === 'pgta' : c.consent_type === consentType)
+  )
+  if (matches.length === 0) return undefined
+  const signed = matches.find(c => c.status === 'signed')
+  if (signed) return signed
+  return matches.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))[0]
+}
+
 function isConsentFullySigned(caseRow) {
   const pgtaSigned = caseRow.patientConsent?.status === 'signed' &&
     (!caseRow.requires_partner_consent || caseRow.partnerConsent?.status === 'signed')
@@ -877,7 +893,7 @@ function ClinicDashboard() {
         *,
         clinic:clinics(id, name, address, city, state, zip, phone, email),
         ordering_provider:providers(first_name, last_name, credentials),
-        consents(id, signer_type, consent_type, status, signed_at, consent_token)
+        consents(id, signer_type, consent_type, status, signed_at, consent_token, created_at)
       `)
       .eq('clinic_id', userData.clinic_id)
       .order('created_at', { ascending: false })
@@ -906,10 +922,10 @@ function ClinicDashboard() {
       // Add consent info to cycle — filter to PGT-A consents specifically, since a
       // case can now also have separate PGT-SR consents (consent_type). Rows created
       // before consent_type existed default to 'pgta' via the DB column default.
-      const patientConsent = c.consents?.find(con => con.signer_type === 'patient' && (con.consent_type || 'pgta') === 'pgta')
-      const partnerConsent = c.consents?.find(con => con.signer_type === 'partner' && (con.consent_type || 'pgta') === 'pgta')
-      const patientConsentPGTSR = c.consents?.find(con => con.signer_type === 'patient' && con.consent_type === 'pgtsr')
-      const partnerConsentPGTSR = c.consents?.find(con => con.signer_type === 'partner' && con.consent_type === 'pgtsr')
+      const patientConsent = pickBestConsent(c.consents, 'patient', 'pgta')
+      const partnerConsent = pickBestConsent(c.consents, 'partner', 'pgta')
+      const patientConsentPGTSR = pickBestConsent(c.consents, 'patient', 'pgtsr')
+      const partnerConsentPGTSR = pickBestConsent(c.consents, 'partner', 'pgtsr')
       const needsPGTSRConsent = c.tests_ordered?.includes('pgt_sr')
       patientMap[key].cycles.push({
         ...c,
@@ -4138,7 +4154,7 @@ function CaseDetailsPage({ isAdmin = false }) {
       try {
         const { data: fullCase } = await supabase
           .from('cases')
-          .select(`*, consents(id, signer_type, consent_type, status), clinic:clinics(name)`)
+          .select(`*, consents(id, signer_type, consent_type, status, signed_at, consent_token, created_at), clinic:clinics(name)`)
           .eq('id', id)
           .single()
 
@@ -4319,10 +4335,10 @@ function CaseDetailsPage({ isAdmin = false }) {
     )
   }
 
-  const patientConsent = consents.find(c => c.signer_type === 'patient' && (c.consent_type || 'pgta') === 'pgta')
-  const partnerConsent = consents.find(c => c.signer_type === 'partner' && (c.consent_type || 'pgta') === 'pgta')
-  const patientConsentPGTSR = consents.find(c => c.signer_type === 'patient' && c.consent_type === 'pgtsr')
-  const partnerConsentPGTSR = consents.find(c => c.signer_type === 'partner' && c.consent_type === 'pgtsr')
+  const patientConsent = pickBestConsent(consents, 'patient', 'pgta')
+  const partnerConsent = pickBestConsent(consents, 'partner', 'pgta')
+  const patientConsentPGTSR = pickBestConsent(consents, 'patient', 'pgtsr')
+  const partnerConsentPGTSR = pickBestConsent(consents, 'partner', 'pgtsr')
   const needsPGTSRConsent = caseData.tests_ordered?.includes('pgt_sr')
 
   return (
