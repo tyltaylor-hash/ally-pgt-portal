@@ -634,6 +634,28 @@ function StatusBadge({ status }) {
 }
 
 // ============================================================================
+// CONSENT HELPERS
+// A case always requires a signed PGT-A consent (patient, plus partner if
+// requires_partner_consent). If the case also ordered PGT-SR, it additionally
+// requires a signed PGT-SR consent for the same signer(s) before the report
+// is considered fully released. PGT-SR consents are sent separately by an
+// admin (they are not auto-sent at requisition submission like PGT-A).
+// ============================================================================
+function isConsentFullySigned(caseRow) {
+  const pgtaSigned = caseRow.patientConsent?.status === 'signed' &&
+    (!caseRow.requires_partner_consent || caseRow.partnerConsent?.status === 'signed')
+
+  if (!caseRow.tests_ordered?.includes('pgt_sr')) {
+    return pgtaSigned
+  }
+
+  const pgtsrSigned = caseRow.patientConsentPGTSR?.status === 'signed' &&
+    (!caseRow.requires_partner_consent || caseRow.partnerConsentPGTSR?.status === 'signed')
+
+  return pgtaSigned && pgtsrSigned
+}
+
+// ============================================================================
 // ADMIN DASHBOARD
 // ============================================================================
 function AdminDashboard() {
@@ -855,7 +877,7 @@ function ClinicDashboard() {
         *,
         clinic:clinics(id, name, address, city, state, zip, phone, email),
         ordering_provider:providers(first_name, last_name, credentials),
-        consents(id, signer_type, status, signed_at, consent_token)
+        consents(id, signer_type, consent_type, status, signed_at, consent_token)
       `)
       .eq('clinic_id', userData.clinic_id)
       .order('created_at', { ascending: false })
@@ -881,13 +903,21 @@ function ClinicDashboard() {
           cycles: []
         }
       }
-      // Add consent info to cycle
-      const patientConsent = c.consents?.find(con => con.signer_type === 'patient')
-      const partnerConsent = c.consents?.find(con => con.signer_type === 'partner')
+      // Add consent info to cycle — filter to PGT-A consents specifically, since a
+      // case can now also have separate PGT-SR consents (consent_type). Rows created
+      // before consent_type existed default to 'pgta' via the DB column default.
+      const patientConsent = c.consents?.find(con => con.signer_type === 'patient' && (con.consent_type || 'pgta') === 'pgta')
+      const partnerConsent = c.consents?.find(con => con.signer_type === 'partner' && (con.consent_type || 'pgta') === 'pgta')
+      const patientConsentPGTSR = c.consents?.find(con => con.signer_type === 'patient' && con.consent_type === 'pgtsr')
+      const partnerConsentPGTSR = c.consents?.find(con => con.signer_type === 'partner' && con.consent_type === 'pgtsr')
+      const needsPGTSRConsent = c.tests_ordered?.includes('pgt_sr')
       patientMap[key].cycles.push({
         ...c,
         patientConsent,
-        partnerConsent
+        partnerConsent,
+        patientConsentPGTSR,
+        partnerConsentPGTSR,
+        needsPGTSRConsent
       })
     })
 
@@ -929,11 +959,11 @@ function ClinicDashboard() {
       // Report ready + consent signed + not viewed = top (new reports)
       // Report ready + consent not signed = next (awaiting consent)
       // Everything else sorted normally
-      const aReport = a.report_file_url && a.patientConsent?.status === 'signed' && (!a.requires_partner_consent || a.partnerConsent?.status === 'signed') && !a.report_viewed_at ? 2
-        : a.report_file_url && !(a.patientConsent?.status === 'signed' && (!a.requires_partner_consent || a.partnerConsent?.status === 'signed')) ? 1
+      const aReport = a.report_file_url && isConsentFullySigned(a) && !a.report_viewed_at ? 2
+        : a.report_file_url && !isConsentFullySigned(a) ? 1
         : 0
-      const bReport = b.report_file_url && b.patientConsent?.status === 'signed' && (!b.requires_partner_consent || b.partnerConsent?.status === 'signed') && !b.report_viewed_at ? 2
-        : b.report_file_url && !(b.patientConsent?.status === 'signed' && (!b.requires_partner_consent || b.partnerConsent?.status === 'signed')) ? 1
+      const bReport = b.report_file_url && isConsentFullySigned(b) && !b.report_viewed_at ? 2
+        : b.report_file_url && !isConsentFullySigned(b) ? 1
         : 0
       if (aReport !== bReport) return bReport - aReport
 
@@ -1047,8 +1077,9 @@ function ClinicDashboard() {
                 const consentSigned = c.patientConsent?.status === 'signed' && (!c.requires_partner_consent || c.partnerConsent?.status === 'signed')
                 const consentPending = !consentSigned && (c.patientConsent || c.partnerConsent)
                 const hasReport = !!c.report_file_url
-                const reportReleasable = hasReport && consentSigned
-                const reportLocked = hasReport && !consentSigned
+                const fullySigned = isConsentFullySigned(c)
+                const reportReleasable = hasReport && fullySigned
+                const reportLocked = hasReport && !fullySigned
                 const isNew = reportReleasable && !c.report_viewed_at
 
                 async function handleReportClick(e) {
@@ -1872,18 +1903,22 @@ function generateConsentPDF(cycle, signerType, consent, returnBase64 = false) {
   
   const signerEmail = signerType === 'patient' ? cycle.patient_email : cycle.partner_email
   
+  // Which consent this PDF represents. Defaults to 'pgta' for older rows
+  // created before consent_type existed.
+  const consentType = consent.consent_type || 'pgta'
+
   // Get consent content - use stored version if available, otherwise current
-  const content = consent.consent_content || getConsentContent()
-  
+  const content = consent.consent_content || (consentType === 'pgtsr' ? getPGTSRConsentContent() : getConsentContent())
+
   // Colors
   const navyBlue = [30, 58, 95] // #1e3a5f
   const teal = [13, 148, 136] // #0d9488
   const warningYellow = [254, 243, 199] // #fef3c7
   const warningBorder = [245, 158, 11] // #f59e0b
   const lightGray = [249, 250, 251] // #f9fafb
-  
+
   let currentPage = 1
-  const totalPages = 9
+  const totalPages = consentType === 'pgtsr' ? 7 : 9
   
   // Helper function to add header
   function addHeader() {
@@ -1947,29 +1982,261 @@ function generateConsentPDF(cycle, signerType, consent, returnBase64 = false) {
     addHeader()
   }
   
+  // Shared "consent info bar" (sent-to / signer) drawn at the top of page 1
+  // for both consent types.
+  function addConsentInfoBar(y) {
+    doc.setFillColor(232, 245, 243)
+    doc.setDrawColor(...teal)
+    doc.rect(margin, y, contentWidth, 10, 'FD')
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...navyBlue)
+    doc.text('Consent Sent To:', margin + 2, y + 4)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...teal)
+    doc.text(signerEmail || 'N/A', margin + 28, y + 4)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...navyBlue)
+    doc.text('Signer:', margin + 80, y + 4)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...teal)
+    doc.text(`${signerName} (${signerType.charAt(0).toUpperCase() + signerType.slice(1)})`, margin + 93, y + 4)
+    return y + 18
+  }
+
+  if (consentType === 'pgtsr') {
+    // ==================== PGT-SR PAGE 1 ====================
+    addHeader()
+    let y = 25
+    y = addConsentInfoBar(y)
+
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...navyBlue)
+    doc.text('Patient Consent Form for Preimplantation Genetic Testing for Structural Rearrangements (PGTSR)', margin, y, { maxWidth: contentWidth })
+    y += 12
+
+    y = addSectionTitle('Introduction', y)
+    y = addParagraph(content.sections.introduction, y)
+    y += 4
+
+    y = addSectionTitle('Chromosomal Rearrangements (Translocations)', y)
+    y = addParagraph(content.sections.structuralRearrangementsIntro, y)
+    y += 2
+    content.sections.structuralRearrangementsList.forEach(item => {
+      y = addParagraph('• ' + item, y)
+    })
+
+    addFooter()
+
+    // ==================== PGT-SR PAGE 2 ====================
+    newPage()
+    y = 25
+
+    y = addSectionTitle('Clinical Significance & Diagnosis', y)
+    y = addParagraph(content.sections.clinicalSignificance, y)
+    y += 4
+
+    y = addSectionTitle('Description of Test', y)
+    y = addParagraph(content.sections.testDescription, y)
+    y += 4
+
+    y = addSectionTitle('Embryo Biopsy-Related Risks', y)
+    y = addParagraph(content.sections.embryoBiopsyRisks, y)
+    y += 2
+    content.sections.embryoBiopsyRisksList.forEach(risk => {
+      y = addParagraph('• ' + risk, y)
+    })
+
+    addFooter()
+
+    // ==================== PGT-SR PAGE 3 ====================
+    newPage()
+    y = 25
+
+    y = addSectionTitle('Fertility Center-Related Risks', y)
+    content.sections.fertilityCenterRisks.forEach(risk => {
+      y = addParagraph('• ' + risk, y)
+    })
+    y += 4
+
+    y = addSectionTitle('Technical and Analytic Risks', y)
+    y = addParagraph(content.sections.technicalRisksIntro, y)
+    content.sections.technicalRisksList.forEach(risk => {
+      y = addParagraph('• ' + risk, y)
+    })
+    y += 4
+
+    y = addSectionTitle('Follow-Up Recommendation for Prenatal Diagnosis', y)
+    y = addParagraph(content.sections.followUpRecommendation, y)
+
+    addFooter()
+
+    // ==================== PGT-SR PAGE 4 ====================
+    newPage()
+    y = 25
+
+    y = addSectionTitle('Sample Retention', y)
+    y = addParagraph(content.sections.sampleRetention, y)
+    y += 4
+
+    y = addSectionTitle('Test Results and Interpretation', y)
+    y = addParagraph(content.sections.testResults.unbalanced, y)
+    y = addParagraph(content.sections.testResults.balanced, y)
+    y += 2
+    y = addParagraph(content.sections.testResults.noResults, y)
+    y = addParagraph('• ' + content.sections.testResults.indeterminate, y)
+    y = addParagraph('• ' + content.sections.testResults.noNormalEmbryos, y)
+    y += 4
+
+    y = addSectionTitle('Misdiagnosis and Mosaicism', y)
+    y = addParagraph(content.sections.misdiagnosis, y)
+
+    addFooter()
+
+    // ==================== PGT-SR PAGE 5 ====================
+    newPage()
+    y = 25
+
+    y = addSectionTitle('Costs', y)
+    y = addParagraph(content.sections.costs, y)
+    y += 4
+
+    y = addSectionTitle('Confidentiality and HIPAA', y)
+    y = addParagraph(content.sections.confidentiality, y)
+    y += 4
+
+    y = addSectionTitle('Sample Donation to Research or Disposal of Samples', y)
+    y = addParagraph(content.sections.sampleDonationResearch, y)
+
+    addFooter()
+
+    // ==================== PGT-SR PAGE 6 - AUTHORIZATION ====================
+    newPage()
+    y = 25
+
+    y = addSectionTitle('Authorization for PGTSR Testing — By signing below, I/we attest to the following:', y)
+    content.sections.attestations.forEach((attestation, index) => {
+      y = addParagraph(attestation, y)
+      if (index < content.sections.attestations.length - 1) y += 2
+    })
+    y += 4
+    y = addParagraph(content.researchDeclineOption, y)
+
+    addFooter()
+
+    // ==================== PGT-SR PAGE 7 - WARNINGS + SIGNATURE ====================
+    newPage()
+    y = 25
+
+    const warningKeys = ['pgtsrAccuracy', 'pgtsrLimitedScope', 'liabilityWaiver']
+    warningKeys.forEach(key => {
+      const box = content.warningBoxes[key]
+      doc.setFillColor(...warningYellow)
+      doc.setDrawColor(...warningBorder)
+      doc.setLineWidth(0.5)
+      const boxHeight = 22
+      doc.rect(margin, y, contentWidth, boxHeight, 'FD')
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(146, 64, 14)
+      doc.text('⚠ ' + box.title, margin + 3, y + 5)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(120, 53, 15)
+      doc.setFontSize(6.5)
+      const warningText = doc.splitTextToSize(box.text, contentWidth - 6)
+      doc.text(warningText, margin + 3, y + 10)
+      doc.setFillColor(...teal)
+      doc.rect(margin + 3, y + 17, 3, 3, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(6)
+      doc.text('✓', margin + 3.7, y + 19.5)
+      doc.setTextColor(31, 41, 55)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(6)
+      doc.text(box.checkbox.substring(0, 120), margin + 8, y + 19.5)
+      y += boxHeight + 6
+    })
+
+    // Signature section
+    doc.setFillColor(...navyBlue)
+    doc.rect(margin, y, contentWidth, 8, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`ELECTRONIC SIGNATURE - ${signerType.toUpperCase()}`, margin + 3, y + 5.5)
+    y += 12
+
+    doc.setDrawColor(...navyBlue)
+    doc.setLineWidth(0.5)
+    doc.rect(margin, y, contentWidth, 70, 'D')
+
+    doc.setFontSize(6)
+    doc.setTextColor(102, 102, 102)
+    doc.setFont('helvetica', 'normal')
+    doc.text('NAME (PRINT)', margin + 5, y + 8)
+    doc.text('ROLE', margin + 100, y + 8)
+
+    doc.setFontSize(10)
+    doc.setTextColor(...teal)
+    doc.text(signerName, margin + 5, y + 15)
+    doc.text(signerType.charAt(0).toUpperCase() + signerType.slice(1), margin + 100, y + 15)
+
+    doc.setDrawColor(51, 51, 51)
+    doc.setLineWidth(0.3)
+    doc.line(margin + 5, y + 17, margin + 90, y + 17)
+    doc.line(margin + 100, y + 17, margin + 160, y + 17)
+
+    doc.setFontSize(6)
+    doc.setTextColor(102, 102, 102)
+    doc.text('SIGNATURE', margin + 5, y + 28)
+    doc.text('DATE & TIME SIGNED', margin + 100, y + 28)
+
+    doc.setFontSize(14)
+    doc.setTextColor(...teal)
+    doc.setFont('helvetica', 'italic')
+    if (consent.signature_type === 'typed' && consent.signature_data) {
+      doc.text(consent.signature_data, margin + 5, y + 38)
+    } else {
+      doc.text(signerName, margin + 5, y + 38)
+    }
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    const signedDatePGTSR = consent.signed_at ? new Date(consent.signed_at).toLocaleString() : 'Pending'
+    doc.text(signedDatePGTSR, margin + 100, y + 38)
+
+    doc.setDrawColor(51, 51, 51)
+    doc.line(margin + 5, y + 40, margin + 90, y + 40)
+    doc.line(margin + 100, y + 40, margin + 160, y + 40)
+
+    if (consent.status === 'signed') {
+      doc.setFillColor(232, 245, 243)
+      doc.setDrawColor(...teal)
+      doc.rect(margin + 5, y + 44, 35, 6, 'FD')
+      doc.setFontSize(6)
+      doc.setTextColor(...teal)
+      doc.setFont('helvetica', 'bold')
+      doc.text('✓ ELECTRONICALLY SIGNED', margin + 7, y + 48)
+    }
+
+    doc.setDrawColor(221, 221, 221)
+    doc.line(margin + 5, y + 54, margin + contentWidth - 5, y + 54)
+    doc.setFontSize(6)
+    doc.setTextColor(102, 102, 102)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Verification Details:', margin + 5, y + 59)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Consent Sent To: ${signerEmail || 'N/A'}  |  IP Address: ${consent.ip_address || 'N/A'}`, margin + 5, y + 64)
+    doc.text(`Document ID: CON-${cycle.case_number}-${signerType.toUpperCase()}-PGTSR`, margin + 5, y + 68)
+
+    addFooter()
+  } else {
   // ==================== PAGE 1 ====================
   addHeader()
   let y = 25
-  
-  // Consent info bar
-  doc.setFillColor(232, 245, 243)
-  doc.setDrawColor(...teal)
-  doc.rect(margin, y, contentWidth, 10, 'FD')
-  doc.setFontSize(7)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...navyBlue)
-  doc.text('Consent Sent To:', margin + 2, y + 4)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(...teal)
-  doc.text(signerEmail || 'N/A', margin + 28, y + 4)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...navyBlue)
-  doc.text('Signer:', margin + 80, y + 4)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(...teal)
-  doc.text(`${signerName} (${signerType.charAt(0).toUpperCase() + signerType.slice(1)})`, margin + 93, y + 4)
-  y += 18
-  
+  y = addConsentInfoBar(y)
+
   // Main title
   doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
@@ -2324,12 +2591,13 @@ function generateConsentPDF(cycle, signerType, consent, returnBase64 = false) {
   doc.text('Verification Details:', margin + 5, y + 59)
   doc.setFont('helvetica', 'normal')
   doc.text(`Consent Sent To: ${signerEmail || 'N/A'}  |  IP Address: ${consent.ip_address || 'N/A'}`, margin + 5, y + 64)
-  doc.text(`Document ID: CON-${cycle.case_number}-${signerType.toUpperCase()}`, margin + 5, y + 68)
-  
+  doc.text(`Document ID: CON-${cycle.case_number}-${signerType.toUpperCase()}-PGTA`, margin + 5, y + 68)
+
   addFooter()
-  
+  }
+
   // Save or return
-  const fileName = `Consent_${cycle.patient_last_name}_${cycle.patient_first_name}_${signerType.charAt(0).toUpperCase() + signerType.slice(1)}.pdf`
+  const fileName = `Consent_${consentType.toUpperCase()}_${cycle.patient_last_name}_${cycle.patient_first_name}_${signerType.charAt(0).toUpperCase() + signerType.slice(1)}.pdf`
   if (returnBase64) {
     return { base64: doc.output('datauristring').split(',')[1], fileName }
   }
@@ -2523,7 +2791,7 @@ function PatientCyclesModal({ patient, onClose, supabase }) {
                     Reports
                   </div>
                   {(() => {
-                    const consentSigned = cycle.patientConsent?.status === 'signed' && (!cycle.requires_partner_consent || cycle.partnerConsent?.status === 'signed')
+                    const consentSigned = isConsentFullySigned(cycle)
                     if (cycle.report_file_url && consentSigned) {
                       return (
                         <button 
@@ -3706,8 +3974,8 @@ function CaseDetailsPage({ isAdmin = false }) {
     setLoading(false)
   }
 
-  async function handleDownloadConsent(signerType) {
-    const consent = consents.find(c => c.signer_type === signerType)
+  async function handleDownloadConsent(signerType, consentType = 'pgta') {
+    const consent = consents.find(c => c.signer_type === signerType && (c.consent_type || 'pgta') === consentType)
     if (!consent || consent.status !== 'signed') return
 
     const signerName = signerType === 'patient'
@@ -3739,7 +4007,7 @@ function CaseDetailsPage({ isAdmin = false }) {
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
-    doc.text('PGT Informed Consent - Signed Copy', 58, 14)
+    doc.text(`${consentType === 'pgtsr' ? 'PGT-SR' : 'PGT-A'} Informed Consent - Signed Copy`, 58, 14)
 
     let y = 25
     // Consent info bar
@@ -3824,7 +4092,7 @@ function CaseDetailsPage({ isAdmin = false }) {
     doc.text('Verification Details:', margin + 5, y + 59)
     doc.setFont('helvetica', 'normal')
     doc.text(`Consent Sent To: ${signerEmail || 'N/A'}  |  IP Address: ${consent.ip_address || 'N/A'}`, margin + 5, y + 64)
-    doc.text(`Document ID: CON-${caseData.case_number}-${signerType.toUpperCase()}`, margin + 5, y + 68)
+    doc.text(`Document ID: CON-${caseData.case_number}-${signerType.toUpperCase()}-${consentType.toUpperCase()}`, margin + 5, y + 68)
 
     // Footer
     doc.setFillColor(...navyBlue)
@@ -3835,7 +4103,7 @@ function CaseDetailsPage({ isAdmin = false }) {
     doc.text('email: lab@allygenetics.com  |  web: www.allygenetics.com', pageWidth / 2, pageHeight - 8, { align: 'center' })
     doc.text('1001 Parchment Dr SE, Grand Rapids, MI 49546', pageWidth - margin, pageHeight - 8, { align: 'right' })
 
-    doc.save(`Consent_${caseData.patient_last_name}_${caseData.patient_first_name}_${signerType.charAt(0).toUpperCase() + signerType.slice(1)}.pdf`)
+    doc.save(`Consent_${consentType.toUpperCase()}_${caseData.patient_last_name}_${caseData.patient_first_name}_${signerType.charAt(0).toUpperCase() + signerType.slice(1)}.pdf`)
   }
 
   async function handleUploadReport(file) {
@@ -3870,15 +4138,18 @@ function CaseDetailsPage({ isAdmin = false }) {
       try {
         const { data: fullCase } = await supabase
           .from('cases')
-          .select(`*, consents(id, signer_type, status), clinic:clinics(name)`)
+          .select(`*, consents(id, signer_type, consent_type, status), clinic:clinics(name)`)
           .eq('id', id)
           .single()
 
         if (fullCase) {
-          const patientSigned = fullCase.consents?.find(c => c.signer_type === 'patient')?.status === 'signed'
-          const partnerSigned = !fullCase.requires_partner_consent || fullCase.consents?.find(c => c.signer_type === 'partner')?.status === 'signed'
+          const pgtaPatientSigned = fullCase.consents?.find(c => c.signer_type === 'patient' && (c.consent_type || 'pgta') === 'pgta')?.status === 'signed'
+          const pgtaPartnerSigned = !fullCase.requires_partner_consent || fullCase.consents?.find(c => c.signer_type === 'partner' && (c.consent_type || 'pgta') === 'pgta')?.status === 'signed'
+          const needsPGTSR = fullCase.tests_ordered?.includes('pgt_sr')
+          const pgtsrPatientSigned = !needsPGTSR || fullCase.consents?.find(c => c.signer_type === 'patient' && c.consent_type === 'pgtsr')?.status === 'signed'
+          const pgtsrPartnerSigned = !needsPGTSR || !fullCase.requires_partner_consent || fullCase.consents?.find(c => c.signer_type === 'partner' && c.consent_type === 'pgtsr')?.status === 'signed'
 
-          if (patientSigned && partnerSigned) {
+          if (pgtaPatientSigned && pgtaPartnerSigned && pgtsrPatientSigned && pgtsrPartnerSigned) {
             const { data: clinicUsers } = await supabase
               .from('users')
               .select('email')
@@ -3941,6 +4212,7 @@ function CaseDetailsPage({ isAdmin = false }) {
           to: consent.signer_email,
           firstName: consent.signer_name?.split(' ')[0] || '',
           signerType: consent.signer_type,
+          consentType: consent.consent_type || 'pgta',
           consentToken: consent.consent_token,
           caseNumber: caseData.case_number,
           clinicName: caseData.clinic?.name || ''
@@ -3951,6 +4223,86 @@ function CaseDetailsPage({ isAdmin = false }) {
       console.error('Failed to resend consent:', err)
       alert('Failed to resend consent email. Please try again.')
     }
+  }
+
+  // Admin-triggered send of the PGT-SR consent to the patient (and partner, if
+  // one is required for this case). Unlike PGT-A, PGT-SR consent is NOT sent
+  // automatically at requisition time — it's only sent when an admin clicks
+  // the button below, since PGT-SR is ordered less often and needs a
+  // deliberate decision to send it.
+  const [sendingPGTSR, setSendingPGTSR] = useState(false)
+
+  async function handleSendPGTSRConsent() {
+    if (!caseData?.patient_email) {
+      alert('This case has no patient email on file — cannot send a consent link.')
+      return
+    }
+    setSendingPGTSR(true)
+    try {
+      const patientToken = crypto.randomUUID()
+      const { error: patientInsertError } = await supabase.from('consents').insert({
+        case_id: caseData.id,
+        signer_type: 'patient',
+        consent_type: 'pgtsr',
+        signer_name: `${caseData.patient_first_name} ${caseData.patient_last_name}`,
+        signer_email: caseData.patient_email,
+        consent_for: 'patient',
+        recipient_name: `${caseData.patient_first_name} ${caseData.patient_last_name}`,
+        recipient_email: caseData.patient_email,
+        recipient_phone: caseData.patient_phone,
+        status: 'pending',
+        consent_token: patientToken
+      })
+      if (patientInsertError) throw patientInsertError
+
+      await supabase.functions.invoke('send-consent-email', {
+        body: {
+          to: caseData.patient_email,
+          firstName: caseData.patient_first_name,
+          signerType: 'patient',
+          consentType: 'pgtsr',
+          consentToken: patientToken,
+          caseNumber: caseData.case_number,
+          clinicName: caseData.clinic?.name || ''
+        }
+      })
+
+      if (caseData.requires_partner_consent && caseData.partner_email) {
+        const partnerToken = crypto.randomUUID()
+        const { error: partnerInsertError } = await supabase.from('consents').insert({
+          case_id: caseData.id,
+          signer_type: 'partner',
+          consent_type: 'pgtsr',
+          signer_name: `${caseData.partner_first_name} ${caseData.partner_last_name}`,
+          signer_email: caseData.partner_email,
+          consent_for: 'partner',
+          recipient_name: `${caseData.partner_first_name} ${caseData.partner_last_name}`,
+          recipient_email: caseData.partner_email,
+          status: 'pending',
+          consent_token: partnerToken
+        })
+        if (partnerInsertError) throw partnerInsertError
+
+        await supabase.functions.invoke('send-consent-email', {
+          body: {
+            to: caseData.partner_email,
+            firstName: caseData.partner_first_name,
+            signerType: 'partner',
+            consentType: 'pgtsr',
+            consentToken: partnerToken,
+            caseNumber: caseData.case_number,
+            clinicName: caseData.clinic?.name || ''
+          }
+        })
+      }
+
+      alert('PGT-SR consent sent to patient' + (caseData.requires_partner_consent && caseData.partner_email ? ' and partner.' : '.'))
+      await fetchCaseData()
+    } catch (err) {
+      console.error('Failed to send PGT-SR consent:', err)
+      alert('Failed to send PGT-SR consent. Please try again. (' + (err.message || 'unknown error') + ')')
+    }
+    setSendingPGTSR(false)
   }
 
   if (loading) {
@@ -3967,8 +4319,11 @@ function CaseDetailsPage({ isAdmin = false }) {
     )
   }
 
-  const patientConsent = consents.find(c => c.signer_type === 'patient')
-  const partnerConsent = consents.find(c => c.signer_type === 'partner')
+  const patientConsent = consents.find(c => c.signer_type === 'patient' && (c.consent_type || 'pgta') === 'pgta')
+  const partnerConsent = consents.find(c => c.signer_type === 'partner' && (c.consent_type || 'pgta') === 'pgta')
+  const patientConsentPGTSR = consents.find(c => c.signer_type === 'patient' && c.consent_type === 'pgtsr')
+  const partnerConsentPGTSR = consents.find(c => c.signer_type === 'partner' && c.consent_type === 'pgtsr')
+  const needsPGTSRConsent = caseData.tests_ordered?.includes('pgt_sr')
 
   return (
     <div className="space-y-6">
@@ -4269,6 +4624,129 @@ function CaseDetailsPage({ isAdmin = false }) {
             </div>
           </div>
 
+          {/* PGT-SR Consent — only relevant when this case ordered PGT-SR. Unlike
+              PGT-A, this is not sent automatically; an admin sends it manually. */}
+          {needsPGTSRConsent && (
+            <div className="bg-white rounded-lg border">
+              <div className="px-6 py-4 border-b flex items-center justify-between">
+                <h2 className="font-semibold">PGT-SR Consent</h2>
+                {isAdmin && (
+                  <button
+                    onClick={handleSendPGTSRConsent}
+                    disabled={sendingPGTSR}
+                    className="inline-flex items-center gap-2 bg-ally-teal text-white text-sm px-3 py-1.5 rounded-md hover:bg-ally-teal-dark disabled:opacity-50"
+                  >
+                    {sendingPGTSR && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {patientConsentPGTSR
+                      ? 'Resend PGT-SR to Patient and Partner'
+                      : 'Send PGT-SR to Patient and Partner'}
+                  </button>
+                )}
+              </div>
+              <div className="p-6 space-y-4">
+                {!patientConsentPGTSR ? (
+                  <p className="text-sm text-gray-500">
+                    This case ordered PGT-SR. No PGT-SR consent has been sent yet — click the button above to email it to the patient{caseData.requires_partner_consent ? ' and partner' : ''}.
+                  </p>
+                ) : (
+                  <>
+                    {/* Patient PGT-SR Consent */}
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {patientConsentPGTSR?.signed_at ? (
+                          <CheckCircle className="w-5 h-5 text-green-500" />
+                        ) : (
+                          <Clock className="w-5 h-5 text-yellow-500" />
+                        )}
+                        <div>
+                          <p className="font-medium">Patient PGT-SR Consent</p>
+                          <p className="text-sm text-gray-500">{caseData.patient_email}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        {patientConsentPGTSR?.signed_at ? (
+                          <div className="flex items-center gap-2 justify-end">
+                            <p className="text-sm text-green-600">
+                              Signed {new Date(patientConsentPGTSR.signed_at).toLocaleDateString()}
+                            </p>
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDownloadConsent('patient', 'pgtsr')}
+                                className="text-xs text-ally-teal hover:underline flex items-center gap-1"
+                              >
+                                <Download className="w-3 h-3" />
+                                Download
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-yellow-600">Pending</span>
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleResendConsent(patientConsentPGTSR)}
+                                className="text-xs text-ally-teal hover:underline"
+                              >
+                                Resend
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Partner PGT-SR Consent (if applicable) */}
+                    {caseData.requires_partner_consent && caseData.partner_email && (
+                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          {partnerConsentPGTSR?.signed_at ? (
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                          ) : (
+                            <Clock className="w-5 h-5 text-yellow-500" />
+                          )}
+                          <div>
+                            <p className="font-medium">Partner PGT-SR Consent</p>
+                            <p className="text-sm text-gray-500">{caseData.partner_email}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          {partnerConsentPGTSR?.signed_at ? (
+                            <div className="flex items-center gap-2 justify-end">
+                              <p className="text-sm text-green-600">
+                                Signed {new Date(partnerConsentPGTSR.signed_at).toLocaleDateString()}
+                              </p>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleDownloadConsent('partner', 'pgtsr')}
+                                  className="text-xs text-ally-teal hover:underline flex items-center gap-1"
+                                >
+                                  <Download className="w-3 h-3" />
+                                  Download
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-yellow-600">Pending</span>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleResendConsent(partnerConsentPGTSR)}
+                                  className="text-xs text-ally-teal hover:underline"
+                                >
+                                  Resend
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Report Section */}
           <div className="bg-white rounded-lg border">
             <div className="px-6 py-4 border-b">
@@ -4276,8 +4754,12 @@ function CaseDetailsPage({ isAdmin = false }) {
             </div>
             <div className="p-6">
               {(() => {
-                const consentFullySigned = patientConsent?.status === 'signed' &&
+                const pgtaSigned = patientConsent?.status === 'signed' &&
                   (!caseData.requires_partner_consent || partnerConsent?.status === 'signed')
+                const pgtsrSigned = !needsPGTSRConsent ||
+                  (patientConsentPGTSR?.status === 'signed' &&
+                    (!caseData.requires_partner_consent || partnerConsentPGTSR?.status === 'signed'))
+                const consentFullySigned = pgtaSigned && pgtsrSigned
                 const reportReleasable = caseData.report_file_url && (isAdmin || consentFullySigned)
                 const reportLocked = caseData.report_file_url && !isAdmin && !consentFullySigned
 
@@ -7108,6 +7590,131 @@ function getConsentContent() {
   }
 }
 
+// Content for the PGT-SR (Structural Rearrangement) consent, sourced from
+// "PGTSR consent 1.10.25.docx" (all Gattaca). Mirrors the shape of
+// getConsentContent() above so the same signing page / PDF generator patterns
+// can be reused. Note the source document also requires the patient to have
+// signed the PGT-A consent separately — that requirement is surfaced in the
+// introduction section below.
+function getPGTSRConsentContent() {
+  return {
+    version: '1.0',
+    updatedAt: '2026-01-10',
+
+    sections: {
+      introduction: 'The purpose of the following informed consent is to discuss the benefits, limitations and potential risks of preimplantation genetic testing for structural rearrangements. Preimplantation genetic testing (PGT) is a method of testing embryos created through in vitro fertilization (IVF) for certain genetic problems prior to implantation. PGT-SR refers specifically to testing embryos for structural rearrangements associated with parental chromosome rearrangements. In addition to this consent, you will also be required to sign the consent for PGT-A titled "Informed Consent for Preimplantation Genetic Testing PGT-A: Aneuploidy Screening."',
+
+      structuralRearrangementsIntro: 'Structural rearrangements of chromosomes refer to alterations in the physical structure of chromosomes that can affect gene function and expression. These rearrangements can occur through various mechanisms such as breaks, deletions, duplications, inversions, and translocations of chromosomal segments.',
+
+      structuralRearrangementsList: [
+        'Deletions: A segment of the chromosome is lost or deleted, which can result in the loss of genetic material. Depending on the size and location of the deletion, this can lead to developmental abnormalities or genetic disorders.',
+        'Duplications: A segment of the chromosome is duplicated, resulting in an extra copy of that segment. Duplications can cause gene dosage effects, leading to an increase in the expression of certain genes.',
+        'Inversions: A segment of the chromosome breaks off, rotates 180 degrees, and reattaches. Inversions do not result in the loss or gain of genetic material but can disrupt gene function if the break occurs within a gene.',
+        'Translocations: Segments from one chromosome break off and attach to another chromosome. Balanced translocations lose no genetic material but alter the position of genes; unbalanced translocations gain or lose genetic material, leading to potential developmental issues.',
+        'Isochromosomes: Formed when one arm of a chromosome is duplicated and the other arm is lost, resulting in two identical arms. Isochromosomes can lead to genetic imbalances and associated disorders.'
+      ],
+
+      clinicalSignificance: 'Structural rearrangements can have various clinical implications, including genetic disorders (many structural rearrangements are associated with genetic conditions and syndromes, such as Down syndrome (trisomy 21), Williams syndrome, and others) and infertility and reproductive issues (balanced translocations can lead to infertility or recurrent pregnancy losses due to unbalanced gametes forming during meiosis). Structural rearrangements of chromosomes can be identified using various cytogenetic techniques, including chromosomal microarray analysis, which provides higher resolution data on chromosomal imbalances and rearrangements.',
+
+      testDescription: 'Next Generation Sequencing (NGS) is a technique that evaluates the amount of chromosomal information that is present across the entire genome and identifies regions of missing or extra information. NGS can detect whole chromosome aneuploidies (entire extra or missing chromosomes) as well as some types of segmental aneuploidies (missing or extra segments of chromosomes). Ally Genetics uses ThermoFisher\'s LifeTechnology Next Generation System, referred to as Reproseq, which has an ability to detect missing and extra segments of chromosomes that are larger than 5 Mb. This technology cannot identify polyploidy (an entire extra set of 23 chromosomes), balanced chromosomal rearrangements (the correct number of chromosomes just arranged in an abnormal way), or alterations that are smaller than 5 Mb such as very small insertions, deletions or point mutations that cause single gene disorders. If you are concerned about the risk of a single gene disorder in your family, please discuss this with your fertility specialist or a genetic counselor.',
+
+      embryoBiopsyRisks: 'PGT has been used successfully in tens of thousands of pregnancies worldwide, and there is no documented increase in risk for congenital malformations or developmental disorders. Data has shown that embryo biopsy has no adverse effect on the impact of growth or medical outcomes, however this technique is relatively new and the potential for unknown consequences to a live born baby cannot completely be excluded. We have received a requisition from your physician to perform PGT testing because your doctor believes that the benefits of PGT outweigh the risks. The embryo biopsy may pose additional risks to the in vitro fertilization (IVF) process.',
+
+      embryoBiopsyRisksList: [
+        'An embryo may be damaged during the biopsy process.',
+        'One or more cells cannot be obtained from the embryo for testing.',
+        'The biopsied cell does not contain a nucleus (the part of the cell that contains the chromosomes).'
+      ],
+
+      fertilityCenterRisks: [
+        'No embryos (normal or abnormal) are available for transfer following biopsy.',
+        'The incorrect embryo is transferred to the uterus.',
+        'Despite correctly identifying and implanting a chromosomally normal embryo, an implantation failure or miscarriage occurs.'
+      ],
+
+      technicalRisksIntro: 'While Ally Genetics employs individual bar-coding of samples and numerous sample tracking and control procedures to minimize the risk of an error, it is possible that:',
+
+      technicalRisksList: [
+        'PGTSR is designed to address a specific chromosomal arrangement and therefore additional segmental aneuploidies may not be identified.',
+        'Monogenic disorders, microdeletions and duplication and other genetic disease will NOT be detected by this test.',
+        'A technical malfunction could occur which could prevent us from being able to provide a result.'
+      ],
+
+      followUpRecommendation: 'Because of the chance for any of the above to occur, PGTSR should not be viewed as a replacement for prenatal diagnostic testing by chorionic villus sampling (CVS) or amniocentesis. If there is a concern regarding structural rearrangements in an ongoing pregnancy, a discussion regarding the risks and benefits of screening (such as non-invasive prenatal testing by cell-free fetal DNA) and diagnostic testing, such as karyotyping or CMA on CVS or an amniocentesis should be discussed with your prenatal care provider. If you would like to understand more about the limitations of PGTSR, we can recommend a genetic counselor for you. Once the PGTSR results are complete, genetic counseling is also recommended for results discussion. Depending upon the results of the PGTSR, further testing and/or diagnostic evaluations may be indicated.',
+
+      sampleRetention: 'All samples held at Ally Genetics will be discarded after 60 days, unless notified in writing by the patient.',
+
+      testResults: {
+        unbalanced: 'Unbalanced: Refers to an extra or missing chromosome material related to the parental chromosome rearrangement was detected.',
+        balanced: 'Balanced: Refers to the rearrangement found in the parent is also in the sample provided to Ally Genetics.',
+        noResults: 'No results – this may occur due to a cell with no nucleus, failure of DNA within the sample to amplify, or poor-quality amplification of the DNA. There is a chance of uncontrollable problems with transportation, such as weather and air travel issues, or other circumstances beyond the control of Ally Genetics that would not allow a result to be obtained. There is a chance that the sample received by Ally Genetics laboratory is unacceptable for analysis and results cannot be obtained from the sample provided.',
+        indeterminate: 'Indeterminate Result: In some cases, due to degradation of the DNA or other unusual effects on the sample, the data obtained may not conform to the statistical model used to determine the number of chromosomes for each embryo sample and an indeterminate result will be given. A rebiopsy of the embryo may provide a conclusive result.',
+        noNormalEmbryos: 'No Normal Embryos: There is a chance that all embryos tested will have an abnormal result and therefore no embryos will be suitable for transfer. There is also a chance that an embryo determined to be chromosomally normal may fail to develop properly and will not be selected for transfer.'
+      },
+
+      misdiagnosis: 'No test is 100% accurate and PGTSR is no different. There remains an empirically determined 1-2% chance of a misdiagnosis, either by false negative or false positive result. There is a chance of a sample being misdiagnosed. This is not the chance of the sample not relating to the embryo.',
+
+      costs: 'Fees for PGTSR testing are in addition to any other costs associated with your IVF cycle. Testing cannot be initiated until Ally Genetics has received your payment. If you pay for PGTSR, but it is not performed (cancellation of testing prior to receipt of samples by Ally Genetics or lack of suitable embryos for biopsy) your payment will be refunded.',
+
+      confidentiality: 'Ally Genetics keeps test results confidential and in compliance with all Health Insurance Portability and Accountability Act (HIPAA) regulations. Ally Genetics will release your test results only to the referring physician, genetic counselor, reference laboratory, patient, or patient\'s personal representative to protect patient confidentiality. All other release of results must be directed by you (or a person legally authorized to act on your behalf) in writing, or as otherwise required by federal and Nevada laws. The Department of Health of your state and the Food and Drug Administration (FDA) may also inspect the records. Identity will be concealed, but PGTA results may be included in medical publications without an additional consent. No testing apart from that which is ordered by your physician will be performed on your sample. Additional testing requires the patient\'s additional, expressed consent.',
+
+      sampleDonationResearch: 'DNA extracted from biopsied cells will be used for PGTSR. Surplus DNA can be discarded 60 days after results are reported or the test is discontinued for any reason. These samples may be utilized for research purposes. The goal of research is to increase the knowledge related to infertility and help couples become pregnant. Research may include testing to further examine and develop new technologies and/or other research areas such as In Vitro Fertilization, embryo genetic testing, and carrier screening. Donated material will never be used to make new embryos or future babies. Donated samples will be de-identified, and results will not contain any of your protected health information. Any researcher outside of Ally Genetics will not know your identity, and all identifiers associated with the donated materials will be removed prior to release of any research to any outside collaborator of Ally Genetics. Data generated from the research may be published without any identifying information and may be shared with multiple researchers within and outside of Ally Genetics including commercial entities. This donation involves no medical risk to you. The research is not intended to provide direct medical benefit to you or anyone else. Any donated material to research, or results of the research including new products, tests, or discoveries, may be patentable or have commercial value. If you consent to donate material to research, you will have no legal or financial interest in any commercial development resulting from the research. Your decision to donate to research studies is voluntary. You have the right to withdraw your consent at any time prior to the release of your cellular reproductive material to researchers. If you decide not to donate your sample to be used in research, samples will be discarded at a time after 60 days post PGTA testing results release. However, once materials are provided for researchers, you will not be able to withdraw. Neither consenting nor declining to donate materials for research will affect the quality of care provided to you by Ally Genetics. Clinical decisions about your IVF treatment will not be influenced by your participation.',
+
+      // These map 1:1 to the "please initial each section" list in the source
+      // document's "Authorization for PGTSR Testing" block.
+      attestations: [
+        'I/we have read and understand this Patient Consent Form. We have been given the opportunity to have our questions about any part of this consent form answered, and to consult with any additional medical/legal/personal advisors as I/we see fit.',
+        'This Patient Consent Form is the only agreement between me/us and Ally Genetics, and I/we explicitly acknowledge and consent to PGTSR testing by Ally Genetics.',
+        'I/we acknowledge that Ally Genetics is not to be held liable in any manner whatsoever for any birth defects, chromosomal abnormalities, false positive findings, false negative findings, and/or shipping or label errors that may occur. Additionally, this Agreement shall be governed by and construed in accordance with the laws of the United States and of the State of Nevada. Any dispute arising out of or relating to this Agreement, or the breach, termination or validity thereof, will be submitted by the parties to arbitration, to take place in Ft. Lauderdale, Florida by the American Arbitration Association, under the commercial rules then in effect for that Association except as provided in this Section.',
+        'I/we acknowledge that PGTSR does not detect all chromosomal abnormalities.',
+        'I/we acknowledge that PGTSR does not replace pre and postnatal testing and that Ally Genetics strongly recommends follow-up testing.',
+        'I/we acknowledge that PGTSR is NOT 100% and can lead to the discarding of potentially viable embryos.',
+        'I/We understand that Ally Genetics is not responsible for any problems that result from the transport of cells to the outside laboratory or any problems that occur with the testing of the cells.',
+        'I/We are aware that Ally Genetics may use your personal data for our internal business purposes (our legitimate interests) such as record keeping, statistical analysis, internal reporting and scientific research purposes, as well as for building new products and services, including services related to personal health and wellness.',
+        'I/We are aware that PGTSR CANNOT distinguish between a balanced rearrangement of chromosomes (the same genetic makeup of the patient/partner) and the proper rearrangement of chromosomes. Therefore, it is possible that the embryo can have the same structural rearrangement as the patient/partner if conceived.',
+        'I/We are aware that PGTSR can ONLY detect those embryos with an unbalanced rearrangement.'
+      ]
+    },
+
+    warningBoxes: {
+      pgtsrAccuracy: {
+        title: 'Please read and acknowledge',
+        text: 'No test is 100% accurate and PGTSR is no different. There remains an empirically determined 1-2% chance of a misdiagnosis, either by false negative or false positive result, and PGTSR can lead to the discarding of potentially viable embryos.',
+        checkbox: 'I acknowledge that PGTSR is not 100% accurate, does not detect all chromosomal abnormalities, and can lead to the discarding of potentially viable embryos.'
+      },
+      pgtsrLimitedScope: {
+        title: 'Please read and acknowledge',
+        text: 'PGTSR is designed to address a specific chromosomal arrangement. It cannot distinguish between a balanced rearrangement (the same genetic makeup as the patient/partner) and a normal chromosome arrangement, and it can only detect embryos with an unbalanced rearrangement. Monogenic disorders, microdeletions, duplications, and other genetic disease will NOT be detected by this test.',
+        checkbox: 'I acknowledge that PGTSR only detects unbalanced rearrangements, cannot distinguish a balanced rearrangement from a normal one, and does not detect monogenic disorders, microdeletions, or duplications.'
+      },
+      liabilityWaiver: {
+        title: 'Please read and acknowledge',
+        text: 'I/we acknowledge that Ally Genetics is not to be held liable in any manner whatsoever for any birth defects, chromosomal abnormalities, false positive findings, false negative findings, and/or shipping or label errors that may occur.',
+        checkbox: 'I acknowledge and agree that I will not hold Ally Genetics legally responsible for any misdiagnosis or testing errors arising from the inherent limitations of PGTSR testing.'
+      }
+    },
+
+    requiredAgreements: [
+      'I have read and understood this consent form in its entirety, including that I must also sign the separate PGT-A consent',
+      'I consent to the use of electronic signatures and electronic records for this consent form',
+      'I agree to all terms stated in this consent form and voluntarily consent to Preimplantation Genetic Testing for Structural Rearrangements (PGTSR)',
+      'I understand that Ally Genetics does not accept insurance and that payment in full must be received prior to the release of results'
+    ],
+
+    // The source document also lets the patient decline sample donation to
+    // research via a separate initialed line rather than folding it into the
+    // required agreements — surfaced as its own checkbox on the signing page.
+    researchDeclineOption: 'I decline to donate my samples to research, at which time my samples will be discarded after 60 days post-test release.',
+
+    signatureAttestations: [
+      'I have read, or have had read to me and understand this patient consent form.',
+      'The decision to consent to, or refuse, the above testing is entirely mine.',
+      'I have had the opportunity to discuss the pros and cons of proceeding, including the purposes, limitations, and possible risks, with my healthcare provider, a genetic counselor, and/or someone my healthcare provider has designated.',
+      'I have all the information I desire and require to make an informed decision and all my questions have been satisfactorily answered.'
+    ]
+  }
+}
+
 // ============================================================================
 // CONSENT SIGNING PAGE (Public - No Auth Required)
 // ============================================================================
@@ -7131,13 +7738,31 @@ function ConsentSigningPage() {
     keyPoint2: false, // No sex selection/family balancing
     keyPoint3: false  // Liability waiver
   })
+  // Separate checkbox state for the PGT-SR consent form, which has a different
+  // set of required acknowledgments than PGT-A (see getPGTSRConsentContent()).
+  const [pgtsrCheckboxes, setPgtsrCheckboxes] = useState({
+    readUnderstood: false,
+    electronicConsent: false,
+    agreeTerms: false,
+    insurancePayment: false,
+    warningAccuracy: false,      // PGTSR is not 100% accurate
+    warningLimitedScope: false,  // Only detects unbalanced rearrangements
+    warningLiability: false,     // Liability waiver
+    declineResearch: false       // Optional — declining sample donation to research
+  })
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+
+  // Which consent this link is for. Defaults to 'pgta' until the backend's
+  // get_consent_by_token RPC is updated to return consent_type on the row
+  // (older rows / an un-updated RPC will simply behave as PGT-A, unchanged
+  // from before this feature existed).
+  const consentType = consent?.consent_type || 'pgta'
 
   // Single source of truth for consent language — used both for what the signer
   // reads/checks on this page AND what gets embedded in the signed PDF/DB record,
   // so the two can never drift out of sync again.
-  const consentContent = getConsentContent()
+  const consentContent = consentType === 'pgtsr' ? getPGTSRConsentContent() : getConsentContent()
 
   useEffect(() => {
     if (token) {
@@ -7183,9 +7808,14 @@ function ConsentSigningPage() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    
-    // Validation - ALL 7 checkboxes must be checked
-    if (!checkboxes.readUnderstood || !checkboxes.electronicConsent || !checkboxes.agreeTerms || !checkboxes.insurancePayment || !checkboxes.keyPointPregnancy || !checkboxes.keyPoint1 || !checkboxes.keyPoint2 || !checkboxes.keyPoint3) {
+
+    // Validation - all required boxes for the relevant consent type must be checked
+    if (consentType === 'pgtsr') {
+      if (!pgtsrCheckboxes.readUnderstood || !pgtsrCheckboxes.electronicConsent || !pgtsrCheckboxes.agreeTerms || !pgtsrCheckboxes.insurancePayment || !pgtsrCheckboxes.warningAccuracy || !pgtsrCheckboxes.warningLimitedScope || !pgtsrCheckboxes.warningLiability) {
+        setError('Please check all required boxes, including all key acknowledgment points')
+        return
+      }
+    } else if (!checkboxes.readUnderstood || !checkboxes.electronicConsent || !checkboxes.agreeTerms || !checkboxes.insurancePayment || !checkboxes.keyPointPregnancy || !checkboxes.keyPoint1 || !checkboxes.keyPoint2 || !checkboxes.keyPoint3) {
       setError('Please check all required boxes, including all key acknowledgment points')
       return
     }
@@ -7229,7 +7859,21 @@ function ConsentSigningPage() {
         p_signature_type: signatureType,
         p_signature_data: signatureData,
         p_ip_address: ipAddress,
-        p_metadata: {
+        p_metadata: consentType === 'pgtsr' ? {
+          consentType: 'pgtsr',
+          checkboxes: pgtsrCheckboxes,
+          keyAcknowledgments: {
+            pgtsrAccuracy: pgtsrCheckboxes.warningAccuracy,
+            pgtsrLimitedScope: pgtsrCheckboxes.warningLimitedScope,
+            liabilityWaiver: pgtsrCheckboxes.warningLiability,
+            insurancePayment: pgtsrCheckboxes.insurancePayment,
+            declinedResearch: pgtsrCheckboxes.declineResearch
+          },
+          user_agent: navigator.userAgent,
+          signed_at: new Date().toISOString(),
+          ip_address: ipAddress
+        } : {
+          consentType: 'pgta',
           checkboxes: checkboxes,
           keyAcknowledgments: {
             pgtNoPregnancyIncrease: checkboxes.keyPointPregnancy,
@@ -7369,7 +8013,9 @@ function ConsentSigningPage() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="text-center border-b-3 border-ally-teal pb-4 mb-4">
             <h1 className="text-3xl font-bold text-ally-teal">Ally Genetics</h1>
-            <p className="text-lg font-semibold text-gray-900 mt-2">Informed Consent for PGT Testing</p>
+            <p className="text-lg font-semibold text-gray-900 mt-2">
+              Informed Consent for {consentType === 'pgtsr' ? 'PGT-SR (Structural Rearrangement) Testing' : 'PGT Testing'}
+            </p>
             <p className="text-sm text-ally-teal mt-1">lab@allygenetics.com | (616) 465-2400</p>
           </div>
           <div className="grid grid-cols-2 gap-4 text-sm">
@@ -7390,248 +8036,476 @@ function ConsentSigningPage() {
 
         {/* Consent Form */}
         <form onSubmit={handleSubmit}>
-          {/* Consent Text — rendered directly from getConsentContent(), the same object
-              that generates the PDF, so the signer always reads the complete, real
-              consent language rather than a shortened summary. */}
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Consent for Preimplantation Genetic Testing for Aneuploidy (PGT-A)</h2>
-            <div className="prose prose-sm max-w-none text-gray-700 max-h-96 overflow-y-auto border border-gray-200 rounded p-4">
+          {consentType === 'pgtsr' ? (
+            <>
+              {/* Consent Text — rendered directly from getPGTSRConsentContent() */}
+              <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Consent for Preimplantation Genetic Testing for Structural Rearrangements (PGT-SR)</h2>
+                <div className="prose prose-sm max-w-none text-gray-700 max-h-96 overflow-y-auto border border-gray-200 rounded p-4">
 
-              <p className="mb-4"><strong>Introduction</strong></p>
-              <p className="mb-4">{consentContent.sections.introduction}</p>
+                  <p className="mb-4"><strong>Introduction</strong></p>
+                  <p className="mb-4">{consentContent.sections.introduction}</p>
 
-              <p className="mb-4"><strong>Genetic Counseling</strong></p>
-              <p className="mb-4">{consentContent.sections.geneticCounseling}</p>
+                  <p className="mb-4"><strong>Chromosomal Rearrangements (Translocations)</strong></p>
+                  <p className="mb-4">{consentContent.sections.structuralRearrangementsIntro}</p>
+                  <ul className="mb-4 list-disc pl-6">
+                    {consentContent.sections.structuralRearrangementsList.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
 
-              <p className="mb-4"><strong>Chromosomal Abnormalities</strong></p>
-              <p className="mb-4">{consentContent.sections.chromosomalAbnormalities}</p>
+                  <p className="mb-4"><strong>Clinical Significance &amp; Diagnosis</strong></p>
+                  <p className="mb-4">{consentContent.sections.clinicalSignificance}</p>
 
-              <p className="mb-4"><strong>Benefits of PGT-A</strong></p>
-              <p className="mb-4">{consentContent.sections.benefits}</p>
+                  <p className="mb-4"><strong>Description of Test</strong></p>
+                  <p className="mb-4">{consentContent.sections.testDescription}</p>
 
-              <p className="mb-4"><strong>Embryo Biopsy Related Risks</strong></p>
-              <p className="mb-4">{consentContent.sections.embryoBiopsyRisks}</p>
-              <ul className="mb-4 list-disc pl-6">
-                {consentContent.sections.embryoBiopsyRisksList.map((risk, i) => (
-                  <li key={i}>{risk}</li>
-                ))}
-              </ul>
+                  <p className="mb-4"><strong>Embryo Biopsy-Related Risks</strong></p>
+                  <p className="mb-4">{consentContent.sections.embryoBiopsyRisks}</p>
+                  <ul className="mb-4 list-disc pl-6">
+                    {consentContent.sections.embryoBiopsyRisksList.map((risk, i) => (
+                      <li key={i}>{risk}</li>
+                    ))}
+                  </ul>
 
-              <p className="mb-4"><strong>Fertility Center Related Risks</strong></p>
-              <p className="mb-4">There are also risks associated with the clinical process of IVF including:</p>
-              <ul className="mb-4 list-disc pl-6">
-                {consentContent.sections.fertilityCenterRisks.map((risk, i) => (
-                  <li key={i}>{risk}</li>
-                ))}
-              </ul>
+                  <p className="mb-4"><strong>Fertility Center-Related Risks</strong></p>
+                  <ul className="mb-4 list-disc pl-6">
+                    {consentContent.sections.fertilityCenterRisks.map((risk, i) => (
+                      <li key={i}>{risk}</li>
+                    ))}
+                  </ul>
 
-              <p className="mb-4"><strong>Technical and Analytic Risks</strong></p>
-              <p className="mb-4">{consentContent.sections.technicalRisks}</p>
+                  <p className="mb-4"><strong>Technical and Analytic Risks</strong></p>
+                  <p className="mb-4">{consentContent.sections.technicalRisksIntro}</p>
+                  <ul className="mb-4 list-disc pl-6">
+                    {consentContent.sections.technicalRisksList.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
 
-              <p className="mb-4"><strong>No Diagnosis</strong></p>
-              <p className="mb-4">{consentContent.sections.noDiagnosis}</p>
+                  <p className="mb-4"><strong>Follow-Up Recommendation for Prenatal Diagnosis</strong></p>
+                  <p className="mb-4">{consentContent.sections.followUpRecommendation}</p>
 
-              <p className="mb-4"><strong>Misdiagnosis</strong></p>
-              <p className="mb-4">{consentContent.sections.misdiagnosis}</p>
+                  <p className="mb-4"><strong>Sample Retention</strong></p>
+                  <p className="mb-4">{consentContent.sections.sampleRetention}</p>
 
-              <p className="mb-4"><strong>Technical Limits of Detection</strong></p>
-              <p className="mb-4">{consentContent.sections.technicalLimits} Ally Genetics PGT-A does not detect the following abnormalities which include but are not limited to:</p>
-              <ul className="mb-4 list-disc pl-6">
-                {consentContent.sections.technicalLimitsList.map((item, i) => (
-                  <li key={i}>{item}</li>
-                ))}
-              </ul>
+                  <p className="mb-4"><strong>Test Results and Interpretation</strong></p>
+                  <p className="mb-4">{consentContent.sections.testResults.unbalanced}</p>
+                  <p className="mb-4">{consentContent.sections.testResults.balanced}</p>
+                  <p className="mb-4">{consentContent.sections.testResults.noResults}</p>
+                  <ul className="mb-4 list-disc pl-6">
+                    <li>{consentContent.sections.testResults.indeterminate}</li>
+                    <li>{consentContent.sections.testResults.noNormalEmbryos}</li>
+                  </ul>
 
-              <p className="mb-4"><strong>Follow-Up Recommendation for Prenatal Diagnosis</strong></p>
-              <p className="mb-4">{consentContent.sections.followUpRecommendation}</p>
+                  <p className="mb-4"><strong>Misdiagnosis and Mosaicism</strong></p>
+                  <p className="mb-4">{consentContent.sections.misdiagnosis}</p>
 
-              <p className="mb-4"><strong>Test Results and Interpretation</strong></p>
-              <p className="mb-4">{consentContent.sections.testResults.normal}</p>
-              <p className="mb-4">{consentContent.sections.testResults.abnormal}</p>
-              <ul className="mb-4 list-disc pl-6">
-                <li>{consentContent.sections.testResults.trisomy}</li>
-                <li>{consentContent.sections.testResults.monosomy}</li>
-                <li>{consentContent.sections.testResults.complexAbnormal}</li>
-              </ul>
-              <p className="mb-4">{consentContent.sections.testResults.noDiagnosis}</p>
-              <ul className="mb-4 list-disc pl-6">
-                <li>{consentContent.sections.testResults.insufficientDNA}</li>
-                <li>{consentContent.sections.testResults.inconclusive}</li>
-              </ul>
+                  <p className="mb-4"><strong>Costs</strong></p>
+                  <p className="mb-4">{consentContent.sections.costs}</p>
 
-              <p className="mb-4"><strong>Mosaic Results</strong></p>
-              <p className="mb-4">{consentContent.sections.mosaicResults}</p>
+                  <p className="mb-4"><strong>Confidentiality and HIPAA</strong></p>
+                  <p className="mb-4">{consentContent.sections.confidentiality}</p>
 
-              <p className="mb-4"><strong>Alternatives to PGT-A</strong></p>
-              <p className="mb-4">{consentContent.sections.alternatives}</p>
+                  <p className="mb-4"><strong>Sample Donation to Research or Disposal of Samples</strong></p>
+                  <p className="mb-4">{consentContent.sections.sampleDonationResearch}</p>
 
-              <p className="mb-4"><strong>Costs</strong></p>
-              <p className="mb-4">{consentContent.sections.costs}</p>
-
-              <p className="mb-4"><strong>Confidentiality and HIPAA</strong></p>
-              <p className="mb-4">{consentContent.sections.confidentiality}</p>
-
-              <p className="mb-4"><strong>Retention of Samples</strong></p>
-              <p className="mb-4">{consentContent.sections.retentionOfSamples}</p>
-
-              <p className="mb-4"><strong>By signing below, I attest to the following:</strong></p>
-              <ul className="mb-4 list-disc pl-6">
-                {consentContent.sections.attestations.map((attestation, i) => (
-                  <li key={i}>{attestation}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          {/* KEY ACKNOWLEDGMENT - PGT WILL NOT INCREASE PREGNANCY CHANCES */}
-          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
-            <div className="flex items-start gap-3 mb-4">
-              <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.pgtNoPregnancyIncrease.title}</h3>
-                <p className="text-gray-800 font-semibold">
-                  {consentContent.warningBoxes.pgtNoPregnancyIncrease.text}
-                </p>
+                  <p className="mb-4"><strong>Authorization for PGTSR Testing — By signing below, I/we attest to the following:</strong></p>
+                  <ul className="mb-4 list-disc pl-6">
+                    {consentContent.sections.attestations.map((attestation, i) => (
+                      <li key={i}>{attestation}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
-            </div>
-            <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
-              <input
-                type="checkbox"
-                checked={checkboxes.keyPointPregnancy}
-                onChange={(e) => setCheckboxes(prev => ({ ...prev, keyPointPregnancy: e.target.checked }))}
-                className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
-              />
-              <span className="text-sm font-semibold text-gray-900">
-                ✓ {consentContent.warningBoxes.pgtNoPregnancyIncrease.checkbox}
-              </span>
-            </label>
-          </div>
 
-          {/* KEY ACKNOWLEDGMENT POINT #1 - MUST ACKNOWLEDGE */}
-          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
-            <div className="flex items-start gap-3 mb-4">
-              <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.pgtAccuracy.title}</h3>
-                <p className="text-gray-800 font-semibold">
-                  {consentContent.warningBoxes.pgtAccuracy.text}
-                </p>
+              {/* Optional: decline sample donation to research */}
+              <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={pgtsrCheckboxes.declineResearch}
+                    onChange={(e) => setPgtsrCheckboxes(prev => ({ ...prev, declineResearch: e.target.checked }))}
+                    className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
+                  />
+                  <span className="text-sm text-gray-700">
+                    {consentContent.researchDeclineOption} <span className="text-gray-400">(optional — leave unchecked to allow de-identified research use as described above)</span>
+                  </span>
+                </label>
               </div>
-            </div>
-            <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
-              <input
-                type="checkbox"
-                checked={checkboxes.keyPoint1}
-                onChange={(e) => setCheckboxes(prev => ({ ...prev, keyPoint1: e.target.checked }))}
-                className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
-              />
-              <span className="text-sm font-semibold text-gray-900">
-                ✓ {consentContent.warningBoxes.pgtAccuracy.checkbox}
-              </span>
-            </label>
-          </div>
 
-          {/* KEY ACKNOWLEDGMENT POINT #2 - MUST ACKNOWLEDGE */}
-          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
-            <div className="flex items-start gap-3 mb-4">
-              <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.noSexSelection.title}</h3>
-                <p className="text-gray-800 font-semibold">
-                  {consentContent.warningBoxes.noSexSelection.text}
-                </p>
+              {/* KEY ACKNOWLEDGMENT - PGTSR ACCURACY */}
+              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.pgtsrAccuracy.title}</h3>
+                    <p className="text-gray-800 font-semibold">
+                      {consentContent.warningBoxes.pgtsrAccuracy.text}
+                    </p>
+                  </div>
+                </div>
+                <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
+                  <input
+                    type="checkbox"
+                    checked={pgtsrCheckboxes.warningAccuracy}
+                    onChange={(e) => setPgtsrCheckboxes(prev => ({ ...prev, warningAccuracy: e.target.checked }))}
+                    className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                  />
+                  <span className="text-sm font-semibold text-gray-900">
+                    ✓ {consentContent.warningBoxes.pgtsrAccuracy.checkbox}
+                  </span>
+                </label>
               </div>
-            </div>
-            <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
-              <input
-                type="checkbox"
-                checked={checkboxes.keyPoint2}
-                onChange={(e) => setCheckboxes(prev => ({ ...prev, keyPoint2: e.target.checked }))}
-                className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
-              />
-              <span className="text-sm font-semibold text-gray-900">
-                ✓ {consentContent.warningBoxes.noSexSelection.checkbox}
-              </span>
-            </label>
-          </div>
 
-          {/* KEY ACKNOWLEDGMENT POINT #3 - LIABILITY WAIVER - MUST ACKNOWLEDGE */}
-          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
-            <div className="flex items-start gap-3 mb-4">
-              <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.liabilityWaiver.title}</h3>
-                <p className="text-gray-800 font-semibold">
-                  {consentContent.warningBoxes.liabilityWaiver.text}
-                </p>
+              {/* KEY ACKNOWLEDGMENT - LIMITED SCOPE */}
+              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.pgtsrLimitedScope.title}</h3>
+                    <p className="text-gray-800 font-semibold">
+                      {consentContent.warningBoxes.pgtsrLimitedScope.text}
+                    </p>
+                  </div>
+                </div>
+                <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
+                  <input
+                    type="checkbox"
+                    checked={pgtsrCheckboxes.warningLimitedScope}
+                    onChange={(e) => setPgtsrCheckboxes(prev => ({ ...prev, warningLimitedScope: e.target.checked }))}
+                    className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                  />
+                  <span className="text-sm font-semibold text-gray-900">
+                    ✓ {consentContent.warningBoxes.pgtsrLimitedScope.checkbox}
+                  </span>
+                </label>
               </div>
-            </div>
-            <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
-              <input
-                type="checkbox"
-                checked={checkboxes.keyPoint3}
-                onChange={(e) => setCheckboxes(prev => ({ ...prev, keyPoint3: e.target.checked }))}
-                className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
-              />
-              <span className="text-sm font-semibold text-gray-900">
-                ✓ {consentContent.warningBoxes.liabilityWaiver.checkbox}
-              </span>
-            </label>
-          </div>
 
-          {/* Legal Checkboxes */}
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Required Agreements</h2>
-            <div className="space-y-3">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={checkboxes.readUnderstood}
-                  onChange={(e) => setCheckboxes(prev => ({ ...prev, readUnderstood: e.target.checked }))}
-                  className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
-                />
-                <span className="text-sm text-gray-700">
-                  {consentContent.requiredAgreements[0]}
-                </span>
-              </label>
+              {/* KEY ACKNOWLEDGMENT - LIABILITY WAIVER */}
+              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.liabilityWaiver.title}</h3>
+                    <p className="text-gray-800 font-semibold">
+                      {consentContent.warningBoxes.liabilityWaiver.text}
+                    </p>
+                  </div>
+                </div>
+                <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
+                  <input
+                    type="checkbox"
+                    checked={pgtsrCheckboxes.warningLiability}
+                    onChange={(e) => setPgtsrCheckboxes(prev => ({ ...prev, warningLiability: e.target.checked }))}
+                    className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                  />
+                  <span className="text-sm font-semibold text-gray-900">
+                    ✓ {consentContent.warningBoxes.liabilityWaiver.checkbox}
+                  </span>
+                </label>
+              </div>
 
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={checkboxes.electronicConsent}
-                  onChange={(e) => setCheckboxes(prev => ({ ...prev, electronicConsent: e.target.checked }))}
-                  className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
-                />
-                <span className="text-sm text-gray-700">
-                  {consentContent.requiredAgreements[1]}
-                </span>
-              </label>
+              {/* Legal Checkboxes */}
+              <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Required Agreements</h2>
+                <div className="space-y-3">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pgtsrCheckboxes.readUnderstood}
+                      onChange={(e) => setPgtsrCheckboxes(prev => ({ ...prev, readUnderstood: e.target.checked }))}
+                      className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
+                    />
+                    <span className="text-sm text-gray-700">
+                      {consentContent.requiredAgreements[0]}
+                    </span>
+                  </label>
 
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={checkboxes.agreeTerms}
-                  onChange={(e) => setCheckboxes(prev => ({ ...prev, agreeTerms: e.target.checked }))}
-                  className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
-                />
-                <span className="text-sm text-gray-700">
-                  {consentContent.requiredAgreements[2]}
-                </span>
-              </label>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pgtsrCheckboxes.electronicConsent}
+                      onChange={(e) => setPgtsrCheckboxes(prev => ({ ...prev, electronicConsent: e.target.checked }))}
+                      className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
+                    />
+                    <span className="text-sm text-gray-700">
+                      {consentContent.requiredAgreements[1]}
+                    </span>
+                  </label>
 
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={checkboxes.insurancePayment}
-                  onChange={(e) => setCheckboxes(prev => ({ ...prev, insurancePayment: e.target.checked }))}
-                  className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
-                />
-                <span className="text-sm text-gray-700">
-                  {consentContent.requiredAgreements[3]}
-                </span>
-              </label>
-            </div>
-          </div>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pgtsrCheckboxes.agreeTerms}
+                      onChange={(e) => setPgtsrCheckboxes(prev => ({ ...prev, agreeTerms: e.target.checked }))}
+                      className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
+                    />
+                    <span className="text-sm text-gray-700">
+                      {consentContent.requiredAgreements[2]}
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pgtsrCheckboxes.insurancePayment}
+                      onChange={(e) => setPgtsrCheckboxes(prev => ({ ...prev, insurancePayment: e.target.checked }))}
+                      className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
+                    />
+                    <span className="text-sm text-gray-700">
+                      {consentContent.requiredAgreements[3]}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Consent Text — rendered directly from getConsentContent(), the same object
+                  that generates the PDF, so the signer always reads the complete, real
+                  consent language rather than a shortened summary. */}
+              <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Consent for Preimplantation Genetic Testing for Aneuploidy (PGT-A)</h2>
+                <div className="prose prose-sm max-w-none text-gray-700 max-h-96 overflow-y-auto border border-gray-200 rounded p-4">
+
+                  <p className="mb-4"><strong>Introduction</strong></p>
+                  <p className="mb-4">{consentContent.sections.introduction}</p>
+
+                  <p className="mb-4"><strong>Genetic Counseling</strong></p>
+                  <p className="mb-4">{consentContent.sections.geneticCounseling}</p>
+
+                  <p className="mb-4"><strong>Chromosomal Abnormalities</strong></p>
+                  <p className="mb-4">{consentContent.sections.chromosomalAbnormalities}</p>
+
+                  <p className="mb-4"><strong>Benefits of PGT-A</strong></p>
+                  <p className="mb-4">{consentContent.sections.benefits}</p>
+
+                  <p className="mb-4"><strong>Embryo Biopsy Related Risks</strong></p>
+                  <p className="mb-4">{consentContent.sections.embryoBiopsyRisks}</p>
+                  <ul className="mb-4 list-disc pl-6">
+                    {consentContent.sections.embryoBiopsyRisksList.map((risk, i) => (
+                      <li key={i}>{risk}</li>
+                    ))}
+                  </ul>
+
+                  <p className="mb-4"><strong>Fertility Center Related Risks</strong></p>
+                  <p className="mb-4">There are also risks associated with the clinical process of IVF including:</p>
+                  <ul className="mb-4 list-disc pl-6">
+                    {consentContent.sections.fertilityCenterRisks.map((risk, i) => (
+                      <li key={i}>{risk}</li>
+                    ))}
+                  </ul>
+
+                  <p className="mb-4"><strong>Technical and Analytic Risks</strong></p>
+                  <p className="mb-4">{consentContent.sections.technicalRisks}</p>
+
+                  <p className="mb-4"><strong>No Diagnosis</strong></p>
+                  <p className="mb-4">{consentContent.sections.noDiagnosis}</p>
+
+                  <p className="mb-4"><strong>Misdiagnosis</strong></p>
+                  <p className="mb-4">{consentContent.sections.misdiagnosis}</p>
+
+                  <p className="mb-4"><strong>Technical Limits of Detection</strong></p>
+                  <p className="mb-4">{consentContent.sections.technicalLimits} Ally Genetics PGT-A does not detect the following abnormalities which include but are not limited to:</p>
+                  <ul className="mb-4 list-disc pl-6">
+                    {consentContent.sections.technicalLimitsList.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+
+                  <p className="mb-4"><strong>Follow-Up Recommendation for Prenatal Diagnosis</strong></p>
+                  <p className="mb-4">{consentContent.sections.followUpRecommendation}</p>
+
+                  <p className="mb-4"><strong>Test Results and Interpretation</strong></p>
+                  <p className="mb-4">{consentContent.sections.testResults.normal}</p>
+                  <p className="mb-4">{consentContent.sections.testResults.abnormal}</p>
+                  <ul className="mb-4 list-disc pl-6">
+                    <li>{consentContent.sections.testResults.trisomy}</li>
+                    <li>{consentContent.sections.testResults.monosomy}</li>
+                    <li>{consentContent.sections.testResults.complexAbnormal}</li>
+                  </ul>
+                  <p className="mb-4">{consentContent.sections.testResults.noDiagnosis}</p>
+                  <ul className="mb-4 list-disc pl-6">
+                    <li>{consentContent.sections.testResults.insufficientDNA}</li>
+                    <li>{consentContent.sections.testResults.inconclusive}</li>
+                  </ul>
+
+                  <p className="mb-4"><strong>Mosaic Results</strong></p>
+                  <p className="mb-4">{consentContent.sections.mosaicResults}</p>
+
+                  <p className="mb-4"><strong>Alternatives to PGT-A</strong></p>
+                  <p className="mb-4">{consentContent.sections.alternatives}</p>
+
+                  <p className="mb-4"><strong>Costs</strong></p>
+                  <p className="mb-4">{consentContent.sections.costs}</p>
+
+                  <p className="mb-4"><strong>Confidentiality and HIPAA</strong></p>
+                  <p className="mb-4">{consentContent.sections.confidentiality}</p>
+
+                  <p className="mb-4"><strong>Retention of Samples</strong></p>
+                  <p className="mb-4">{consentContent.sections.retentionOfSamples}</p>
+
+                  <p className="mb-4"><strong>By signing below, I attest to the following:</strong></p>
+                  <ul className="mb-4 list-disc pl-6">
+                    {consentContent.sections.attestations.map((attestation, i) => (
+                      <li key={i}>{attestation}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* KEY ACKNOWLEDGMENT - PGT WILL NOT INCREASE PREGNANCY CHANCES */}
+              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.pgtNoPregnancyIncrease.title}</h3>
+                    <p className="text-gray-800 font-semibold">
+                      {consentContent.warningBoxes.pgtNoPregnancyIncrease.text}
+                    </p>
+                  </div>
+                </div>
+                <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
+                  <input
+                    type="checkbox"
+                    checked={checkboxes.keyPointPregnancy}
+                    onChange={(e) => setCheckboxes(prev => ({ ...prev, keyPointPregnancy: e.target.checked }))}
+                    className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                  />
+                  <span className="text-sm font-semibold text-gray-900">
+                    ✓ {consentContent.warningBoxes.pgtNoPregnancyIncrease.checkbox}
+                  </span>
+                </label>
+              </div>
+
+              {/* KEY ACKNOWLEDGMENT POINT #1 - MUST ACKNOWLEDGE */}
+              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.pgtAccuracy.title}</h3>
+                    <p className="text-gray-800 font-semibold">
+                      {consentContent.warningBoxes.pgtAccuracy.text}
+                    </p>
+                  </div>
+                </div>
+                <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
+                  <input
+                    type="checkbox"
+                    checked={checkboxes.keyPoint1}
+                    onChange={(e) => setCheckboxes(prev => ({ ...prev, keyPoint1: e.target.checked }))}
+                    className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                  />
+                  <span className="text-sm font-semibold text-gray-900">
+                    ✓ {consentContent.warningBoxes.pgtAccuracy.checkbox}
+                  </span>
+                </label>
+              </div>
+
+              {/* KEY ACKNOWLEDGMENT POINT #2 - MUST ACKNOWLEDGE */}
+              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.noSexSelection.title}</h3>
+                    <p className="text-gray-800 font-semibold">
+                      {consentContent.warningBoxes.noSexSelection.text}
+                    </p>
+                  </div>
+                </div>
+                <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
+                  <input
+                    type="checkbox"
+                    checked={checkboxes.keyPoint2}
+                    onChange={(e) => setCheckboxes(prev => ({ ...prev, keyPoint2: e.target.checked }))}
+                    className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                  />
+                  <span className="text-sm font-semibold text-gray-900">
+                    ✓ {consentContent.warningBoxes.noSexSelection.checkbox}
+                  </span>
+                </label>
+              </div>
+
+              {/* KEY ACKNOWLEDGMENT POINT #3 - LIABILITY WAIVER - MUST ACKNOWLEDGE */}
+              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg shadow-md p-6 mb-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{consentContent.warningBoxes.liabilityWaiver.title}</h3>
+                    <p className="text-gray-800 font-semibold">
+                      {consentContent.warningBoxes.liabilityWaiver.text}
+                    </p>
+                  </div>
+                </div>
+                <label className="flex items-start gap-3 cursor-pointer bg-white p-4 rounded border-2 border-yellow-400">
+                  <input
+                    type="checkbox"
+                    checked={checkboxes.keyPoint3}
+                    onChange={(e) => setCheckboxes(prev => ({ ...prev, keyPoint3: e.target.checked }))}
+                    className="mt-1 w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                  />
+                  <span className="text-sm font-semibold text-gray-900">
+                    ✓ {consentContent.warningBoxes.liabilityWaiver.checkbox}
+                  </span>
+                </label>
+              </div>
+
+              {/* Legal Checkboxes */}
+              <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Required Agreements</h2>
+                <div className="space-y-3">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={checkboxes.readUnderstood}
+                      onChange={(e) => setCheckboxes(prev => ({ ...prev, readUnderstood: e.target.checked }))}
+                      className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
+                    />
+                    <span className="text-sm text-gray-700">
+                      {consentContent.requiredAgreements[0]}
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={checkboxes.electronicConsent}
+                      onChange={(e) => setCheckboxes(prev => ({ ...prev, electronicConsent: e.target.checked }))}
+                      className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
+                    />
+                    <span className="text-sm text-gray-700">
+                      {consentContent.requiredAgreements[1]}
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={checkboxes.agreeTerms}
+                      onChange={(e) => setCheckboxes(prev => ({ ...prev, agreeTerms: e.target.checked }))}
+                      className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
+                    />
+                    <span className="text-sm text-gray-700">
+                      {consentContent.requiredAgreements[2]}
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={checkboxes.insurancePayment}
+                      onChange={(e) => setCheckboxes(prev => ({ ...prev, insurancePayment: e.target.checked }))}
+                      className="mt-1 w-4 h-4 text-ally-teal border-gray-300 rounded focus:ring-ally-teal"
+                    />
+                    <span className="text-sm text-gray-700">
+                      {consentContent.requiredAgreements[3]}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* My Signature Below Indicates — same attestation list embedded in the PDF's
               signature page, now shown here too so nothing is signed "sight unseen." */}
